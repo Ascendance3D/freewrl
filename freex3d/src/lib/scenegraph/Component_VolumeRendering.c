@@ -1476,9 +1476,13 @@ void render_GENERIC_volume_data(s_shader_capabilities_t *caps, struct X3D_Node *
 		for(i=0;i<nstyle;i++)
 			fin_volumestyle(renderStyle[i],node);
 	}
+	//the volume's bounding-box triangles (node->_boxtris, and dataParent->_boxtris in the
+	//blended-style pass above) were drawn outside child_Shape/clearDraw: end the GLCore
+	//client-pointer batch here so fw_Vertex does not stay pointed at them
+	fw_core_glEndDrawBatch();
 	once = 1;
 
-} 
+}
 
 void child_SegmentedVolumeData(struct X3D_SegmentedVolumeData *node){
 	// http://www.web3d.org/documents/specifications/19775-1/V3.3/Part01/components/volume.html#SegmentedVolumeData

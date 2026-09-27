@@ -11,6 +11,8 @@
   enabled: pointing at a smaller buffer, or at client memory (sometimes a stack array) that
   is gone. Each draw therefore enables only the arrays the current program reads; the rest
   are disabled for that draw, and their stale pointers are neither streamed nor fetched.
+  Client pointers live only as long as their draw batch: clearDraw() and the direct draw
+  paths call fw_core_glEndDrawBatch(), which forgets them (see there).
   - a few GL 4.3+/4.5 calls macOS does not have (it stops at 4.1).
   - GL_LUMINANCE_ALPHA textures (font and HUD atlases): uploaded as GL_RG8 with a swizzle.
 
@@ -185,22 +187,35 @@ void fw_core_glBindVertexArray(GLuint vao){
 	if(!default_vao) default_vao = vao;
 	other_vao = vao != default_vao;
 }
-/* end of a draw batch (clearDraw): the shape/geometry just drawn is finished, so drop the
-   library's per-attribute enable intent for the tracked default VAO. FreeWRL enables the
-   arrays a geometry supplies but never disables the ones it omits (sendAttribToGPU), so
-   without this an array a shape stopped supplying (e.g. a PointSet's per-vertex colour) stays
-   enabled into the next shape whenever that shape's program still has the same location
-   active. program_mask() cannot tell that the next geometry supplied no such array, so
-   sync_enabled would keep it enabled and stream its now-stale (smaller, or freed) client
-   pointer against the next geometry's vertex count -> out-of-bounds read. Clearing the intent
-   here lets the next shape's sync_enabled see the array is no longer wanted and disable it
-   before the draw. Only the logical enable flags are cleared: gl_enabled is left as-is (so the
-   next sync_enabled still knows which GL arrays are on and disables the newly-unwanted ones),
-   and stream VBOs, pointer metadata, the program mask cache, current_program/current_mask and
-   all non-default VAO state are untouched. No GL call is issued; the disable happens lazily in
-   the next sync_enabled, after the whole batch's queued draws have run. */
+/* End of a draw batch. A batch is one logical drawing operation whose client-memory arrays
+   all stay alive until it ends: a Shape (clearDraw, after reallyDrawOnce ran its queued
+   draws), or a direct draw such as the HUD text/buttons/cursor, a fiducial, a bounding box or
+   a text panel. A batch may issue several draws from one pointer (HUD glyph loops, fiducial
+   line strips); nothing here runs between them.
+
+   The client pointers are only valid for the batch: most direct draws keep their vertex arrays
+   on the stack. FreeWRL enables the arrays a batch supplies but never disables the ones it
+   omits (sendAttribToGPU, the HUD), so without this boundary both the enable intent and the
+   pointer of an array the next batch does not supply leak into it whenever its program has the
+   same location active (a HUD location that is the ubershader's colour or normal slot, a
+   PointSet colour array into a Box). program_mask() cannot tell that the next batch supplied
+   no such array, so sync_enabled would keep it enabled and upload_client_attribs would copy
+   the dead stack array (or a smaller/freed heap one) against the next batch's vertex count:
+   an AddressSanitizer stack-buffer-underflow or heap overflow read.
+
+   So both are dropped for the tracked default-VAO attributes: enabled = 0 lets the next
+   sync_enabled see the array is no longer wanted and disable it before the draw; pointer =
+   NULL makes a leaked location unstreamable even if it is still enabled in GL, and stops the
+   dead address being copied. A later batch that reads the location must set a pointer again
+   (every FreeWRL draw path does). Everything else is kept: gl_enabled (the next sync_enabled
+   still knows which GL arrays are on and disables the newly-unwanted ones), the stream VBOs,
+   the program mask cache, current_program/current_mask, and all non-default VAO state
+   (other_vao draws never touch these entries). No GL call is issued. */
 void fw_core_glEndDrawBatch(void){
-	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++) attribs[i].enabled = 0;
+	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++){
+		attribs[i].enabled = 0;
+		attribs[i].pointer = NULL;
+	}
 }
 /* before a draw: GL enables exactly the arrays the library enabled and the program reads */
 static void sync_enabled(void){

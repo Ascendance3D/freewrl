@@ -330,16 +330,17 @@ void fiducialDrawB(int cursortype, int x, int y)
 			p[i][0] = line->p[i*2]*aspect + fxy.x;
 			p[i][1] = line->p[i*2 + 1] + fxy.y;
 		}
-		glVertexAttribPointer (positionLoc, 2, GL_FLOAT, 
+		glVertexAttribPointer (positionLoc, 2, GL_FLOAT,
 							   GL_FALSE, 0, p );
 		glDrawArrays(GL_LINE_STRIP,0,line->n);
 		k++;
 		line = &cur[k];
 	}
-	
+
 	FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+	fw_core_glEndDrawBatch(); //p is a stack array reused by every line strip above: batch ends here
 
 	glEnable(GL_DEPTH_TEST);
 	FW_GL_DEPTHMASK(GL_TRUE);
@@ -399,13 +400,14 @@ void fiducialDraw(int ID, int x, int y, float angleDeg)
 	//FW_GL_VERTEX_POINTER(2, GL_FLOAT, 0, (GLfloat *)p);
 	//sendArraysToGPU(GL_LINE_STRIP, 0, 3);
 	positionLoc =  scap->Vertices; //glGetAttribLocation ( shader, "fw_Vertex" );
-	glVertexAttribPointer (positionLoc, 2, GL_FLOAT, 
+	glVertexAttribPointer (positionLoc, 2, GL_FLOAT,
 						   GL_FALSE, 0, p );
 	glDrawArrays(GL_LINE_STRIP,0,3);
 
 	FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+	fw_core_glEndDrawBatch(); //p is a stack array: batch ends here
 
 	glEnable(GL_DEPTH_TEST);
 	FW_GL_DEPTHMASK(GL_TRUE);
@@ -527,6 +529,7 @@ void cursorDraw(int ID, int x, int y, float angle)
 	FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+	fw_core_glEndDrawBatch(); //cursorVert2 is a stack array: batch ends here
 
 	glEnable(GL_DEPTH_TEST);
 	FW_GL_DEPTHMASK(GL_TRUE);
