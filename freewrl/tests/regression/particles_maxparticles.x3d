@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.3//EN" "http://www.web3d.org/specifications/x3d-3.3.dtd">
+<X3D profile='Full' version='3.3'>
+  <head>
+    <component name='ParticleSystems' level='3'/>
+    <meta name='description' content='Regression: ParticleSystem maxParticles raised at run time. The system starts with maxParticles 4; after 20 frames a Script raises it to 2000, so compile_ParticleSystem grows the particle Vector and the emitter then fills it. FreeWRL 6.7 grew the Vector to 2000 bytes instead of 2000 particles (heap overflow). geometryType CHILD (a FreeWRL value) keeps compile_Shape off this node: on the other geometry types compile_Shape, called through an X3D_Shape cast, clears enabled and createParticles, so no particle is ever created. Nothing is drawn. Pass: the Script prints PARTICLES_MAXPARTICLES_RAISED and then PARTICLES_MAXPARTICLES_READBACK max=2000, no crash and no AddressSanitizer report.'/>
+  </head>
+  <Scene>
+    <Background skyColor='0.1 0.1 0.2'/>
+    <Viewpoint position='0 1 6' description='front'/>
+    <ParticleSystem DEF='PS' geometryType='CHILD' maxParticles='4' particleLifetime='1' lifetimeVariation='0' particleSize='0.05 0.05'>
+      <PointEmitter containerField='emitter' direction='0 1 0' speed='1' variation='0.5'/>
+    </ParticleSystem>
+    <TimeSensor DEF='T' cycleInterval='1' loop='true'/>
+    <Script DEF='S'>
+      <field accessType='inputOnly' name='tick' type='SFTime'/>
+      <field accessType='outputOnly' name='maxOut' type='SFInt32'/>
+      <field accessType='initializeOnly' name='frames' type='SFInt32' value='0'/>
+      <field accessType='initializeOnly' name='ps' type='SFNode'>
+        <ParticleSystem USE='PS'/>
+      </field>
+<![CDATA[javascript:
+function tick(v, t) {
+	frames = frames + 1;
+	if (frames == 20) {
+		print('PARTICLES_MAXPARTICLES_RAISED from=' + ps.maxParticles + ' to=2000');
+		maxOut = 2000;
+	}
+	if (frames == 40) print('PARTICLES_MAXPARTICLES_READBACK max=' + ps.maxParticles);
+}
+]]>
+    </Script>
+    <ROUTE fromNode='T' fromField='time' toNode='S' toField='tick'/>
+    <ROUTE fromNode='S' fromField='maxOut' toNode='PS' toField='set_maxParticles'/>
+  </Scene>
+</X3D>
