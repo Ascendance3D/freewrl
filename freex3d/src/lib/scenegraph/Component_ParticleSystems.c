@@ -548,7 +548,7 @@ void compile_ParticleSystem(struct X3D_ParticleSystem *node){
 	_particles = node->_particles;
 	if(_particles->allocn < maxparticles) {
 		//resize /realloc vector, set nalloc, in case someone changed maxparticles on the fly
-		_particles->data = realloc(_particles->data,maxparticles);
+		_particles->data = REALLOC(_particles->data,(size_t)maxparticles * sizeof(particle));
 		_particles->allocn = maxparticles;
 	}
 
