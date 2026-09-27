@@ -40,9 +40,9 @@ if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.
 	PROTO='gc_broto_instance|startOfLoopNodeUpdates|getTypeNode|hasSiblingAffectorField|walk_fields|freeMallocedNodeFields|deleteVector_'
-	FRUSTUM='in extent6f_union_extent6f Frustum.c'
-	VECTOR='in vector_removeElement Vector.c'
-	GLCORE='in upload_client_attribs GLCoreCompat.c|in fw_core_glDraw(Arrays|Elements) GLCoreCompat.c'
+	FRUSTUM='extent6f_union_extent6f Frustum.c'
+	VECTOR='vector_removeElement Vector.c'
+	GLCORE='upload_client_attribs GLCoreCompat.c|fw_core_glDraw(Arrays|Elements) GLCoreCompat.c'
 	cat "$OUT"/asan.* 2>/dev/null | grep '^SUMMARY' | sort | uniq -c > "$OUT/asan-summary.txt"
 	cat "$OUT"/asan.* 2>/dev/null | awk '
 		/^==[0-9]+==ERROR: AddressSanitizer:/ { if (kind != "") print kind, frame; kind=$3; frame="(no FreeWRL frame)"; found=0; next }
