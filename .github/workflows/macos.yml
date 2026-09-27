@@ -1,7 +1,8 @@
 name: macOS Apple Silicon CI
 # Supported: macOS 14 Sonoma and newer on Apple Silicon. Everything here targets
-# MACOSX_DEPLOYMENT_TARGET=14.0 and runs on GitHub's arm64 macOS 14 and 15 runners.
-#  build:    FreeType, ODE and freealut from their pinned source archives into an empty prefix,
+# MACOSX_DEPLOYMENT_TARGET=14.0. Routine CI (push, pull_request, normal and deep profiles) runs
+# only on GitHub's arm64 macOS 14 runners; macOS 15 is used only by the diagnostic profile.
+#  build:    on macOS 14: FreeType, ODE and freealut from their pinned source archives into an empty prefix,
 #            Release and Debug builds, the standalone package (ad-hoc signed), verify.py
 #  runtime:  the same package on macOS 14 (the supported minimum and the canonical routine
 #            runtime): smoke fixtures, then (only when smoke passed) world-replacement cycles and
@@ -46,7 +47,7 @@ env:
   PROFILE: ${{ github.event.inputs.profile || 'normal' }}
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
