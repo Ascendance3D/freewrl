@@ -1,11 +1,38 @@
-# FreeWRL on macOS (Apple Silicon): develop port status
+# FreeWRL on macOS (Apple Silicon): port status
 
-Fork: https://github.com/Ascendance3D/freewrl, branch `macos-arm64-develop-port` (local candidate, not pushed).
+Fork: https://github.com/Ascendance3D/freewrl. The Apple Silicon port is on the maintained `master` trunk (the single canonical branch; the old `develop` integration line was retired).
 Base: upstream SourceForge `develop` @ `b3254b11e` (2024-04-20, "Version 6.7", FreeWRL 6.7.0).
 Reference: branch `macos-arm64` ([PR #1](https://github.com/DJAscendance/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
-Tested on: MacBook Pro M1 (Retina, backing scale 2), macOS 27.0, Xcode 27.0, Homebrew. Last updated 2026-09-25.
+Development machine: MacBook Pro M1 (8 GB, Retina), macOS 27.0, Xcode 27.0; builds and static checks only. Runtime evidence for the packaged app comes from GitHub Actions (macOS 14 and 15, Apple Silicon). Last updated 2026-09-27.
 
 Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verified · ⛔ unsupported on macOS · ❔ unresolved · ❌ broken
+
+## Support policy
+
+**Supported: macOS 14 Sonoma and newer on Apple Silicon.**
+
+| | |
+| --- | --- |
+| supported | macOS 14 Sonoma, macOS 15, and newer macOS versions once CI has run on them |
+| architecture | arm64 only |
+| not a release target | Intel (x86_64) Macs; macOS 13 Ventura and older |
+| tested continuously | [`.github/workflows/macos.yml`](.github/workflows/macos.yml) (Node-24 Actions): the packaged app on GitHub's macOS 14 and macOS 15 arm64 runners |
+
+Earlier development targeted macOS 13, but the supported minimum is macOS 14 because Sonoma is the oldest Apple Silicon environment in the continuous CI test matrix. Everything is built with `MACOSX_DEPLOYMENT_TARGET=14.0`; no binary is patched to claim an older macOS.
+
+## Current status (2026-09-27)
+
+| | item | evidence |
+| --- | --- | --- |
+| ✅ | Canonical trunk | `master` is the single maintained branch; the Apple Silicon work is merged into it |
+| ✅ | Runtime gate (PR #15) | PASS on the CI runtime gate |
+| ✅ | AddressSanitizer | total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean) |
+| ✅ | macOS 14 runtime | PASS (GitHub Actions arm64 runner) |
+| ✅ | macOS 15 runtime | PASS (GitHub Actions arm64 runner) |
+| ✅ | Package static verify | PASS (`verify.py --macos 14.0`) |
+| 🟡 | Public signed/notarized beta | packaging tooling is complete and tested; no public beta has been published yet |
+
+Texture decoder on macOS: **stb_image** (compiled in; `HAVE_IMLIB2` off). The packaged app links only FreeType, ODE and freealut and uses Apple's `OpenAL.framework`; it needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time. See [Standalone packaging](#standalone-packaging).
 
 ## macOS limits
 
@@ -45,9 +72,12 @@ Every emulated call, what it replaces and what happens when it can't be done. Ev
 | --- | --- | --- |
 | ✅ | Release arm64, clean | `xcodebuild -project OSX_gui/FreeWRL-Desktop/FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- -derivedDataPath <dir> clean build` → exit 0 |
 | ✅ | Debug arm64, clean | same with `-configuration Debug` → exit 0 |
-| ✅ | Homebrew dylibs | ode, ffmpeg (avcodec 63, avformat 63, avutil 61, swscale 10, swresample 7), openal-soft, freealut, imlib2, freetype |
-| ❌ | Standalone / distributable app | links `/opt/homebrew`; the dylibs are built for macOS 27 while the app targets 13.0 (10 `ld` warnings); needs bundling, a matching deployment target and signing |
-| ❔ | ffmpeg linked but unused | `MOVIETEXTURE_FFMPEG` is off |
+| ✅ | Linked libraries | FreeType, ODE, freealut (from `FW_DEPS`: a `tools/macos-deps` prefix, or Homebrew for local development) and Apple frameworks; Imlib2 replaced by stb_image, openal-soft by `OpenAL.framework` |
+| ✅ | Deployment target | 14.0 in every `FreeWRL.xcodeproj` configuration; built with `MACOSX_DEPLOYMENT_TARGET=14.0` |
+| ✅ | Self-contained app | `tools/macos-package/package.sh`: macOS 14+, no Homebrew at run time. See [Standalone packaging](#standalone-packaging) |
+| ✅ | ffmpeg no longer linked | it was linked but no symbol was imported (`MOVIETEXTURE_FFMPEG` is off); removed |
+
+*Historical:* an earlier candidate linked Homebrew dylibs (ode, ffmpeg, openal-soft, freealut, imlib2, freetype) built for macOS 27 while the app targeted 13.0 (10 `ld` warnings), and was not distributable. That blocker is resolved: libraries are built from source for macOS 14 by `tools/macos-deps/build.sh` and embedded.
 
 ### Warnings (clean Release build)
 
@@ -79,7 +109,8 @@ Fixtures are in `freewrl/tests/regression/` (see its README); each states what a
 | ❔ | GeneratedCubeMapTexture | `cubemap_generated.x3d`: the scene renders and the framebuffer reports complete with no GL errors, but the sphere shows no reflection (black). The `macos-arm64` (master) build also shows it black. Not resolved |
 | ✅ | Shadows, spot and point light | `shadows_spot.x3d`, `shadows_point.x3d`: the box casts a shadow on the floor; no shader or GL errors; later frames render normally |
 | 🟡 | Shadows, directional light | `shadows_directional.x3d`: renders with the box shadow, but floor areas outside the light's shadow map come out black. Upstream samples with `GL_CLAMP_TO_BORDER` and no border colour (depth 0 = in shadow); upstream describes directional shadows as partly working. Not a macOS issue, not redesigned |
-| ✅ | Image formats | `texture_formats.wrl`: JPEG, PNG and GIF textures all show |
+| ✅ | Image formats | stb_image (Imlib2 is not used on macOS). `texture_formats.wrl`: JPEG, PNG, GIF; `texture_formats_stb.wrl`: BMP, TGA, PSD, PPM, HDR |
+| ⛔ | TIFF, WebP textures | not decoded on macOS (stb_image has no decoder): `failed to load image`, the shape is drawn untextured, no crash (`texture_unsupported_mac.wrl`). No FreeWRL test world uses either format |
 | ✅ | `.wrl`, `.x3d`, HTTP, Inline | tests/1.wrl and 1.x3d from disk; all harness worlds over HTTP; Inline in tests/16.wrl |
 | ✅ | HUD layout | one row of 21 buttons at: Retina, 672-pt window (was two rows); Retina, 1200×800-pt window (full-size buttons, room to spare); non-Retina (app copy with `NSHighResolutionCapable` off), 672-px window |
 | ✅ | HUD hit targets | drawing and hit testing use the same per-frame geometry; left, centre and right HUD buttons respond to real clicks on Retina, no hit offset (targeted QA on `32caaa36a`) |
@@ -133,6 +164,19 @@ Clean Release build vs X_ITE (`tools/visual-test/compare.sh`); match = normalize
 
 Two REGRESSION rows remain on purpose: they are real differences from the reference, explained above, and not relabelled.
 
+## Standalone packaging
+
+The packaging tooling is complete and tested; see [`tools/macos-package/README.md`](tools/macos-package/README.md) and [`THIRD-PARTY.md`](tools/macos-package/THIRD-PARTY.md).
+
+- `tools/macos-deps/build.sh` builds FreeType 2.14.3, ODE 0.16.6 (double precision, internal libccd) and freealut 1.1.0 from pinned source archives (each SHA-256 checked) for `MACOSX_DEPLOYMENT_TARGET=14.0`. freealut links Apple's `OpenAL.framework`.
+- `tools/macos-package/package.sh` builds the Release arm64 app against those libraries, embeds the three non-Apple dylibs, rewrites install names, copies license payloads, signs (ad-hoc, or Developer ID with `-r` for the hardened runtime), runs `verify.py --macos 14.0`, and can notarize, staple and produce a zip with its SHA-256.
+- `verify.py` fails if the bundle references Homebrew, `/usr/local`, MacPorts, the source tree or a temp/home path, needs a newer macOS than `--macos`, or embeds a library the build no longer uses (Imlib2, FFmpeg, OpenAL Soft). The unpackaged build fails it as a negative control.
+- The packaged app needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time.
+
+A public signed/notarized beta has not been published yet.
+
+*Historical:* an earlier candidate embedded Homebrew bottles (Imlib2 and its X11/image loaders, and more) and required macOS 27 because those bottles were built for it. That design is obsolete: libraries are now built from source for macOS 14, textures are decoded by stb_image, and the app links only FreeType, ODE and freealut.
+
 ## Fixed on this branch (upstream bugs, all platforms)
 
 - ROUTE parsing: since `7615eadcd` (Feb 2024) `node.field` lexed as one identifier, so every classic VRML ROUTE failed, and the error path aborted the parse thread (freeing uninitialized pointers).
@@ -148,6 +192,8 @@ Two REGRESSION rows remain on purpose: they are real differences from the refere
 ## Next up
 
 - [x] Verify `q`, picking, navigation, HUD clicks and tests 8/10 on Retina (targeted QA on `32caaa36a`, token `FREEWRL_6_7_MACOS_ARM64_GL41_KEYBOARD_AND_INTERACTION_QA_PASS`)
+- [x] Standalone package for macOS 14+ with libraries built from source; see [Standalone packaging](#standalone-packaging)
 - [ ] GeneratedCubeMapTexture: find why the generated faces sample black
 - [ ] Directional light shadows outside the shadow map (upstream)
-- [ ] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+; bundle dylibs, fix the deployment target, sign
+- [ ] Publish a public signed/notarized beta
+- [ ] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+ (MovieTexture)
