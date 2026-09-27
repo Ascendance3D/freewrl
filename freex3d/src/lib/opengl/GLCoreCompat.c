@@ -136,8 +136,18 @@ static unsigned program_mask(GLuint program){
 		glGetActiveAttrib(program, i, sizeof name, NULL, &size, &type, name);
 		GLint loc = glGetAttribLocation(program, name);
 		if(loc < 0) continue; /* built-ins such as gl_VertexID */
-		int rows = type == GL_FLOAT_MAT2 ? 2 : type == GL_FLOAT_MAT3 ? 3 : type == GL_FLOAT_MAT4 ? 4 : 1;
-		for(int k=0;k<rows*size && loc+k<FW_CORE_MAX_ATTRIBS;k++) mask |= 1u << (loc + k);
+		/* a matrix vertex attribute consumes one location per column (matCxR = C columns),
+		   each an array element; an array multiplies the span. gl3.h has no dmat vertex-
+		   attribute tokens the compat path meets, and FreeWRL declares none, so the default
+		   is one location. */
+		int locations;
+		switch(type){
+		case GL_FLOAT_MAT2: case GL_FLOAT_MAT2x3: case GL_FLOAT_MAT2x4: locations = 2; break;
+		case GL_FLOAT_MAT3: case GL_FLOAT_MAT3x2: case GL_FLOAT_MAT3x4: locations = 3; break;
+		case GL_FLOAT_MAT4: case GL_FLOAT_MAT4x2: case GL_FLOAT_MAT4x3: locations = 4; break;
+		default: locations = 1; break;
+		}
+		for(int k=0;k<locations*size && loc+k<FW_CORE_MAX_ATTRIBS;k++) mask |= 1u << (loc + k);
 	}
 	if(nprograms < FW_CORE_MAX_PROGRAMS){
 		programs[nprograms].program = program;
@@ -162,8 +172,13 @@ void fw_core_glLinkProgram(GLuint program){
 }
 void fw_core_glDeleteProgram(GLuint program){
 	glDeleteProgram(program);
+	/* Drop the cached mask so a recycled program id is re-scanned, but do NOT touch
+	   current_program/current_mask: GL keeps a deleted program executable while it is still
+	   current, and it still reads its original attributes. Resetting the mask to ALL_ATTRIBS
+	   here would re-enable every library-enabled location for the next draw and refetch the
+	   stale client pointers this layer exists to mask off. The state is replaced only when
+	   fw_core_glUseProgram actually switches programs. */
 	forget_program(program);
-	if(program == current_program){ current_program = 0; current_mask = ALL_ATTRIBS; }
 }
 void fw_core_glBindVertexArray(GLuint vao){
 	glBindVertexArray(vao);
@@ -186,8 +201,11 @@ static void sync_enabled(void){
 	gl_enabled = want;
 }
 static int streamed(int i){
-	/* in another VAO nothing is masked (its arrays are its own) */
-	return other_vao ? attribs[i].enabled : (gl_enabled >> i) & 1;
+	/* A non-default VAO (renderQuad) sources its own VBO-backed arrays and keeps its own
+	   enable state; the default-VAO client pointers tracked here are never streamed onto it,
+	   so uploading and rewriting its attributes is skipped entirely. */
+	if(other_vao) return 0;
+	return (gl_enabled >> i) & 1;
 }
 
 /* stream every enabled client-memory attribute covering vertices [0, nverts) into a VBO */
