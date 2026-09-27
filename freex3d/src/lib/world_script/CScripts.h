@@ -125,7 +125,7 @@ int Shader_Script_getScriptFieldCount(struct Shader_Script* script);
 struct Shader_Script* new_Shader_Script(struct X3D_Node *);
 struct Shader_Script* new_Shader_ScriptB(struct X3D_Node *);
 
-void deleteScript();
+void deleteScript(struct Shader_Script* me);
 
 /* Other members */
 /* ************* */

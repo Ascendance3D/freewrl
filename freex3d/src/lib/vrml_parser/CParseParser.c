@@ -503,8 +503,8 @@ void deleteParser(struct VRMLParser* me)
     FREE_IF_NZ (me);
 }
 
-static void parser_scopeOut_DEFUSE();
-static void parser_scopeOut_PROTO();
+static void parser_scopeOut_DEFUSE(struct VRMLParser* me);
+static void parser_scopeOut_PROTO(struct VRMLParser* me);
 void parser_destroyData(struct VRMLParser* me)
 {
 

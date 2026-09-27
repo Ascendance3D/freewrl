@@ -128,7 +128,7 @@ int ConsoleMessage(const char *fmt, ...); /* This does not belong here!! */
 //#endif
 
 /* void Anchor_ReplaceWorld(char *name); */
-bool Anchor_ReplaceWorld();
+bool Anchor_ReplaceWorld(const char *name);
 
 #define VIEWER_NONE 0	  /* would have conflicted with another NONE definition */
 #define VIEWER_EXAMINE 1
