@@ -39,18 +39,17 @@ this fork belong on this repository.
 
 | Branch | What it is |
 | --- | --- |
-| `master` | Primary maintained branch: the Ascendance Open Worlds FreeWRL 6.7 modernization line, including native Apple Silicon macOS support and this fork's merged work. It is the branch GitHub visitors see first. Before the 2026-09 promotion, `master` was an exact mirror of upstream `master` at `e99ab4a00` (2020-02-21); that commit remains the historical baseline and the merge base of the promotion. |
-| `develop` | Integration branch for active development before promotion to `master`. Based on upstream SourceForge `develop` at `b3254b11e` ("Version 6.7", 2024-04-20) plus this fork's merged work. |
+| `master` | The single canonical maintained trunk: the Ascendance Open Worlds FreeWRL 6.7 modernization line, including native Apple Silicon macOS support and this fork's merged work. All new work branches from `master` and merges back to `master`. It is the branch GitHub visitors see first. Before the 2026-09 promotion, `master` was an exact mirror of upstream `master` at `e99ab4a00` (2020-02-21); that commit remains the historical baseline. |
+| `develop` | Retired. It was the integration branch (based on upstream SourceForge `develop` at `b3254b11e`, "Version 6.7", 2024-04-20) whose tested state was promoted to `master` in 2026-09; it is no longer part of the workflow. |
 | `macos-arm64-develop-port` | The Apple Silicon port of FreeWRL 6.7, merged into `develop` through [pull request #2](https://github.com/DJAscendance/freewrl/pull/2). |
 | `macos-arm64` | An earlier Mac port of the 2020 `master` line, kept for reference. |
 
 ## Version
 
-This fork's maintained `master` line and `develop` integration branch are
-based on FreeWRL 6.7:
+This fork's maintained `master` trunk is based on FreeWRL 6.7:
 
-- SourceForge `develop` commit `b3254b11e`, the base of this fork's
-  `develop`, is titled `Version 6.7`.
+- SourceForge `develop` commit `b3254b11e`, the upstream base of this
+  fork's 6.7 line, is titled `Version 6.7`.
 - `freex3d/src/buildversion.h` reports version `6.7.0`.
 - `freex3d/versions/FREEWRL` is stale and still reports `5.0.0`.
 
@@ -66,8 +65,8 @@ based on FreeWRL 6.7:
 ## macOS Apple Silicon status
 
 **Native Apple Silicon macOS source support is available on this fork's
-maintained `master` branch and is actively integrated on `develop`.** It was
-reviewed and merged into `develop` through
+maintained `master` trunk.** It was
+reviewed and merged into the 6.7 integration line through
 [pull request #2](https://github.com/DJAscendance/freewrl/pull/2) (the original
 FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
 [pull request #7](https://github.com/DJAscendance/freewrl/pull/7).
@@ -123,8 +122,8 @@ xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL \
   -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- build
 ```
 
-Contributors working on active development should build from `develop` instead
-(`git checkout develop`).
+All development happens on `master`; start a short task branch from it
+(`git checkout master`).
 
 ### Windows
 
@@ -188,11 +187,10 @@ Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
 
 ## Contributing
 
-1. Base active development on `develop`. Tested integration states are
-   promoted from `develop` to `master`, the maintained public branch;
-   `master` is no longer the old 2020 line.
-2. Use a `feature-*` or `fix-*` branch and open a pull request against
-   `develop`.
+1. `master` is the single canonical maintained trunk (no longer the old
+   2020 line); base all new work on it.
+2. Branch a short `feature-*` or `fix-*` task branch from `master`, open a
+   pull request against `master`, and delete the task branch after it merges.
 3. Keep every platform compiling; much of the code is conditional on
    platform defines.
 4. Node definitions are generated: edit `freex3d/codegen/*.pm` and run
