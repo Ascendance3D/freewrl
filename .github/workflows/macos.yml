@@ -2,7 +2,8 @@ name: macOS Apple Silicon CI
 # Supported: macOS 14 Sonoma and newer on Apple Silicon. Everything here targets
 # MACOSX_DEPLOYMENT_TARGET=14.0. Routine CI (push, pull_request, normal and deep profiles) runs
 # only on GitHub's arm64 macOS 14 runners; macOS 15 is used only by the diagnostic profile.
-#  build:    on macOS 14: FreeType, ODE and freealut from their pinned source archives into an empty prefix,
+#  build:    on macOS 14: host-only container tests (tools/c-tests, no app launch),
+#            FreeType, ODE and freealut from their pinned source archives into an empty prefix,
 #            Release and Debug builds, the standalone package (ad-hoc signed), verify.py
 #  runtime:  the same package on macOS 14 (the supported minimum and the canonical routine
 #            runtime): smoke fixtures, then (only when smoke passed) world-replacement cycles and
@@ -53,6 +54,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: environment
         run: sw_vers; xcodebuild -version; uname -m
+      - name: host-only container tests (Vector.c, list.c; no app launch)
+        run: tools/c-tests/run-containers.sh
       - name: dependencies from source (empty prefix)
         run: |
           test ! -e "$RUNNER_TEMP/deps"
