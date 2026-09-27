@@ -2187,7 +2187,7 @@ void make_Text (struct X3D_Text *node)
 		 using platform specific code
 	DO (portable):
 	a) embed escape sequences. Capital Omega is hex CE A9 "\xCE\xA9" or octal 316 251 "\316\251"   http://calc.50x.eu/
-	b) convert from codepage to utf8 externally, and paste sequence into string:  codepage windows-1250 � = utf8 "è"  � = "é" http://www.motobit.com/util/charset-codepage-conversion.asp
+	b) convert from codepage to utf8 externally, and paste sequence into string:  codepage windows-1250 � = utf8 "è"  � = "é" http://www.motobit.com/util/charset-codepage-conversion.asp
 	   or use linux iconv
 	c) read strings from a utf8 encoded file (utf16 and utf32 files requires BOM byte order mark 
 		to determine endieness of file, utf8 does not need this mark, except your reading software needs to know
