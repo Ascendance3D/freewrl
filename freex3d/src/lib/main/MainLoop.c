@@ -2751,6 +2751,7 @@ void render_texturegrid(void *_self){
 
 	FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
+	fw_core_glEndDrawBatch(); //the grid quad is drawn: end the GLCore client-pointer batch
 
 	restoreGlobalShader();
 	FW_GL_DEPTHMASK(GL_TRUE);
@@ -3041,6 +3042,7 @@ void render_orientation(void* _self) {
 
 	FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
+	fw_core_glEndDrawBatch(); //the orientation quad is drawn: end the GLCore client-pointer batch
 
 	restoreGlobalShader();
 	FW_GL_DEPTHMASK(GL_TRUE);

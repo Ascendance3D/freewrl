@@ -6,6 +6,13 @@
   - vertex attribute and index data in client memory (no buffer bound): the HUD, Text,
     cursor, Box, lines, points, 2D geometry and particles still draw that way. We keep the
     client pointers and stream them into buffer objects at draw time.
+  FreeWRL enables attribute arrays and never disables them, and the locations mean
+  different things in different shader programs, so arrays left over from earlier draws stay
+  enabled: pointing at a smaller buffer, or at client memory (sometimes a stack array) that
+  is gone. Each draw therefore enables only the arrays the current program reads; the rest
+  are disabled for that draw, and their stale pointers are neither streamed nor fetched.
+  Client pointers live only as long as their draw batch: clearDraw() and the direct draw
+  paths call fw_core_glEndDrawBatch(), which forgets them (see there).
   - a few GL 4.3+/4.5 calls macOS does not have (it stops at 4.1).
   - GL_LUMINANCE_ALPHA textures (font and HUD atlases): uploaded as GL_RG8 with a swizzle.
 
@@ -44,6 +51,21 @@ typedef struct {
 static client_attrib attribs[FW_CORE_MAX_ATTRIBS];
 static GLuint stream_ibo = 0;
 
+/* attribute arrays enabled in GL (the default VAO), a subset of those the library enabled */
+static unsigned gl_enabled = 0;
+/* locations the current program reads (all while unknown) */
+#define ALL_ATTRIBS ((1u << FW_CORE_MAX_ATTRIBS) - 1)
+static GLuint current_program = 0;
+static unsigned current_mask = ALL_ATTRIBS;
+/* the first VAO bound is the default one (OpenGL_Utils.c); draws in another VAO (renderQuad)
+   keep their own enabled arrays and are left alone */
+static GLuint default_vao = 0;
+static int other_vao = 0;
+/* active attribute locations per program, filled on first use */
+#define FW_CORE_MAX_PROGRAMS 256
+static struct { GLuint program; unsigned mask; } programs[FW_CORE_MAX_PROGRAMS];
+static int nprograms = 0;
+
 static GLsizei type_size(GLenum type){
 	switch(type){
 	case GL_BYTE: case GL_UNSIGNED_BYTE: return 1;
@@ -59,7 +81,12 @@ static GLuint bound(GLenum binding){
 }
 
 static void set_pointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer, int integer){
-	if(index >= FW_CORE_MAX_ATTRIBS) return;
+	if(index >= FW_CORE_MAX_ATTRIBS || other_vao){
+		/* another VAO (renderQuad) sources its arrays from its own buffer */
+		if(integer) glVertexAttribIPointer(index, size, type, stride, pointer);
+		else glVertexAttribPointer(index, size, type, normalized, stride, pointer);
+		return;
+	}
 	client_attrib *a = &attribs[index];
 	if(bound(GL_ARRAY_BUFFER_BINDING) || pointer == NULL){
 		/* a buffer object is bound: pointer is an offset, core handles it */
@@ -83,12 +110,134 @@ void fw_core_glVertexAttribIPointer(GLuint index, GLint size, GLenum type, GLsiz
 	set_pointer(index, size, type, GL_FALSE, stride, pointer, 1);
 }
 void fw_core_glEnableVertexAttribArray(GLuint index){
-	if(index < FW_CORE_MAX_ATTRIBS) attribs[index].enabled = 1;
-	glEnableVertexAttribArray(index);
+	if(index >= FW_CORE_MAX_ATTRIBS || other_vao){ glEnableVertexAttribArray(index); return; }
+	/* enabled in GL at the next draw, if that draw's program reads it */
+	attribs[index].enabled = 1;
 }
 void fw_core_glDisableVertexAttribArray(GLuint index){
-	if(index < FW_CORE_MAX_ATTRIBS) attribs[index].enabled = 0;
+	if(index < FW_CORE_MAX_ATTRIBS && !other_vao){
+		attribs[index].enabled = 0;
+		gl_enabled &= ~(1u << index);
+	}
 	glDisableVertexAttribArray(index);
+}
+
+static unsigned program_mask(GLuint program){
+	GLint linked = 0, n = 0;
+	unsigned mask = 0;
+	if(program == 0) return ALL_ATTRIBS;
+	for(int i=0;i<nprograms;i++)
+		if(programs[i].program == program) return programs[i].mask;
+	glGetProgramiv(program, GL_LINK_STATUS, &linked);
+	if(!linked) return ALL_ATTRIBS; /* nothing known yet; don't cache */
+	glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &n);
+	for(GLint i=0;i<n;i++){
+		char name[256];
+		GLint size = 0;
+		GLenum type = 0;
+		glGetActiveAttrib(program, i, sizeof name, NULL, &size, &type, name);
+		GLint loc = glGetAttribLocation(program, name);
+		if(loc < 0) continue; /* built-ins such as gl_VertexID */
+		/* a matrix vertex attribute consumes one location per column (matCxR = C columns),
+		   each an array element; an array multiplies the span. gl3.h has no dmat vertex-
+		   attribute tokens the compat path meets, and FreeWRL declares none, so the default
+		   is one location. */
+		int locations;
+		switch(type){
+		case GL_FLOAT_MAT2: case GL_FLOAT_MAT2x3: case GL_FLOAT_MAT2x4: locations = 2; break;
+		case GL_FLOAT_MAT3: case GL_FLOAT_MAT3x2: case GL_FLOAT_MAT3x4: locations = 3; break;
+		case GL_FLOAT_MAT4: case GL_FLOAT_MAT4x2: case GL_FLOAT_MAT4x3: locations = 4; break;
+		default: locations = 1; break;
+		}
+		for(int k=0;k<locations*size && loc+k<FW_CORE_MAX_ATTRIBS;k++) mask |= 1u << (loc + k);
+	}
+	if(nprograms < FW_CORE_MAX_PROGRAMS){
+		programs[nprograms].program = program;
+		programs[nprograms].mask = mask;
+		nprograms++;
+	}
+	return mask;
+}
+static void forget_program(GLuint program){
+	for(int i=0;i<nprograms;i++)
+		if(programs[i].program == program){ programs[i] = programs[--nprograms]; break; }
+}
+void fw_core_glUseProgram(GLuint program){
+	glUseProgram(program);
+	current_program = program;
+	current_mask = program_mask(program);
+}
+void fw_core_glLinkProgram(GLuint program){
+	glLinkProgram(program);
+	forget_program(program);
+	if(program == current_program) current_mask = program_mask(program);
+}
+void fw_core_glDeleteProgram(GLuint program){
+	glDeleteProgram(program);
+	/* Drop the cached mask so a recycled program id is re-scanned, but do NOT touch
+	   current_program/current_mask: GL keeps a deleted program executable while it is still
+	   current, and it still reads its original attributes. Resetting the mask to ALL_ATTRIBS
+	   here would re-enable every library-enabled location for the next draw and refetch the
+	   stale client pointers this layer exists to mask off. The state is replaced only when
+	   fw_core_glUseProgram actually switches programs. */
+	forget_program(program);
+}
+void fw_core_glBindVertexArray(GLuint vao){
+	glBindVertexArray(vao);
+	if(!default_vao) default_vao = vao;
+	other_vao = vao != default_vao;
+}
+/* End of a draw batch. A batch is one logical drawing operation whose client-memory arrays
+   all stay alive until it ends: a Shape (clearDraw, after reallyDrawOnce ran its queued
+   draws), or a direct draw such as the HUD text/buttons/cursor, a fiducial, a bounding box or
+   a text panel. A batch may issue several draws from one pointer (HUD glyph loops, fiducial
+   line strips); nothing here runs between them.
+
+   The client pointers are only valid for the batch: most direct draws keep their vertex arrays
+   on the stack. FreeWRL enables the arrays a batch supplies but never disables the ones it
+   omits (sendAttribToGPU, the HUD), so without this boundary both the enable intent and the
+   pointer of an array the next batch does not supply leak into it whenever its program has the
+   same location active (a HUD location that is the ubershader's colour or normal slot, a
+   PointSet colour array into a Box). program_mask() cannot tell that the next batch supplied
+   no such array, so sync_enabled would keep it enabled and upload_client_attribs would copy
+   the dead stack array (or a smaller/freed heap one) against the next batch's vertex count:
+   an AddressSanitizer stack-buffer-underflow or heap overflow read.
+
+   So both are dropped for the tracked default-VAO attributes: enabled = 0 lets the next
+   sync_enabled see the array is no longer wanted and disable it before the draw; pointer =
+   NULL makes a leaked location unstreamable even if it is still enabled in GL, and stops the
+   dead address being copied. A later batch that reads the location must set a pointer again
+   (every FreeWRL draw path does). Everything else is kept: gl_enabled (the next sync_enabled
+   still knows which GL arrays are on and disables the newly-unwanted ones), the stream VBOs,
+   the program mask cache, current_program/current_mask, and all non-default VAO state
+   (other_vao draws never touch these entries). No GL call is issued. */
+void fw_core_glEndDrawBatch(void){
+	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++){
+		attribs[i].enabled = 0;
+		attribs[i].pointer = NULL;
+	}
+}
+/* before a draw: GL enables exactly the arrays the library enabled and the program reads */
+static void sync_enabled(void){
+	unsigned want = 0, diff;
+	if(other_vao) return;
+	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++)
+		if(attribs[i].enabled) want |= 1u << i;
+	want &= current_mask;
+	diff = want ^ gl_enabled;
+	for(int i=0;diff;i++,diff>>=1){
+		if(!(diff & 1)) continue;
+		if(want & (1u << i)) glEnableVertexAttribArray(i);
+		else glDisableVertexAttribArray(i);
+	}
+	gl_enabled = want;
+}
+static int streamed(int i){
+	/* A non-default VAO (renderQuad) sources its own VBO-backed arrays and keeps its own
+	   enable state; the default-VAO client pointers tracked here are never streamed onto it,
+	   so uploading and rewriting its attributes is skipped entirely. */
+	if(other_vao) return 0;
+	return (gl_enabled >> i) & 1;
 }
 
 /* stream every enabled client-memory attribute covering vertices [0, nverts) into a VBO */
@@ -97,7 +246,7 @@ static void upload_client_attribs(GLsizei nverts){
 	int any = 0;
 	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++){
 		client_attrib *a = &attribs[i];
-		if(!a->enabled || !a->pointer || nverts <= 0) continue;
+		if(!streamed(i) || !a->pointer || nverts <= 0) continue;
 		if(!any){ prev = bound(GL_ARRAY_BUFFER_BINDING); any = 1; }
 		GLsizei elem = a->size * type_size(a->type);
 		GLsizei stride = a->stride ? a->stride : elem;
@@ -112,11 +261,12 @@ static void upload_client_attribs(GLsizei nverts){
 }
 static int have_client_attribs(void){
 	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++)
-		if(attribs[i].enabled && attribs[i].pointer) return 1;
+		if(streamed(i) && attribs[i].pointer) return 1;
 	return 0;
 }
 
 void fw_core_glDrawArrays(GLenum mode, GLint first, GLsizei count){
+	sync_enabled();
 	if(have_client_attribs()) upload_client_attribs(first + count);
 	glDrawArrays(mode, first, count);
 }
@@ -132,6 +282,7 @@ static GLuint max_index(GLenum type, const void *indices, GLsizei count){
 	return m;
 }
 void fw_core_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void *indices){
+	sync_enabled();
 	GLuint ebo = bound(GL_ELEMENT_ARRAY_BUFFER_BINDING);
 	if(ebo){
 		/* indices already in a buffer object; client attributes need the index range */

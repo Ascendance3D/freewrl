@@ -210,7 +210,9 @@ void vector_removeElement(int elSize,struct Vector* myp, int element)
 		if(me->data && me->n > 0 && element < me->n && element > -1) {
 			char *el0,*el1;
 			int i;
-			for(i=element;i<me->n;i++){
+			/* shift [element+1, n) down one slot; the last iteration reads element n-1,
+			   never the slot past the end */
+			for(i=element;i<me->n-1;i++){
 				el0 = (char *)(me->data) + i*elSize;
 				el1 = el0 + elSize;
 				memcpy(el0,el1,elSize);

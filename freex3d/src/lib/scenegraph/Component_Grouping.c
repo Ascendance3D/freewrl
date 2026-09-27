@@ -130,8 +130,11 @@ float * peek_group_extent(){
 }
 void union_group_extent(float *e6){
 	ppComponent_Grouping p = (ppComponent_Grouping)gglobal()->Component_Grouping.prv;
-	float *etop = peek_group_extent();
+	float *etop;
+	/* testVector reallocs the stack storage, so a pointer into it must be taken only
+	   after the realloc probe: no pointer into Vector.data may survive a testVector call. */
 	testVector(extent_t, p->group_extent_stack);
+	etop = peek_group_extent();
 	extent6f_union_extent6f(etop,e6);
 	testVector(extent_t, p->group_extent_stack);
 }

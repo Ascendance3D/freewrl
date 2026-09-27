@@ -990,6 +990,20 @@ void fw_core_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void 
 #define glDisableVertexAttribArray fw_core_glDisableVertexAttribArray
 #define glDrawArrays fw_core_glDrawArrays
 #define glDrawElements fw_core_glDrawElements
+/* each draw enables only the arrays its program reads: track programs and the VAO */
+void fw_core_glUseProgram(GLuint program);
+void fw_core_glLinkProgram(GLuint program);
+void fw_core_glDeleteProgram(GLuint program);
+void fw_core_glBindVertexArray(GLuint vao);
+#define glUseProgram fw_core_glUseProgram
+#define glLinkProgram fw_core_glLinkProgram
+#define glDeleteProgram fw_core_glDeleteProgram
+#define glBindVertexArray fw_core_glBindVertexArray
+/* clearDraw() and every direct client-array draw (HUD, cursor, fiducials, text panels,
+   bounding boxes, volume box) call this when their draw batch is complete: the batch's
+   attribute-enable intent and client pointers are dropped so a stale (often stack) array does
+   not leak into the next batch's draw (see GLCoreCompat.c) */
+void fw_core_glEndDrawBatch(void);
 
 /* fixed-function enables (GL_TEXTURE_2D, GL_FOG, texgen) are ignored, see GLCoreCompat.c */
 #define GL_TEXTURE_GEN_S               0x0C60
@@ -1034,5 +1048,10 @@ void fw_core_glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsi
 	GLint border, GLenum format, GLenum type, const void *pixels);
 #define glTexImage2D fw_core_glTexImage2D
 #endif /* FW_GL_CORE_PROFILE */
+
+#ifndef FW_GL_CORE_PROFILE
+/* no GLCore attribute tracking off the macOS core profile: draw-batch reset is a no-op */
+#define fw_core_glEndDrawBatch() ((void)0)
+#endif
 
 #endif /* __LIBFREEWRL_DISPLAY_H__ */

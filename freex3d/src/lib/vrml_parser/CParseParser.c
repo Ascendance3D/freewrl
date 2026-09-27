@@ -3840,7 +3840,10 @@ static BOOL parser_brotoStatement(struct VRMLParser* me)
 	//return NULL; //no scenegraph node created, or more precisely: nothing to link in to parent's children
 	
 	//create a ProtoDeclare
-    proto = createNewX3DNode(NODE_Proto);
+	//not registered in the node table (createNewX3DNode0), like ExternProtoDeclare and the X3D parser's ProtoDeclare:
+	//gc_broto_instance() frees __protoDeclares without unregistering them, which left a dangling pointer
+	//for startOfLoopNodeUpdates() to read and free after a world was replaced
+    proto = createNewX3DNode0(NODE_Proto);
 	//add it to the current context's list of declared protos
 	if(X3D_NODE(me->ectx)->_nodeType != NODE_Proto && X3D_NODE(me->ectx)->_nodeType != NODE_Inline )
 		printf("ouch trying to caste node type %d to proto\n",X3D_NODE(me->ectx)->_nodeType);
@@ -7497,7 +7500,9 @@ int gc_broto_instance(struct X3D_Proto* node){
 			if(!(flagExtern && !flagInstance)) //don't delete library protos - we'll get them when we delete the library
 			for(i=0;i<vectorSize(node->__protoDeclares);i++){
 				subctx = vector_get(struct X3D_Proto*,node->__protoDeclares,i);
-				//
+				//brotoInstance() copies the prototype's declarations into each instance:
+				//only the context that declared one (its __parentProto) frees it
+				if(subctx->__parentProto != X3D_NODE(node)) continue;
 				gc_broto_instance(subctx);
 				freeMallocedNodeFields(X3D_NODE(subctx));
 				FREE_IF_NZ(subctx);
@@ -7516,6 +7521,7 @@ int gc_broto_instance(struct X3D_Proto* node){
 				//Those persist beyond the coming and going of scenes and inlines and protoinstances
 				//A. externProto is a local scene proxy for a libraryscene protodeclare
 				subctx = vector_get(struct X3D_Proto*,node->__externProtoDeclares,i);
+				if(subctx->__parentProto != X3D_NODE(node)) continue; //copied into an instance, see above
 				gc_broto_instance(subctx);
 				freeMallocedNodeFields(X3D_NODE(subctx));
 				FREE_IF_NZ(subctx);

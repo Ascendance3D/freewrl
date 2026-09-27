@@ -812,7 +812,7 @@ void printString3_old(GLfloat sx, GLfloat sy, char *s, int len)
 	//FREE(tex);
 	//FREE(ind);
 
-
+	fw_core_glEndDrawBatch(); //the alloca arrays die with this frame (GLCore client pointers)
 }
 void printString3(GLfloat sx, GLfloat sy, char *s, int len)
 {
@@ -899,6 +899,9 @@ void printString3(GLfloat sx, GLfloat sy, char *s, int len)
 	//FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	//FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+	//the whole string is one draw batch (vert/tex/ind are reused per glyph and live on this
+	//stack frame): the GLCore client pointers must not outlive it
+	fw_core_glEndDrawBatch();
 }
 void printString2(GLfloat sx, GLfloat sy, char *s){
 	printString3(sx,sy,s,strlen(s));
@@ -2737,6 +2740,7 @@ void renderButtons()
 	//clean up
 	//FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	//FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
+	fw_core_glEndDrawBatch(); //all buttons drawn: end the GLCore client-pointer batch
 	p->hadString = 1;
 }
 void updateViewportSize();
@@ -2819,6 +2823,7 @@ GLfloat cursorTex[] = {
 	//FW_GL_BINDBUFFER(GL_ARRAY_BUFFER, 0);
 	//FW_GL_BINDBUFFER(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+	fw_core_glEndDrawBatch(); //cursorVert2/cursorTex/ind are stack arrays: end the batch here
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);

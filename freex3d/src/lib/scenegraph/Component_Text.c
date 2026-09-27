@@ -3528,11 +3528,14 @@ int render_captiontext(AtlasFont *font, int *utf32, int len32, vec4 color){
 				dug9gui_DrawSubImage(xpos,ypos,xsize,ysize, 
 					entry->apos.X, entry->apos.Y, entry->size.X, entry->size.Y,
 					set->atlas->size.X,set->atlas->size.Y,set->atlas->bytesperpixel,set->atlas->texture);
-				pen_x += entry->advance.X; 
+				pen_x += entry->advance.X;
 			}
 		}
 	}
 
+	//the caption is one draw batch: dug9gui_DrawSubImage streams its glyph quad from stack
+	//arrays, so the GLCore client pointers must be forgotten before this returns
+	fw_core_glEndDrawBatch();
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	restoreGlobalShader();
@@ -3761,6 +3764,9 @@ if(0) glEnableVertexAttribArray (p->texCoordLoc );
 
 // this is called in MainLoop.c
 void after_textpanel_render_rows(){
+	//the rows drawn since before_textpanel_render_rows are one draw batch (textpanel_render_row
+	//points GLCore at the panel's vertex arrays): forget those client pointers now
+	fw_core_glEndDrawBatch();
 	//restore shader
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
