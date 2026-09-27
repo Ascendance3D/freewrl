@@ -23,9 +23,9 @@ name: macOS Apple Silicon CI
 # No secrets are used; signing with a Developer ID and notarization happen outside CI.
 on:
   push:
-    branches: [develop, 'macos/**', 'ci/macos-**']
+    branches: [master, 'macos/**', 'ci/macos-**']
   pull_request:
-    branches: [develop]
+    branches: [master]
   workflow_dispatch:
     inputs:
       profile:
