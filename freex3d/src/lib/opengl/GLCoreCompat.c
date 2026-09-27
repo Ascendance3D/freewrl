@@ -185,6 +185,23 @@ void fw_core_glBindVertexArray(GLuint vao){
 	if(!default_vao) default_vao = vao;
 	other_vao = vao != default_vao;
 }
+/* end of a draw batch (clearDraw): the shape/geometry just drawn is finished, so drop the
+   library's per-attribute enable intent for the tracked default VAO. FreeWRL enables the
+   arrays a geometry supplies but never disables the ones it omits (sendAttribToGPU), so
+   without this an array a shape stopped supplying (e.g. a PointSet's per-vertex colour) stays
+   enabled into the next shape whenever that shape's program still has the same location
+   active. program_mask() cannot tell that the next geometry supplied no such array, so
+   sync_enabled would keep it enabled and stream its now-stale (smaller, or freed) client
+   pointer against the next geometry's vertex count -> out-of-bounds read. Clearing the intent
+   here lets the next shape's sync_enabled see the array is no longer wanted and disable it
+   before the draw. Only the logical enable flags are cleared: gl_enabled is left as-is (so the
+   next sync_enabled still knows which GL arrays are on and disables the newly-unwanted ones),
+   and stream VBOs, pointer metadata, the program mask cache, current_program/current_mask and
+   all non-default VAO state are untouched. No GL call is issued; the disable happens lazily in
+   the next sync_enabled, after the whole batch's queued draws have run. */
+void fw_core_glEndDrawBatch(void){
+	for(int i=0;i<FW_CORE_MAX_ATTRIBS;i++) attribs[i].enabled = 0;
+}
 /* before a draw: GL enables exactly the arrays the library enabled and the program reads */
 static void sync_enabled(void){
 	unsigned want = 0, diff;

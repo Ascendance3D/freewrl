@@ -999,6 +999,9 @@ void fw_core_glBindVertexArray(GLuint vao);
 #define glLinkProgram fw_core_glLinkProgram
 #define glDeleteProgram fw_core_glDeleteProgram
 #define glBindVertexArray fw_core_glBindVertexArray
+/* clearDraw() calls this at each draw-batch boundary to drop the per-batch attribute-enable
+   intent so a stale array does not leak into the next shape's draw (see GLCoreCompat.c) */
+void fw_core_glEndDrawBatch(void);
 
 /* fixed-function enables (GL_TEXTURE_2D, GL_FOG, texgen) are ignored, see GLCoreCompat.c */
 #define GL_TEXTURE_GEN_S               0x0C60
@@ -1043,5 +1046,10 @@ void fw_core_glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsi
 	GLint border, GLenum format, GLenum type, const void *pixels);
 #define glTexImage2D fw_core_glTexImage2D
 #endif /* FW_GL_CORE_PROFILE */
+
+#ifndef FW_GL_CORE_PROFILE
+/* no GLCore attribute tracking off the macOS core profile: draw-batch reset is a no-op */
+#define fw_core_glEndDrawBatch() ((void)0)
+#endif
 
 #endif /* __LIBFREEWRL_DISPLAY_H__ */
