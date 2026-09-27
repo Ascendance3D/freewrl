@@ -6,8 +6,11 @@
  * The item before `point` keeps its next pointer, `point` loses its original successor,
  * and the new item still points at itself, so a forward walk from the head never returns
  * to it (cdl_count and cdl_foreach would loop forever). cd_list_t has no callers in the
- * engine today. This program asserts the intended behavior and exits 1 while the defect
- * is present; fixing it is a separate change.
+ * engine today. This program asserts the intended behavior; fixing it is a separate change.
+ *
+ * Exit status: 0 = intended behavior (defect gone, retire this reproducer),
+ * KNOWN_DEFECT_EXIT (42) = defect reproduced normally. Anything else (sanitizer report,
+ * crash, signal) is an unexpected failure, and run-containers.sh treats it as one.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +21,8 @@
 #include <internal.h>
 
 #include <list.h>
+
+#define KNOWN_DEFECT_EXIT 42
 
 static int V[4] = { 0, 1, 2, 3 };
 
@@ -62,5 +67,5 @@ int main(void)
 
 	printf(failures ? "KNOWN DEFECT PRESENT: cdl_insert (%d)\n" : "cdl_insert behaves; retire this reproducer\n",
 	       failures);
-	return failures ? 1 : 0;
+	return failures ? KNOWN_DEFECT_EXIT : 0;
 }

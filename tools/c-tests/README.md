@@ -44,7 +44,10 @@ available with Apple clang on arm64 macOS, so leaks are not checked.
 ## Known defects
 
 `known_defects/` holds reproducers for behavior that looks wrong and has not been fixed.
-They exit nonzero while the defect is present and are not part of the routine run.
+They are not part of the routine run. Each exits 42 when its defect reproduces normally
+and 0 once it no longer does (then review and retire it); `--known-defects` reports
+either. Any other status, such as a sanitizer report, crash or signal, is an unexpected
+failure and makes the command exit nonzero.
 
 - `cdl_insert.c`: `cdl_insert` into a non-empty circular list corrupts the forward links
   (the new item is never reachable going forward, and walking the ring from the head

@@ -7,6 +7,9 @@
 #   tools/c-tests/run-containers.sh                  routine run (CI); nonzero on failure
 #   tools/c-tests/run-containers.sh --known-defects  also run known_defects/ reproducers
 #
+# A reproducer exits 42 when its defect reproduces normally and 0 when it no longer
+# does; any other status (sanitizer report, crash, signal) fails the run.
+#
 # Build output goes to a temporary directory that is removed on exit.
 # CC defaults to clang. The test binary (only) is built with AddressSanitizer and
 # UndefinedBehaviorSanitizer; any sanitizer report stops the run with a nonzero status.
@@ -44,7 +47,14 @@ if [ $known = 1 ]; then
 		n=$(basename "$f" .c)
 		$CC $cflags -Wall -Wextra -Werror $inc "$f" "$out/list.o" -o "$out/kd_$n"
 		echo "-- known defect: $n"
-		"$out/kd_$n" || echo "-- $n: defect reproduced (expected until fixed)"
+		rc=0
+		"$out/kd_$n" || rc=$?
+		case $rc in
+		42) echo "-- $n: known defect reproduced as expected (exit 42)" ;;
+		0) echo "-- $n: defect no longer reproduces; review and retire this reproducer" ;;
+		*) echo "-- $n: UNEXPECTED FAILURE (exit $rc; not the expected-defect status 42)"
+		   status=1 ;;
+		esac
 	done
 fi
 exit $status
