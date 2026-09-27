@@ -30,16 +30,22 @@ Every source file must be listed in the relevant `Makefile.am` / `Makefile.sourc
 
 There is no unit test suite. Test manually by loading a world: `freewrl ../freewrl/tests/1.wrl` (or any URL). On macOS, `tools/visual-test/compare.sh` renders worlds in FreeWRL and X_ITE and scores the difference (see its README). Mac port status and the verified/unverified checklist live in `MACOS-STATUS.md`; keep it current.
 
-## Build (macOS / Xcode, Apple Silicon + Homebrew)
+## Build (macOS / Xcode, Apple Silicon)
 
-The Xcode project has been adapted locally from MacPorts (`/opt/local`) to Homebrew (`/opt/homebrew`): `brew install freetype imlib2 openal-soft freealut ode ffmpeg libxml2`.
+Supported: macOS 14 Sonoma and newer on Apple Silicon (arm64). `MACOSX_DEPLOYMENT_TARGET` is 14.0 in `FreeWRL.xcodeproj`, `tools/macos-deps/build.sh` and `tools/macos-package/package.sh`; CI (`.github/workflows/macos.yml`) runs on macOS 14 and 15. Don't claim macOS 13 or Intel support.
+
+The only non-Apple libraries linked are FreeType, ODE and freealut (Apple's `OpenAL.framework` for audio). `FW_DEPS` (default `/opt/homebrew`) is where Xcode finds them; for anything distributed use a prefix from `tools/macos-deps/build.sh`, since Homebrew bottles only run on the macOS they were built for.
 
 ```sh
+tools/macos-deps/build.sh -p ~/freewrl-deps          # FreeType, ODE, freealut from pinned sources, for 14.0
 cd OSX_gui/FreeWRL-Desktop
-xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- build
+xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- FW_DEPS=$HOME/freewrl-deps build
+tools/macos-package/package.sh -D ~/freewrl-deps -z  # standalone app (see tools/macos-package/README.md)
 ```
 
-- Mac feature flags live in `OSX_gui/FreeWRL-Desktop/FreeWRL/config.h` (not `configure`). JavaScript uses bundled duktape (`JAVASCRIPT_SM` off: no mozjs17 in Homebrew). `MOVIETEXTURE_FFMPEG` is off: `MPEG_Utils_ffmpeg.c` uses ffmpeg-4 APIs removed in ffmpeg 5+.
+- Textures on macOS are decoded by stb_image (`HAVE_IMLIB2` off): JPEG, PNG, GIF (first frame), BMP, TGA, PSD, HDR, PNM; not TIFF or WebP.
+- The CI harness is `tools/macos-ci/` (lldb runner, smoke fixtures, reload cycles, texture stress, ASan gate). On the 8 GB development Mac, don't run FreeWRL locally for testing; use CI.
+- Mac feature flags live in `OSX_gui/FreeWRL-Desktop/FreeWRL/config.h` (not `configure`). JavaScript uses bundled duktape (`JAVASCRIPT_SM` off). `MOVIETEXTURE_FFMPEG` is off and FFmpeg is not linked: `MPEG_Utils_ffmpeg.c` uses ffmpeg-4 APIs removed in ffmpeg 5+.
 - `freex3d/src_aqua/fwVersion.c` is committed and takes its version from `freex3d/src/buildversion.h` (`FW_BUILD_VERSION_STR`), which is also what `libFreeWRL_get_version` in `ui/common.c` returns on AQUA. `freex3d/versions/*` is stale on `develop` (says 5.0.0).
 - New `.c` files added upstream must also be added to `FreeWRL.xcodeproj`, or linking fails with undefined symbols. Compare against `projectfiles_2022/lib/libFreeWRL.vcxproj`, which upstream keeps current.
 - Upstream builds only with MSVC, so clang rejects some `develop` code: implicit function declarations (hard errors in modern clang), taking the address of a cast. Add the missing prototype or include rather than turning the error off: an implicit declaration truncates pointer returns on arm64.

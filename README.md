@@ -71,16 +71,23 @@ reviewed and merged into the 6.7 integration line through
 FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
 [pull request #7](https://github.com/DJAscendance/freewrl/pull/7).
 
-- Release and Debug arm64 builds pass with Xcode and Homebrew libraries.
+- Supported target: **macOS 14 Sonoma and newer on Apple Silicon (arm64).**
+  Intel and macOS 13 or older are not release targets.
+- Release and Debug arm64 builds pass with Xcode. The only non-Apple libraries
+  linked are FreeType, ODE and freealut (audio uses Apple's `OpenAL.framework`);
+  textures are decoded by the bundled stb_image, not Imlib2.
 - FreeWRL runs on an OpenGL 4.1 core context on Apple Silicon (the highest
   version macOS offers). Rendering still uses OpenGL; there is no Metal
   renderer.
 - Retina interaction has been tested: keyboard hotkeys including `q` quit,
   held-key navigation, mouse picking, HUD clicks, and sensor drag.
 - VRML97 and X3D rendering tests and the Cybertown tests passed.
-- There is **no standalone downloadable Mac package yet.** The app still links
-  Homebrew runtime dylibs, so it only runs on a Mac with those libraries
-  installed.
+- The packaging tooling (`tools/macos-deps/build.sh`,
+  `tools/macos-package/package.sh`) is complete and tested: it builds a
+  self-contained, Developer ID-signed, hardened-runtime, notarizable
+  `FreeWRL.app` that runs on macOS 14+ with no Homebrew, Imlib2, FFmpeg or
+  OpenAL Soft at run time. **No public signed/notarized beta has been published
+  yet.**
 
 Current QA: the final tested Mac candidate is
 `32caaa36a845fc668c9fd36cd2cfd8b047c46733`, with interaction QA token
@@ -112,18 +119,26 @@ Useful options include `--with-target` (`x11`, `motif`), `--with-javascript`
 
 ### macOS (Apple Silicon)
 
-Build from the maintained `master` branch:
+Supported: macOS 14 Sonoma and newer on Apple Silicon (arm64). Build from the
+maintained `master` branch. The Xcode project links only FreeType, ODE and
+freealut (Apple's `OpenAL.framework` for audio); `FW_DEPS` tells Xcode where to
+find them:
 
 ```sh
-brew install freetype imlib2 openal-soft freealut ode ffmpeg libxml2
 git checkout master
+tools/macos-deps/build.sh -p ~/freewrl-deps   # FreeType, ODE, freealut from pinned sources, for macOS 14
 cd OSX_gui/FreeWRL-Desktop
 xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL \
-  -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- build
+  -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- FW_DEPS=$HOME/freewrl-deps build
 ```
 
-All development happens on `master`; start a short task branch from it
-(`git checkout master`).
+For a self-contained, signable app bundle, run
+`tools/macos-package/package.sh -D ~/freewrl-deps -z`
+(see [`tools/macos-package/README.md`](tools/macos-package/README.md)).
+For local development you can instead point `FW_DEPS` at a Homebrew prefix with
+`freetype ode freealut` installed, but a Homebrew-linked build is not
+distributable. All development happens on `master`; start a short task branch
+from it (`git checkout master`).
 
 ### Windows
 
@@ -176,7 +191,10 @@ On macOS:
 - OpenGL stops at version 4.1, and Apple has deprecated OpenGL.
 - HAnim uses CPU skinning; GPU skinning needs features newer than GL 4.1.
 - Lines are always drawn one pixel wide.
-- The app depends on Homebrew libraries and is not yet a distributable bundle.
+- TIFF and WebP textures are not decoded (stb_image has no decoder for them);
+  such a texture is drawn untextured.
+- The packaging tooling produces a self-contained, signable app, but no public
+  signed/notarized beta has been released yet.
 
 Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
 
