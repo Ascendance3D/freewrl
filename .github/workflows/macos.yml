@@ -3,8 +3,11 @@ name: macOS Apple Silicon CI
 # MACOSX_DEPLOYMENT_TARGET=14.0 and runs on GitHub's arm64 macOS 14 and 15 runners.
 #  build:    FreeType, ODE and freealut from their pinned source archives into an empty prefix,
 #            Release and Debug builds, the standalone package (ad-hoc signed), verify.py
-#  runtime:  the same package on macOS 14 and 15: smoke fixtures, then (only when smoke passed)
-#            world-replacement cycles and texture stress. One FreeWRL at a time on each runner.
+#  runtime:  the same package on macOS 14 (the supported minimum and the canonical routine
+#            runtime): smoke fixtures, then (only when smoke passed) world-replacement cycles and
+#            texture stress. One FreeWRL at a time. macOS 15 is not a routine gate; it runs only
+#            for an explicit compatibility investigation (the diagnostic profile) or release
+#            spot-check.
 #  asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
 #            fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
 #            (PROTO lifetime, Frustum extent stack, Vector, GLCore client attributes, other).
@@ -104,7 +107,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ github.event.inputs.profile == 'diagnostic' && fromJSON('["macos-15"]') || fromJSON('["macos-14", "macos-15"]') }}
+        os: ${{ github.event.inputs.profile == 'diagnostic' && fromJSON('["macos-15"]') || fromJSON('["macos-14"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
