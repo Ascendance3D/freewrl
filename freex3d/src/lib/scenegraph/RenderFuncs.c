@@ -736,6 +736,10 @@ void clearDraw(){
 	ttglobal tg = gglobal();
 	p = (ppRenderFuncs)tg->RenderFuncs.prv;
 	p->draw_call_params_stack->n = 0;
+	/* the batch's queued draws have run (reallyDrawOnce); drop the GLCore per-batch
+	   attribute-enable intent so a stale array does not leak into the next shape.
+	   No-op off the macOS OpenGL core profile. */
+	fw_core_glEndDrawBatch();
 }
 void reallyDraw(){
 	//child_Shape will call this
