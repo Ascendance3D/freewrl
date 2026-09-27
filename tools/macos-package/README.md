@@ -21,6 +21,27 @@ identity is any `codesign -s` value; the default `-` is ad-hoc.
 Needs only Xcode (its command line tools) and network access for the source
 archives. Homebrew is not used.
 
+## Document-type routing (mandatory before distributing a build)
+
+Finder double-click and `open -a FreeWRL world.wrl` route a world to FreeWRL
+through LaunchServices, not on argv. Two things must both hold or the routed
+open fails with "FreeWRL cannot open files in the … file format": the
+`CFBundleDocumentTypes` extensions must be bare (`wrl`, not `.wrl`), and the app
+delegate must implement `application:openURLs:` to hand the document to
+`dllFreeWRL_onLoad`. CI runs the static half automatically
+(`tools/macos-ci/doctypes.sh`, in the build job).
+
+The live open needs a GUI login session, which CI runners do not have, so run it
+by hand on the packaged app before signing/notarizing any build for release:
+
+```sh
+tools/macos-ci/launchservices.sh macos-package-out/FreeWRL.app   # expect LAUNCHSERVICES 7/7
+```
+
+It opens `.wrl/.wrz/.wrlz`, `.x3d/.x3dz`, `.x3dv/.x3dvz` through `open -a`, one
+FreeWRL at a time, and fails unless each routed document reaches the loader and
+renders. Do not ship a build that has not passed 7/7.
+
 ## What it does
 
 1. `tools/macos-deps/build.sh -t 14.0`: downloads FreeType 2.14.3, ODE 0.16.6

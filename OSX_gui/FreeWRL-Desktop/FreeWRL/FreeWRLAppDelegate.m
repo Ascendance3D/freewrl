@@ -7,7 +7,10 @@
 //
 
 #import "FreeWRLAppDelegate.h"
+#import "../../../freex3d/src/dllFreeWRL/cdllFreeWRL.h"
 
+// Created lazily by FWGLView when the GL context comes up; NULL until then.
+extern void *fwctx;
 
 static NSString * OperationsChangedContext = @"OperationsChangedContext";
 NSOperationQueue * _queue = nil;
@@ -72,6 +75,28 @@ static bool appRunningNow = false;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)theApplication
 {
 	return YES;
+}
+
+// A world opened from Finder (double-click) or `open -a FreeWRL world.wrl` is delivered here by
+// LaunchServices as an odoc/open Apple event, NOT on argv. Without this handler AppKit hands the
+// document to the default NSDocumentController, which has no document class for our declared types
+// and puts up "FreeWRL cannot open files in the ... file format". Feed it to the same loader the
+// Load button and the argv startup path use (dllFreeWRL_onLoad), so routed documents actually open.
+- (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls
+{
+	for (NSURL *url in urls) {
+		if (!url.isFileURL) continue;
+		NSString *path = [url.path copy];
+		// fwctx is created by the GL view a moment after launch. On a cold launch-to-open the event
+		// can arrive first, so wait (off the main thread) for the context, then load exactly once.
+		// dllFreeWRL_onLoad is already called from non-main threads elsewhere (the initializer
+		// thread and here), so this is consistent with existing use.
+		dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+			for (int i = 0; i < 1000 && !fwctx; i++) usleep(10000); // up to ~10 s for GL init
+			if (fwctx) dllFreeWRL_onLoad(fwctx, (char *)[path UTF8String]);
+			[path release];
+		});
+	}
 }
 
 @end

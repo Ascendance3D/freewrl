@@ -9,7 +9,9 @@
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>.wrl</string>
+				<string>wrl</string>
+				<string>wrz</string>
+				<string>wrlz</string>
 			</array>
 			<key>CFBundleTypeMIMETypes</key>
 			<array>
@@ -23,7 +25,8 @@
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>.x3d</string>
+				<string>x3d</string>
+				<string>x3dz</string>
 			</array>
 			<key>CFBundleTypeMIMETypes</key>
 			<array>
@@ -37,7 +40,8 @@
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>.x3dv</string>
+				<string>x3dv</string>
+				<string>x3dvz</string>
 			</array>
 			<key>CFBundleTypeMIMETypes</key>
 			<array>
