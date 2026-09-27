@@ -999,8 +999,10 @@ void fw_core_glBindVertexArray(GLuint vao);
 #define glLinkProgram fw_core_glLinkProgram
 #define glDeleteProgram fw_core_glDeleteProgram
 #define glBindVertexArray fw_core_glBindVertexArray
-/* clearDraw() calls this at each draw-batch boundary to drop the per-batch attribute-enable
-   intent so a stale array does not leak into the next shape's draw (see GLCoreCompat.c) */
+/* clearDraw() and every direct client-array draw (HUD, cursor, fiducials, text panels,
+   bounding boxes, volume box) call this when their draw batch is complete: the batch's
+   attribute-enable intent and client pointers are dropped so a stale (often stack) array does
+   not leak into the next batch's draw (see GLCoreCompat.c) */
 void fw_core_glEndDrawBatch(void);
 
 /* fixed-function enables (GL_TEXTURE_2D, GL_FOG, texgen) are ignored, see GLCoreCompat.c */

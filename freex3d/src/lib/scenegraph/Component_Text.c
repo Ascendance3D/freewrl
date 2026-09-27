@@ -2187,7 +2187,7 @@ void make_Text (struct X3D_Text *node)
 		 using platform specific code
 	DO (portable):
 	a) embed escape sequences. Capital Omega is hex CE A9 "\xCE\xA9" or octal 316 251 "\316\251"   http://calc.50x.eu/
-	b) convert from codepage to utf8 externally, and paste sequence into string:  codepage windows-1250 � = utf8 "è"  � = "é" http://www.motobit.com/util/charset-codepage-conversion.asp
+	b) convert from codepage to utf8 externally, and paste sequence into string:  codepage windows-1250 � = utf8 "è"  � = "é" http://www.motobit.com/util/charset-codepage-conversion.asp
 	   or use linux iconv
 	c) read strings from a utf8 encoded file (utf16 and utf32 files requires BOM byte order mark 
 		to determine endieness of file, utf8 does not need this mark, except your reading software needs to know
@@ -3528,11 +3528,14 @@ int render_captiontext(AtlasFont *font, int *utf32, int len32, vec4 color){
 				dug9gui_DrawSubImage(xpos,ypos,xsize,ysize, 
 					entry->apos.X, entry->apos.Y, entry->size.X, entry->size.Y,
 					set->atlas->size.X,set->atlas->size.Y,set->atlas->bytesperpixel,set->atlas->texture);
-				pen_x += entry->advance.X; 
+				pen_x += entry->advance.X;
 			}
 		}
 	}
 
+	//the caption is one draw batch: dug9gui_DrawSubImage streams its glyph quad from stack
+	//arrays, so the GLCore client pointers must be forgotten before this returns
+	fw_core_glEndDrawBatch();
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
 	restoreGlobalShader();
@@ -3761,6 +3764,9 @@ if(0) glEnableVertexAttribArray (p->texCoordLoc );
 
 // this is called in MainLoop.c
 void after_textpanel_render_rows(){
+	//the rows drawn since before_textpanel_render_rows are one draw batch (textpanel_render_row
+	//points GLCore at the panel's vertex arrays): forget those client pointers now
+	fw_core_glEndDrawBatch();
 	//restore shader
 	glEnable(GL_DEPTH_TEST);
 	glDepthMask(GL_TRUE);
