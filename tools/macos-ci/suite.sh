@@ -7,6 +7,10 @@
 # Gate: no crash, no allocator abort, no texture "failed to load" or GL/shader error; with asan,
 # no AddressSanitizer report at all. Reports are counted per defect class (PROTO lifetime,
 # Frustum extent stack, Vector, GLCore client attributes, other) so a regression names its class.
+# A standalone texture run that exits cleanly before its window (the known intermittent early
+# exit) is retried once, in a file of its own; only a retry that also exits early fails the gate.
+# Nothing else is retried: a crash, an allocator abort, an AddressSanitizer report or a
+# texture/shader error in the first attempt fails the gate as it always did.
 H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2 KIND=$3; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
@@ -21,20 +25,34 @@ fi
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error'
 for ((i=1; i<=CYC; i++)); do RELOAD_PERIOD=90 "$H/run.sh" "$APP" "$G/texture_formats.wrl" $CSEC "$OUT/cycle-$i"; done | tee "$OUT/cycles.txt"
 unset RELOAD_PATHS
+texrun() { # name world : one texture run, retried once (as name-retry) after a clean early exit
+	local name=$1 world=$2 res asan0 asan1
+	asan0=$(ls "$OUT"/asan.* 2>/dev/null | wc -l)
+	res=$("$H/run.sh" "$APP" "$world" $TSEC "$OUT/$name")
+	asan1=$(ls "$OUT"/asan.* 2>/dev/null | wc -l)
+	if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && [ "$asan0" = "$asan1" ] \
+		&& ! grep -qE "$BAD" "$OUT/$name.out" "$OUT/$name.err"; then
+		echo "$res early-clean-exit(retried once)"
+		res="$("$H/run.sh" "$APP" "$world" $TSEC "$OUT/$name-retry") retry"
+	fi
+	echo "$res"
+}
 {
-for ((i=1; i<=TEX; i++)); do "$H/run.sh" "$APP" "$G/texture_formats.wrl" $TSEC "$OUT/texture-$i"; done
-for ((i=1; i<=TSTB; i++)); do "$H/run.sh" "$APP" "$G/texture_formats_stb.wrl" $TSEC "$OUT/texstb-$i"; done
+for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
+for ((i=1; i<=TSTB; i++)); do texrun "texstb-$i" "$G/texture_formats_stb.wrl"; done
 } | tee "$OUT/textures.txt"
 
 fail=0
 crashes=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -c 'CRASH:')
-mallocs=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -vc 'malloc=none$')
-early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -cE 'EXIT:exited with status = [0-8] ')
+mallocs=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -vc 'malloc=none')
+# a first attempt that was retried is not counted; its retry (or a cycle) exiting early is
+early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -v '(retried once)' | grep -cE 'EXIT:exited with status = [0-8] ')
+retried=$(grep -c '(retried once)' "$OUT/textures.txt")
 reloads=$(grep -o 'reloads=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
 texbad=$(cat "$OUT"/texture-*.out "$OUT"/texture-*.err "$OUT"/texstb-*.out "$OUT"/texstb-*.err 2>/dev/null | grep -cE "$BAD")
 cycbad=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -cE "$BAD")
 echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs"
-echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early"
+echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
 [ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the

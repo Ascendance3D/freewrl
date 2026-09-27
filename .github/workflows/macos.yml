@@ -16,7 +16,10 @@ name: macOS Apple Silicon CI
 #          release 3 cycles x 180 s, 50 + 10 texture runs x 40 s; ASan 3 cycles x 300 s,
 #          5 + 2 texture runs x 60 s.
 #   diagnostic (workflow_dispatch profile=diagnostic, for a candidate branch before its PR):
-#          build, macOS 15 smoke only (no stress), and the normal ASan set. About 15 minutes.
+#          build, then in parallel: macOS 15 smoke only (no stress), the normal ASan set, and
+#          the focused start-up check (tools/macos-ci/startup.sh: 8.wrl started 15 times for
+#          14 s each on macOS 15, for the intermittent prep_Proto crash seen once about 7 s
+#          after launch). About 15 minutes.
 # No secrets are used; signing with a Developer ID and notarization happen outside CI.
 on:
   push:
@@ -26,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: normal = 2 cycles, 10+5 texture runs; deep = 3 cycles, 50+10; diagnostic = macOS 15 smoke + normal ASan
+        description: normal = 2 cycles, 10+5 texture runs; deep = 3 cycles, 50+10; diagnostic = macOS 15 smoke + normal ASan + 8.wrl start-up check
         type: choice
         options: [normal, deep, diagnostic]
         default: normal
@@ -140,6 +143,40 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with: {name: "runtime-${{ matrix.os }}", path: "${{ runner.temp }}/out"}
+
+  # diagnostic profile only: the focused start-up check, in parallel with smoke and ASan
+  startup:
+    needs: build
+    if: github.event.inputs.profile == 'diagnostic'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with: {name: package, path: pkg}
+      - name: unpack
+        run: |
+          sw_vers; uname -m; sudo DevToolsSecurity -enable || true
+          (cd pkg && shasum -a 256 -c FreeWRL-macos-arm64.zip.sha256)
+          ditto -x -k pkg/FreeWRL-macos-arm64.zip "$RUNNER_TEMP/app"
+      - name: 8.wrl started 15 times, 14 s each
+        run: |
+          OUT=$RUNNER_TEMP/out; mkdir -p $OUT
+          set -o pipefail
+          tools/macos-ci/startup.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT freewrl/tests/8.wrl 15 14 | tee $OUT/startup.txt
+      - name: summary
+        if: always()
+        run: |
+          OUT=$RUNNER_TEMP/out
+          { echo "### start-up check on macos-15 ($(sw_vers -productVersion), $(uname -m))"; echo '```'
+            grep -hm1 GL_RENDERER $OUT/*.err $OUT/*.out 2>/dev/null | head -1
+            cat $OUT/startup.txt 2>/dev/null; echo '```'; } >> $GITHUB_STEP_SUMMARY
+      - name: collect crash reports
+        if: always()
+        run: mkdir -p $RUNNER_TEMP/out/crash; cp ~/Library/Logs/DiagnosticReports/FreeWRL* $RUNNER_TEMP/out/crash/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with: {name: startup-macos-15, path: "${{ runner.temp }}/out"}
 
   asan:
     needs: build
