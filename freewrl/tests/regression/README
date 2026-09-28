@@ -18,6 +18,8 @@ text_fonts.wrl         Text in every FontStyle family/style (fonts read from the
 gzip_route.wrl         route_dotted.wrl, gzip-compressed (gzip -n -9) but still named .wrl, as many
                        real-world worlds are; pass: same as route_dotted.wrl (ROUTE_OK)
 gzip_proto.wrl         proto_replace.wrl, gzip-compressed; PROTO worlds read through the gunzip path
+glcore_stale_attribs.wrl  macOS GL 4.1 core: a PointSet colour array left enabled into the next frame's
+                       Background and IndexedFaceSet draws (a crash before the fix); pass: sky, grid, "stale", no crash
 particles_maxparticles.x3d  ParticleSystem maxParticles raised 4 -> 2000 at run time by a Script (particle Vector
                        was grown by bytes, not particles: heap overflow); geometryType CHILD, nothing drawn;
                        pass: READBACK max=2000, no ASan report
