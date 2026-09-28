@@ -50,7 +50,8 @@ tmp=$(mktemp -d "$tmpdir/freewrl-prepush.XXXXXX") || exit 2
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT TERM
 
-# what changed: commits since the merge-base with the base, plus uncommitted and untracked files
+# what changed: commits since the merge-base with the base, plus uncommitted and untracked files;
+# deletions are listed too, and a rename as a deletion and an addition
 if [ -n "$base" ]; then
 	g rev-parse -q --verify "$base^{commit}" >/dev/null || die "unknown base: $base"
 else
@@ -60,7 +61,7 @@ else
 fi
 mb=$([ -n "$base" ] && g merge-base HEAD "$base" 2>/dev/null)
 if [ -n "$mb" ]; then
-	{ g -c core.quotePath=false diff --name-only --diff-filter=ACMRT "$mb" --
+	{ g -c core.quotePath=false diff --name-only --no-renames --diff-filter=ACDMT "$mb" --
 	  g -c core.quotePath=false ls-files --others --exclude-standard; } | sort -u > "$tmp/changed"
 else
 	: > "$tmp/changed"; all=1
@@ -200,10 +201,11 @@ fi
 
 # 8. optional: start FreeWRL on the named fixtures, one at a time, with smoke.sh's checks
 runtime_check() {
-	local out bad bad_line f name o asan res why markers kind value nfail want_fail nasan problems=() summary=()
+	local out bad bad_line f i name o asan res why markers kind value nfail want_fail nasan problems=() summary=()
 	echo "WARNING: --runtime starts FreeWRL on this Mac under lldb: ${#fixtures[@]} fixture(s)," \
 		"one at a time, about $seconds s each. Keep other FreeWRL windows closed."
 	if ! command -v lldb >/dev/null 2>&1; then report SKIP runtime "lldb not found (tools/macos-ci/run.sh needs it)"; return; fi
+	if ! python3 -c '' >/dev/null 2>&1; then report SKIP runtime "python3 not found (it reads the CI markers)"; return; fi
 	if pgrep -x FreeWRL >/dev/null 2>&1; then
 		report SKIP runtime "not started: FreeWRL is already running (pid $(pgrep -x FreeWRL | tr '\n' ' ')); run one at a time"
 		return
@@ -211,16 +213,17 @@ runtime_check() {
 	out=$(mktemp -d "$tmpdir/freewrl-prepush-runtime.XXXXXX")
 	bad=$(sed -n "s/^BAD='\(.*\)'\$/\1/p" "$here/smoke.sh" | head -1)
 	bad=${bad:-'failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'}
+	i=0
 	for f in "${fixtures[@]}"; do
-		name=$(basename "$f"); name=${name%.*}; o=$out/$name
-		python3 "$here/fixtures.py" expect "$f" > "$o.expect"
-		asan=halt_on_error=0:abort_on_error=0:log_path=$out/asan-$name   # as suite.sh; unused by a non-ASan build
+		i=$((i + 1)); name=$(basename "$f"); name=${name%.*}; o=$out/$i-$name
+		why="" markers=""
+		python3 "$here/fixtures.py" expect "$f" > "$o.expect" 2>&1 || why=" CI-markers-unreadable:'$(tail -1 "$o.expect")'"
+		asan=halt_on_error=0:abort_on_error=0:log_path=$o.asan   # as suite.sh; unused by a non-ASan build
 		res=$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o")
 		if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] '; then   # the known early exit, as smoke.sh
 			res="$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o") early-exit(retried)"
 		fi
 		echo "  $res"
-		why="" markers=""
 		echo "$res" | grep -qE 'CRASH:|malloc=[^n]' && why="$why crash-or-allocator-abort"
 		while IFS=$'\t' read -r kind value; do
 			[ "$kind" = marker ] || continue
@@ -236,7 +239,7 @@ runtime_check() {
 			bad_line=$(cat "$o.out" "$o.err" 2>/dev/null | grep -E "$bad" | head -1)
 		fi
 		[ -n "$bad_line" ] && why="$why BAD:'$bad_line'"
-		nasan=$(ls "$out"/asan-"$name".* 2>/dev/null | wc -l | tr -d ' ')
+		nasan=$(ls "$o".asan.* 2>/dev/null | wc -l | tr -d ' ')
 		[ "$nasan" = 0 ] || why="$why AddressSanitizer-reports:$nasan"
 		if [ -n "$why" ]; then problems+=("$name:$why"); fi
 		if [ -n "$markers" ]; then summary+=("$name (marker$markers)"); else summary+=("$name (no marker to check)"); fi

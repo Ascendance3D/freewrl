@@ -9,8 +9,9 @@ Run by prepush-light.sh. Standard library only; never starts FreeWRL, never uses
 check prints one PASS, FAIL or SKIP line per check (problems follow, indented) and exits 1 if
 a check failed:
   fixture-xml       fixtures in X3D XML encoding are well-formed
-  fixture-metadata  X3D: the profile and <component> declarations cover every node used, every
-                    element is a node FreeWRL knows, version matches the DOCTYPE; every fixture:
+  fixture-metadata  X3D: the profile and <component> declarations cover every node used (a node
+                    outside the component table below needs profile Full), every element is a
+                    node FreeWRL knows, version matches the DOCTYPE; every fixture:
                     its description (<meta name='description'> or header comment) has a Pass
                     clause, and the markers that clause and the fixture's README entry name are
                     ones the fixture prints; the regression README lists it
@@ -20,13 +21,14 @@ a check failed:
   marker-contract   for every fixture a CI script runs with a marker check (smoke.sh
                     "run NAME WORLD MARKER", suite.sh "texrun NAME-i WORLD" with
                     grep -c "MARKER" over NAME-*.out): the fixture exists and prints that
-                    marker, not unconditionally at load time; its Pass clause names the marker;
-                    its success marker is the one checked. Every repository path the scripts
-                    build from a directory variable ($H, $R, $SRC, $T, $G) exists.
+                    marker, not unconditionally at load time, and its Pass clause quotes it
+                    (a log line the engine prints instead, such as "Skinning Method: CPU", must
+                    be in the engine source); its success marker is the one checked. Every
+                    repository path the scripts build from $H, $R, $SRC, $T or $G exists.
 The first three cover the regression fixtures named in FILE (one repo-relative path per line:
-the changed files), or all of them with --all or when FILE names a file they all depend on (the
-regression README, the duktape Browser tables, GeneratedCode.c, this script). marker-contract
-always covers every CI script entry.
+the changed and deleted files), or all of them with --all, when FILE names a file they all
+depend on (the regression README, the duktape Browser tables, GeneratedCode.c, this script), or
+when a regression fixture was deleted or renamed. marker-contract always covers every CI entry.
 
 expect prints what the CI scripts check in FIXTURE's log, for prepush-light.sh --runtime:
 "marker<TAB>PATTERN" lines (the fixture's own success markers when no script checks it) and
@@ -42,7 +44,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
-ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 REG = "freewrl/tests/regression"
 README = REG + "/README"
 CI = "tools/macos-ci"
@@ -344,21 +346,27 @@ class Fixture:
         """How the fixture prints what a CI script greps for: ("exact", script, offset) when a string
         literal contains it, ("value", ...) when a literal is its fixed start and the script appends
         the rest (the grep then checks a computed value), or None."""
-        if REGEX_META.search(expect):
-            try:
-                pattern = re.compile(expect)
-            except re.error:
-                return None
-            hit = next(((s, start) for v, s, start, _ in self.literals if pattern.search(v)), None)
-            return ("exact",) + hit if hit else None
-        for v, s, start, _ in self.literals:
-            for m in re.finditer(re.escape(expect), v):
-                if not re.match(r"\w", v[m.end():m.end() + 1]) and not re.match(r"\w", v[max(m.start() - 1, 0):m.start()]):
-                    return ("exact", s, start)
-        for v, s, start, end in self.literals:
-            if MARKER.search(v) and expect.startswith(v) and len(expect) > len(v) and re.match(r"\s*\+", s.code[end:]):
-                return ("value", s, start)
+        hit = next(((s, start) for v, s, start, _ in self.literals if contains(v, expect)), None)
+        if hit:
+            return ("exact",) + hit
+        if not REGEX_META.search(expect):
+            for v, s, start, end in self.literals:
+                if MARKER.search(v) and expect.startswith(v) and len(expect) > len(v) and re.match(r"\s*\+", s.code[end:]):
+                    return ("value", s, start)
         return None
+
+
+def contains(text, expect):
+    """Whether text holds what `grep -E expect` matches; a plain word-edged expect must not run into
+    more word characters (ROUTE_OK does not match ROUTE_OKAY)."""
+    if REGEX_META.search(expect):
+        try:
+            return re.search(expect, text) is not None
+        except re.error:
+            return False
+    edge_l = r"(?<!\w)" if re.match(r"\w", expect) else ""
+    edge_r = r"(?!\w)" if re.search(r"\w$", expect) else ""
+    return re.search(edge_l + re.escape(expect) + edge_r, text) is not None
 
 
 def pass_clause(description):
@@ -536,17 +544,22 @@ def x3d_problems(f, root, known_nodes, notes):
         notes.append("%s: nodes not checked against profile '%s' (no table for it here)" % (f.rel, profile))
     else:
         problems.append("%s: profile='%s' is not an X3D profile" % (f.rel, profile))
-    unknown, outside = set(), {}
+    unknown, unmapped, outside = set(), set(), {}
     for el in root.iter():
         name = local(el.tag)
         if not name or name in STRUCTURAL:
             continue
         if known_nodes and name not in known_nodes:
             unknown.add(name)
-        elif allowed and NODE_COMPONENTS.get(name) and not NODE_COMPONENTS[name] & allowed:
+        elif name not in NODE_COMPONENTS:
+            unmapped.add(name)
+        elif allowed and not NODE_COMPONENTS[name] & allowed:
             outside[name] = sorted(NODE_COMPONENTS[name])
     for name in sorted(unknown):
         problems.append("%s: <%s> is not a node FreeWRL knows (NODES[] in %s)" % (f.rel, name, NODES_SRC))
+    for name in sorted(unmapped) if allowed else ():
+        problems.append("%s: <%s> is in no X3D component of the table here (a FreeWRL extension or a newer X3D "
+                        "node), so only profile='Full' covers it, not '%s'" % (f.rel, name, profile))
     if outside:
         need = {c for comps in outside.values() for c in comps} - (allowed or set())
         fit = next((p for p in ("Interchange", "Interactive", "Immersive") if need <= PROFILES[p]), "Full")
@@ -663,10 +676,9 @@ def check_contract(entries, missing, npaths):
             problems.append("%s: greps for '%s', which %s:%d prints %s: that proves only that the script ran; "
                             "print it after checking the result" % (e.where, e.expect, e.world, s.line_of(offset), why))
         clause = pass_clause(f.description())
-        for t in wanted:
-            if f.prints(t) and (clause is None or t not in MARKER.findall(clause)):
-                problems.append("%s: the Pass clause of %s does not name %s, the marker the script checks (stale)" % (
-                    e.where, e.world, t))
+        if clause is None or not contains(clause, e.expect):
+            problems.append("%s: the Pass clause of %s does not quote '%s', the text the script greps for (stale)" % (
+                e.where, e.world, e.expect))
     result("marker-contract", problems, "%d CI script entries, %d marker greps (%d of engine log lines), %d paths" % (
         len(entries), greps, engine, npaths), notes)
 
@@ -677,7 +689,9 @@ def check(args):
         with open(args.changed, encoding="utf-8", errors="replace") as f:
             changed = [line.strip() for line in f if line.strip()]
     fixtures = regression_fixtures()
-    shared = sorted(SHARED & set(changed))
+    gone = [c for c in changed if c.startswith(REG + "/") and c.lower().endswith(FIXTURE_EXT)
+            and not os.path.exists(os.path.join(ROOT, c))]   # deleted, or the old name of a rename
+    shared = sorted(SHARED & set(changed)) + gone
     if args.all or shared:
         names, hint = fixtures, ""
         print("fixture scope: all %d regression fixtures (%s)" % (len(fixtures), "--all" if args.all else
@@ -697,7 +711,7 @@ def check(args):
 
 
 def expect(args):
-    rel = os.path.relpath(os.path.abspath(args.fixture), ROOT)
+    rel = os.path.relpath(os.path.realpath(args.fixture), ROOT)
     mine = [e for e in ci_scripts()[0] if e.world == rel]
     wants = []
     for e in mine:
