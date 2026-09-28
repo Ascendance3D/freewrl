@@ -3,6 +3,8 @@
 #windows ignore:
 **/Debug*
 **/Release*
+# but keep the release workflow (Release* is meant for Xcode/MSVC build products)
+!.github/workflows/release-macos.yml
 ipch
 **/Template
 *.ncb
