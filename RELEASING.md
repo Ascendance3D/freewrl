@@ -82,10 +82,16 @@ Other version strings in the tree are stale and are **not** authoritative:
 - `OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist` (`CFBundleShortVersionString 4.2`) — stale;
   the app's Info.plist short version does not track `buildversion.h`.
 
-**Limitation.** The validator proves the tag agrees with `buildversion.h`. It does not repair the
-stale Info.plist short version. If you want the app's displayed version to match, update
-`buildversion.h` and, separately, the Info.plist, before you tag. That code change is out of scope
-for the release infrastructure and belongs in a normal engine PR.
+**Built-app version gate.** The release workflow also reads `CFBundleShortVersionString` from the
+**built** `FreeWRL.app` and requires it to equal the tag version (core `MAJOR.MINOR.PATCH`, so
+`v6.8.0-beta.1` expects `6.8.0`). This inspects the real build artifact, not the source plist. It
+runs `tools/macos-release/check-app-version.sh`.
+
+**First formal release is blocked until the version-identity fix.** Today the Desktop app plist
+still reads `4.2` while `buildversion.h` reads `6.7.0`, so the built-app version gate FAILS by
+design. The first formal release is blocked until a separate, narrow version-identity PR sets
+`CFBundleShortVersionString` (and, as needed, `buildversion.h`) to the release version. That code
+change is out of scope for the release infrastructure and belongs in that engine PR.
 
 ## Step-by-step release procedure
 
@@ -131,9 +137,10 @@ Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml
 - `prerelease` — `true` for a beta/rc, otherwise `false`
 
 The workflow re-proves everything in step 4, verifies the CI run, builds from the exact tag,
-packages, runs package verification and the document-type gate, names the asset to the contract,
-generates the checksums and manifest, verifies them against the archive bytes, and creates a
-**DRAFT** release. It does not publish.
+packages, runs package verification and the document-type gate, checks the **built app's**
+`CFBundleShortVersionString` equals the tag version, names the asset to the contract, generates the
+checksums and manifest, verifies them against the archive bytes, and creates a **DRAFT** release.
+It does not publish.
 
 ### 6. Review the draft
 

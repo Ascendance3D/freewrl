@@ -119,6 +119,7 @@ for f in \
 	tools/macos-release/verify-release.sh \
 	tools/macos-release/make-release-metadata.sh \
 	tools/macos-release/check-ci-run.sh \
+	tools/macos-release/check-app-version.sh \
 	tools/macos-package/package.sh \
 	.github/workflows/release-macos.yml \
 	RELEASING.md

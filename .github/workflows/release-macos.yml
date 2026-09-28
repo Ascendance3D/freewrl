@@ -123,6 +123,12 @@ jobs:
           python3 tools/macos-package/verify.py --source-root "$GITHUB_WORKSPACE" --macos "$MACOS_MIN" "$APP"
           tools/macos-ci/doctypes.sh "$APP"
 
+      - name: built app version matches the tag
+        # Read CFBundleShortVersionString from the BUILT app and require it to equal the tag version.
+        # Until the version-identity fix lands, the app plist is stale (4.2) and this gate blocks the
+        # first formal release on purpose.
+        run: tools/macos-release/check-app-version.sh --app "$RUNNER_TEMP/pkg/FreeWRL.app" --tag "$TAG"
+
       - name: name the asset to the release contract
         run: |
           set -euo pipefail

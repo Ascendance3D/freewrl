@@ -38,7 +38,7 @@ mkrepo() { # dir buildversion
 	printf '#define FW_BUILD_VERSION_STR "%s"\n#define FW_BUILD_VERSION_NUM %s,0\n' "$bv" "${bv//./,}" \
 		> "$d/freex3d/src/buildversion.h"
 	for f in tools/macos-release/verify-release.sh tools/macos-release/make-release-metadata.sh \
-		tools/macos-release/check-ci-run.sh \
+		tools/macos-release/check-ci-run.sh tools/macos-release/check-app-version.sh \
 		tools/macos-package/package.sh .github/workflows/release-macos.yml RELEASING.md; do
 		: > "$d/$f"
 	done
@@ -87,6 +87,41 @@ check "ci-good-passes" "'$ci' --conclusion success --head-sha abc123 --expected-
 check "ci-failed-run-rejected" "'$ci' --conclusion failure --head-sha abc123 --expected-sha abc123 --workflow-name 'macOS Apple Silicon CI'" 1 "FAIL ci-success"
 check "ci-wrong-sha-rejected" "'$ci' --conclusion success --head-sha abc123 --expected-sha def456 --workflow-name 'macOS Apple Silicon CI'" 1 "FAIL ci-sha"
 check "ci-wrong-workflow-rejected" "'$ci' --conclusion success --head-sha abc123 --expected-sha abc123 --workflow-name 'Some Other CI'" 1 "FAIL ci-workflow"
+
+echo
+echo "== check-app-version.sh (built-app version gate) =="
+appver=$here/check-app-version.sh
+# helper: build a throwaway FreeWRL.app whose Info.plist carries $2 as CFBundleShortVersionString
+# (or, when $2 is the literal "NONE", omit the key)
+mkapp() { # dir version
+	local d=$1 v=$2
+	mkdir -p "$d/FreeWRL.app/Contents"
+	if [ "$v" = NONE ]; then
+		cat > "$d/FreeWRL.app/Contents/Info.plist" <<'PL'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleName</key><string>FreeWRL</string></dict></plist>
+PL
+	else
+		cat > "$d/FreeWRL.app/Contents/Info.plist" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>$v</string></dict></plist>
+PL
+	fi
+	printf '%s\n' "$d/FreeWRL.app"
+}
+AV=$(mkapp "$tmp/av-match" 6.8.0)
+check "appver-matches-tag-passes" "'$appver' --app '$AV' --tag v6.8.0" 0 "PASS app-version"
+AV=$(mkapp "$tmp/av-diff" 4.2)
+check "appver-differs-from-tag-rejected" "'$appver' --app '$AV' --tag v6.8.0" 1 "FAIL app-version"
+AV=$(mkapp "$tmp/av-nokey" NONE)
+check "appver-missing-key-rejected" "'$appver' --app '$AV' --tag v6.8.0" 1 "FAIL app-version-key"
+mkdir -p "$tmp/av-noplist/FreeWRL.app/Contents"   # a bundle with no Info.plist at all
+check "appver-missing-plist-rejected" "'$appver' --app '$tmp/av-noplist/FreeWRL.app' --tag v6.8.0" 1 "FAIL app-plist"
+# a prerelease tag derives to its core version
+AV=$(mkapp "$tmp/av-beta" 6.8.0)
+check "appver-prerelease-core-passes" "'$appver' --app '$AV' --tag v6.8.0-beta.1" 0 "PASS app-version"
 
 echo
 echo "== make-release-metadata.sh (checksums + manifest) =="
