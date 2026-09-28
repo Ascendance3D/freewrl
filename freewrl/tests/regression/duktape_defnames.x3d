@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.3//EN" "http://www.web3d.org/specifications/x3d-3.3.dtd">
+<X3D profile='Interchange' version='3.3'>
+  <head>
+    <meta name='description' content='Regression: X3DExecutionContext.updateNamedNode DEF-name Vector element size (duktape). The scene has no DEF, so the running scene proto __DEFnames is NULL; the first updateNamedNode add creates the per-context DEF list. FreeWRL 6.7 created it with newVector(struct brotoDefpair*,4) (4 pointer-sized slots = 32 bytes) but stack_push writes full struct brotoDefpair (16 bytes on arm64); the list only grows at n==4, so the 3rd add writes bytes 32..48 past the 32-byte buffer (heap overflow). The Script adds six distinct DEF names from initialize(). Pass: DUK_DEFNAMES_DONE prints and there is no AddressSanitizer report.'/>
+  </head>
+  <Scene>
+    <Background skyColor='0.1 0.1 0.2'/>
+    <Viewpoint position='0 0 6' description='front'/>
+    <Shape>
+      <Appearance><Material diffuseColor='0 1 0'/></Appearance>
+      <Box size='1.5 1.5 1.5'/>
+    </Shape>
+    <Script>
+<![CDATA[javascript:
+function initialize() {
+	print('DUK_DEFNAMES_START');
+	var ec = Browser.currentScene;
+	for (var i = 1; i <= 6; i++) {
+		var n = Browser.createNode('Group');
+		ec.updateNamedNode('defname_' + i, n);
+		print('DUK_DEFNAMES_UPDATE_' + i);
+	}
+	print('DUK_DEFNAMES_DONE');
+}
+]]>
+    </Script>
+  </Scene>
+</X3D>

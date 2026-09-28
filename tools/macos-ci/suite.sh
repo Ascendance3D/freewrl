@@ -43,6 +43,8 @@ for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
 for ((i=1; i<=TSTB; i++)); do texrun "texstb-$i" "$G/texture_formats_stb.wrl"; done
 # ParticleSystem maxParticles raised 4 -> 2000 at run time (particle Vector growth), once per suite
 texrun "particles-1" "$G/particles_maxparticles.x3d"
+# X3DExecutionContext.updateNamedNode DEF-name Vector element size (duktape), once per suite
+texrun "defnames-1" "$G/duktape_defnames.x3d"
 } | tee "$OUT/textures.txt"
 
 fail=0
@@ -56,9 +58,11 @@ texbad=$(cat "$OUT"/texture-*.out "$OUT"/texture-*.err "$OUT"/texstb-*.out "$OUT
 cycbad=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -cE "$BAD")
 # the particles run must have raised maxParticles (its Script reads the new value back)
 particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err 2>/dev/null | grep -c "PARTICLES_MAXPARTICLES_READBACK max=2000")
-echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles)"
+# the defnames run must have added all six DEF names through updateNamedNode
+defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err 2>/dev/null | grep -c "DUK_DEFNAMES_DONE")
+echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames)"
 echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
-[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] || fail=1
+[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.
@@ -66,6 +70,7 @@ if [ "$KIND" = asan ]; then
 	FRUSTUM='extent6f_union_extent6f Frustum.c'
 	VECTOR='vector_removeElement Vector.c'
 	GLCORE='upload_client_attribs GLCoreCompat.c|fw_core_glDraw(Arrays|Elements) GLCoreCompat.c'
+	DUKDEF='X3DExecutionContext_updateNamedNode jsVRMLBrowser_duk.c'
 	cat "$OUT"/asan.* 2>/dev/null | grep '^SUMMARY' | sort | uniq -c > "$OUT/asan-summary.txt"
 	cat "$OUT"/asan.* 2>/dev/null | awk '
 		/^==[0-9]+==ERROR: AddressSanitizer:/ { if (kind != "") print kind, frame; kind=$3; frame="(no FreeWRL frame)"; found=0; next }
@@ -75,11 +80,12 @@ if [ "$KIND" = asan ]; then
 	frustum=$(grep -E "$FRUSTUM" "$OUT/asan-frames.txt" | awk '{s+=$1} END {print s+0}')
 	vector=$(grep -E "$VECTOR" "$OUT/asan-frames.txt" | awk '{s+=$1} END {print s+0}')
 	glcore=$(grep -E "$GLCORE" "$OUT/asan-frames.txt" | awk '{s+=$1} END {print s+0}')
+	dukdef=$(grep -E "$DUKDEF" "$OUT/asan-frames.txt" | awk '{s+=$1} END {print s+0}')
 	total_asan=$(awk '{s+=$1} END {print s+0}' "$OUT/asan-frames.txt")
-	other=$((total_asan - proto - frustum - vector - glcore))
+	other=$((total_asan - proto - frustum - vector - glcore - dukdef))
 	echo "ASan reports (count, kind, place):"; sed 's/^/  /' "$OUT/asan-summary.txt"
 	echo "ASan reports by first FreeWRL frame:"; sed 's/^/  /' "$OUT/asan-frames.txt"
-	echo "GATE asan PROTO=$proto Frustum=$frustum Vector=$vector GLCore=$glcore Other=$other Total=$total_asan"
+	echo "GATE asan PROTO=$proto Frustum=$frustum Vector=$vector GLCore=$glcore DUKdef=$dukdef Other=$other Total=$total_asan"
 	[ "$total_asan" = 0 ] || fail=1
 fi
 [ $fail = 0 ] && echo "GATE PASS" || echo "GATE FAIL"

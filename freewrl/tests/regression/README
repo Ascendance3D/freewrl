@@ -22,3 +22,6 @@ particles_maxparticles.x3d  ParticleSystem maxParticles raised 4 -> 2000 at run 
                        was grown by bytes, not particles: heap overflow); geometryType CHILD, nothing drawn;
                        pass: READBACK max=2000, no ASan report
 x3d_meta.x3d           X3D <meta> tags in <head> (6.7 parser crash, all platforms)
+duktape_defnames.x3d    X3DExecutionContext.updateNamedNode adds six DEF names to a scene that has no DEF
+                       (per-context list starts NULL); 6.7 sized the new DEF-name Vector by pointer, not by
+                       struct brotoDefpair, so the 3rd add overflowed the buffer (duktape); pass: DUK_DEFNAMES_DONE, no ASan report
