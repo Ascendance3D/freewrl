@@ -1355,7 +1355,7 @@ int X3DExecutionContext_updateNamedNode(FWType fwtype, void *ec, void *fwn, int 
 	if(!found){
 		//I guess its an add
 		if(!_ec->__DEFnames)
-			_ec->__DEFnames = newVector(struct brotoDefpair*,4);
+			_ec->__DEFnames = newVector(struct brotoDefpair,4);
 		struct brotoDefpair bd2;
 		memset(&bd2, 0, sizeof(struct brotoDefpair));
 		bd2.node = node;

@@ -47,6 +47,7 @@ run gzip_route "$G/gzip_route.wrl" "ROUTE_OK"
 run gzip_proto "$G/gzip_proto.wrl" -
 run glcore_stale "$G/glcore_stale_attribs.wrl" -
 run particles "$G/particles_maxparticles.x3d" "PARTICLES_MAXPARTICLES_READBACK max=2000"
+run defnames "$G/duktape_defnames.x3d" "DUK_DEFNAMES_DONE"
 run t8 "$T/8.wrl" -
 run t10 "$T/10.wrl" -
 run t50 "$T/50.wrl" -
