@@ -47,7 +47,10 @@ The header says when the tree is dirty.
 The three `fixture-*` checks cover every regression fixture instead of only the changed ones
 when you give `--all`, when a file they all read changed (the regression `README`,
 `jsVRMLBrowser_duk.c`, `GeneratedCode.c` or `fixtures.py`), or when a regression fixture was
-deleted or renamed. When no fixture is in scope, they report SKIP. The four fixture checks need Python 3.6 or later and report SKIP without it.
+deleted or renamed. When no fixture is in scope, they report SKIP. A fixture that cannot be read
+(for example truncated gzip data in a `.x3dz`, `.wrz` or gzip-compressed `.wrl`) is a FAIL of
+`fixture-xml` (XML fixtures) and `fixture-metadata`, and of `marker-contract` when a CI script runs
+it. The four fixture checks need Python 3.6 or later and report SKIP without it.
 
 These rules catch the mistakes made in PR #25: a fixture that called `Browser.createNode` (a
 member of `Browser.currentScene`, not of `Browser`); a success marker printed whether or not the

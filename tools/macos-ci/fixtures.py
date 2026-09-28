@@ -43,6 +43,7 @@ import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+import zlib
 
 ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 REG = "freewrl/tests/regression"
@@ -278,14 +279,19 @@ class Fixture:
         self.rel = rel
         self.path = os.path.join(ROOT, rel)
         self.exists = os.path.isfile(self.path)
-        self.data = read_data(self.path) if self.exists else b""
+        self.data, self.read_error = b"", None   # read_error: a normal FAIL of the checks, not a traceback
+        if self.exists:
+            try:
+                self.data = read_data(self.path)
+            except (OSError, EOFError, zlib.error) as e:   # unreadable, or truncated or corrupt gzip data
+                self.read_error = "cannot be read: %s: %s" % (type(e).__name__, e)
         self.text = self.data.decode("utf-8", "replace")
         self.xml = rel.lower().endswith(XML_EXT)
         self.root = self.xml_error = None
-        if self.xml and self.exists:
+        if self.xml and self.exists and not self.read_error:
             try:
                 self.root = ET.fromstring(self.data)
-            except ET.ParseError as e:
+            except (ET.ParseError, LookupError) as e:   # LookupError: an unknown encoding= declaration
                 self.xml_error = str(e)
         self.scripts = self._scripts()
         self.literals = [(v, s, start, end) for s in self.scripts for v, start, end in s.strings]
@@ -511,7 +517,8 @@ def check_xml(scope, hint):
     xml = [f for f in scope if f.xml]
     if not xml:
         return skip("fixture-xml", "no X3D XML fixture in scope" + hint)
-    problems = ["%s: not well-formed XML: %s" % (f.rel, f.xml_error) for f in xml if f.xml_error]
+    problems = ["%s: %s" % (f.rel, f.read_error or "not well-formed XML: " + f.xml_error)
+                for f in xml if f.read_error or f.xml_error]
     result("fixture-xml", problems, "%d X3D XML fixture(s) parsed" % len(xml))
 
 
@@ -579,6 +586,9 @@ def check_metadata(scope, all_scope, hint):
         notes.append("element names not checked: no NODES[] table found in " + NODES_SRC)
     readme = readme_entries()
     for f in scope:
+        if f.read_error:
+            problems.append("%s: %s" % (f.rel, f.read_error))
+            continue
         if f.root is not None:
             problems += x3d_problems(f, f.root, known_nodes, notes)
         elif f.xml:
@@ -651,6 +661,9 @@ def check_contract(entries, missing, npaths):
         if not f.exists:
             problems.append("%s: runs %s, which does not exist" % (e.where, e.world))
             continue
+        if f.read_error:
+            problems.append("%s: runs %s, which %s" % (e.where, e.world, f.read_error))
+            continue
         success = f.success()
         if e.expect is None:
             if success:
@@ -717,7 +730,13 @@ def expect(args):
     for e in mine:
         if e.expect and e.expect not in wants:
             wants.append(e.expect)
-    for w in wants or Fixture(rel).success():
+    if not wants:
+        f = Fixture(rel)
+        if f.read_error:
+            print("%s: %s" % (rel, f.read_error), file=sys.stderr)
+            return 1
+        wants = f.success()
+    for w in wants:
         print("marker\t" + w)
     for n in sorted({e.expect_fail for e in mine if e.expect_fail is not None}):
         print("expect-fail\t%d" % n)
