@@ -1,0 +1,54 @@
+workflows:
+  freewrl-light:
+    name: FreeWRL light macOS probe
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+
+    environment:
+      xcode: 16.0
+
+    scripts:
+      - name: Machine info
+        script: |
+          set -euo pipefail
+          sw_vers
+          uname -a
+          sysctl -n machdep.cpu.brand_string || true
+          xcodebuild -version
+          clang --version
+
+      - name: Repo info
+        script: |
+          set -euo pipefail
+          pwd
+          git rev-parse --show-toplevel
+          git rev-parse HEAD
+          git status --short
+
+      - name: Shell syntax check
+        script: |
+          set -euo pipefail
+          find tools -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Regression XML check
+        script: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          roots = [
+              Path("freewrl/tests/regression"),
+              Path("tests/regression"),
+          ]
+
+          count = 0
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*.x3d"):
+                  ET.parse(path)
+                  count += 1
+
+          print(f"XML_OK files={count}")
+          PY
