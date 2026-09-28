@@ -153,6 +153,17 @@ AV=$(mkapp "$tmp/av-beta" 6.8.0)
 check "appver-prerelease-core-passes" "'$appver' --app '$AV' --tag v6.8.0-beta.1" 0 "PASS app-version"
 
 echo
+echo "== source version identity (this checkout) =="
+# the Desktop app's CFBundleShortVersionString must equal the engine's FW_BUILD_VERSION_STR, so the
+# built app reports the same version as the tag check-app-version.sh gates on. Reads both files.
+root=$(cd "$here/../.." && pwd)
+bvh=$root/freex3d/src/buildversion.h
+dplist=$root/OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist
+BV=$(sed -nE 's/^#define FW_BUILD_VERSION_STR "([^"]*)".*/\1/p' "$bvh")
+PV=$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get("CFBundleShortVersionString",""))' "$dplist" 2>/dev/null)
+check "source-version-identity" "echo 'buildversion.h=$BV Desktop plist=$PV'; [ -n '$BV' ] && [ '$BV' = '$PV' ]" 0
+
+echo
 echo "== make-release-metadata.sh (checksums + manifest) =="
 # a well-formed fake archive with an app Info.plist inside
 app=$tmp/src/FreeWRL.app/Contents; mkdir -p "$app"
