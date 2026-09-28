@@ -39,7 +39,7 @@ The header says when the tree is dirty.
 | `shell-syntax` | `bash -n` on every `tools/**/*.sh` script and every changed shell script (a script whose `#!` line names `sh` or `zsh` is parsed by that shell). Each script under `tools/` must have mode 100755 in git. |
 | `fixture-xml` | Each changed `.x3d` regression fixture is well-formed XML (Python standard library; the DTD is not downloaded). |
 | `fixture-metadata` | For each changed regression fixture: the X3D `profile` plus its `<component>` declarations include the component of every node used (for example, a `Script` needs `Immersive` or `Full`, not `Interchange`; a node that is in no X3D component of the checker's table, such as a FreeWRL extension, needs `Full`); every element is a node that FreeWRL knows; `version` agrees with the DOCTYPE; the description (`<meta name='description'>`, or the header comment of a `.wrl`) has a `Pass:` clause; every marker that the Pass clause or the fixture's `freewrl/tests/regression/README` entry names is a marker that the fixture prints; the README lists the fixture. |
-| `fixture-script` | For each changed regression fixture: every `Browser.<name>` in a Script exists on the duktape `Browser` object (`jsVRMLBrowser_duk.c`); every success marker (a string such as `X_DONE`, `X_OK` or `X_PASS`) is checked by a CI script, and is printed only after a check of the result, or directly by the event handler whose event is the result. |
+| `fixture-script` | For each changed regression fixture: every `Browser.<name>` in a Script exists on the duktape `Browser` object (`jsVRMLBrowser_duk.c`); every success marker (a string such as `X_DONE`, `X_OK` or `X_PASS`) is checked by a CI script, and is printed only where a result guard (an `if`/`else`/`switch`/`catch`, `?:`, `&&` or `\|\|`) decides that it prints. Being inside an event handler is not enough: a handler runs whenever its event is delivered, whatever the value, so a marker it prints unconditionally proves only that the event arrived, not that the result was right. |
 | `marker-contract` | For every fixture that `smoke.sh` (`run NAME WORLD MARKER`) or `suite.sh` (`texrun NAME-i WORLD` with `grep -c "MARKER"`) runs: the fixture exists; it prints the marker (or the engine source prints it, for example `Skinning Method: CPU`); it does not print that marker unconditionally at load time; if it prints a success marker, the script checks that exact marker; its Pass clause quotes the text that the script greps for. A log line that the engine prints (not the fixture) must be in the engine source instead; the Pass clause need not quote it. Every repository path that the scripts build from `$H`, `$R`, `$SRC`, `$T` or `$G` exists. This check always covers every entry, changed or not. |
 | `host-c-tests` | `tools/c-tests/run-containers.sh`, the host-only C tests of the CI build job. SKIP if `clang` (or `$CC`) cannot run. |
 | `doctypes` | `tools/macos-ci/doctypes.sh` on the source `FreeWRL-Info.plist`. CI runs it on the built app; give `--app path/to/FreeWRL.app` to do the same. SKIP without `plutil` (not macOS) or `python3`. |
@@ -66,6 +66,19 @@ longer matches the fixture; a CI script and a fixture that disagree on a marker.
 - The Script checks are static. Apart from the `Browser.<name>` check, they cannot tell that a
   call fails at run time. `--runtime` runs a fixture.
 - It does not run `shellcheck`, and it does not check the workflow YAML.
+
+### Testing the checker itself
+
+`fixtures.py` has its own test suite. It needs only Python 3 and runs in a fraction of a second:
+
+```sh
+tools/macos-ci/test_fixtures.py
+```
+
+It pins the result-guard rule for success markers, including the failure path (a fixture that
+prints a marker from an event handler with no result guard must FAIL) and the pass path (a marker
+printed from an event handler only after a result guard must PASS). Exit status 0 when every case
+passes.
 
 ### Optional runtime check
 

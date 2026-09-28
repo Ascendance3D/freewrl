@@ -17,7 +17,9 @@ a check failed:
                     ones the fixture prints; the regression README lists it
   fixture-script    every Browser.<name> a Script uses exists on duktape's Browser object; each
                     success marker (a *_DONE, *_OK, *_PASS ... string) is checked by a CI script
-                    and printed only after a check, or from the event handler that proves it
+                    and printed only where a result guard (an if/else/switch/catch, ?:, && or ||)
+                    decides it prints -- being inside an event handler is not enough, since a
+                    handler runs on its event whatever the value
   marker-contract   for every fixture a CI script runs with a marker check (smoke.sh
                     "run NAME WORLD MARKER", suite.sh "texrun NAME-i WORLD" with
                     grep -c "MARKER" over NAME-*.out): the fixture exists and prints that
@@ -255,12 +257,21 @@ class Script:
         return self.line + self.js.count("\n", 0, offset)
 
     def unverified(self, offset):
-        """Why a marker printed at offset proves only that the code ran, or None."""
+        """Why a marker printed at offset proves only that the code ran, or None.
+
+        A result guard is the only proof: the marker prints where an if/else/switch/catch, ?:,
+        && or || decides whether it runs (statement_context sets `guarded`), so it is tied to a
+        checked result. Being inside an event handler is not proof: the handler runs whenever its
+        event is delivered, whatever the value, so a marker it prints unconditionally says only
+        that the event arrived, not that the result was right."""
         func, guarded = statement_context(self.code, offset)
-        if guarded or (func and func in self.handlers):
+        if guarded:
             return None
         if func is None:
             return "unconditionally at load time"
+        if func in self.handlers:
+            return "unconditionally in event handler " + func + "() (the handler runs on the event " \
+                   "whatever its value; guard the marker on the checked result)"
         return "unconditionally in " + (func + "()" if func else "an anonymous function")
 
 
