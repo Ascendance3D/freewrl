@@ -9,7 +9,9 @@ name: macOS Release (draft)
 #   * the tag matches vMAJOR.MINOR.PATCH[-beta.N] and exists and is ANNOTATED;
 #   * the tag peels to expected_sha and that commit is reachable from origin/master;
 #   * the tag's FW_BUILD_VERSION_STR agrees with the tag version;
-#   * the supplied normal CI run succeeded, is the macOS CI workflow, and ran on expected_sha;
+#   * the supplied CI run is formal-release evidence: success, head_sha == expected_sha,
+#     event push, head_branch master, workflow file .github/workflows/macos.yml (read from the
+#     Actions run API; workflow_dispatch and pull_request runs are refused);
 #   * no GitHub Release already exists for the tag.
 on:
   workflow_dispatch:
@@ -21,7 +23,7 @@ on:
         description: Full 40-char commit SHA the tag must point at
         required: true
       ci_run_id:
-        description: Run ID of the successful "macOS Apple Silicon CI" run for expected_sha
+        description: Run ID of the successful master push run of .github/workflows/macos.yml for expected_sha
         required: true
       prerelease:
         description: Mark the draft as a pre-release
@@ -42,7 +44,6 @@ env:
   TAG: ${{ github.event.inputs.tag }}
   EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
   CI_RUN_ID: ${{ github.event.inputs.ci_run_id }}
-  EXPECTED_WORKFLOW: macOS Apple Silicon CI
 
 jobs:
   release:
@@ -76,20 +77,23 @@ jobs:
       - name: validate the release tag (read-only)
         run: tools/macos-release/verify-release.sh --tag "$TAG" --expected-sha "$EXPECTED_SHA"
 
-      - name: verify the normal CI run
+      # Formal-release CI contract (fail-closed): the run must be a successful PUSH run on master of
+      # the workflow FILE .github/workflows/macos.yml for exactly expected_sha. The facts come from
+      # the Actions run API record, which carries the workflow path; the display name alone is not
+      # proof. workflow_dispatch (any profile) and pull_request runs are refused.
+      - name: verify the CI run is formal-release evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json conclusion,headSha,workflowName,event > run.json
-          CONCL=$(python3 -c 'import json;print(json.load(open("run.json"))["conclusion"])')
-          HEAD=$(python3 -c 'import json;print(json.load(open("run.json"))["headSha"])')
-          WF=$(python3 -c 'import json;print(json.load(open("run.json"))["workflowName"])')
-          echo "run $CI_RUN_ID: workflow='$WF' conclusion='$CONCL' head=$HEAD"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" > run.json
+          field() { python3 -c 'import json,sys;v=json.load(open("run.json")).get(sys.argv[1]);print("null" if v is None else v)' "$1"; }
+          CONCL=$(field conclusion); HEAD=$(field head_sha); EVENT=$(field event)
+          BRANCH=$(field head_branch); WPATH=$(field path); WNAME=$(field name)
+          echo "run $CI_RUN_ID: path='$WPATH' name='$WNAME' event='$EVENT' branch='$BRANCH' conclusion='$CONCL' head=$HEAD"
           tools/macos-release/check-ci-run.sh \
             --conclusion "$CONCL" --head-sha "$HEAD" --expected-sha "$EXPECTED_SHA" \
-            --workflow-name "$WF" --expected-workflow "$EXPECTED_WORKFLOW"
+            --event "$EVENT" --head-branch "$BRANCH" --workflow-path "$WPATH" --workflow-name "$WNAME"
 
       - name: refuse if a release already exists for this tag
         env:
