@@ -63,3 +63,7 @@ visual-test-out/
 macos-package-out/
 macos-deps-out/
 __pycache__/
+
+# local secrets and env files (never commit)
+.env.local
+.env*.local
