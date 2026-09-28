@@ -3,7 +3,8 @@
 # One FreeWRL at a time: world-replacement cycles (PROTO worlds among others), then the texture
 # fixtures repeatedly. Prints one line per run and a gate summary; exits 1 if the gate fails.
 #   CYC  replacement cycles, CSEC seconds each (the world is replaced every 90 frames)
-#   TEX  runs of texture_formats.wrl, TSTB runs of texture_formats_stb.wrl, TSEC seconds each
+#   TEX  runs of texture_formats.wrl, TSTB runs of texture_formats_stb.wrl, TSEC seconds each;
+#        then one run of particles_maxparticles.x3d (TSEC seconds)
 # Gate: no crash, no allocator abort, no texture "failed to load" or GL/shader error; with asan,
 # no AddressSanitizer report at all. Reports are counted per defect class (PROTO lifetime,
 # Frustum extent stack, Vector, GLCore client attributes, other) so a regression names its class.
@@ -40,6 +41,8 @@ texrun() { # name world : one texture run, retried once (as name-retry) after a 
 {
 for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
 for ((i=1; i<=TSTB; i++)); do texrun "texstb-$i" "$G/texture_formats_stb.wrl"; done
+# ParticleSystem maxParticles raised 4 -> 2000 at run time (particle Vector growth), once per suite
+texrun "particles-1" "$G/particles_maxparticles.x3d"
 } | tee "$OUT/textures.txt"
 
 fail=0
@@ -51,9 +54,11 @@ retried=$(grep -c '(retried once)' "$OUT/textures.txt")
 reloads=$(grep -o 'reloads=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
 texbad=$(cat "$OUT"/texture-*.out "$OUT"/texture-*.err "$OUT"/texstb-*.out "$OUT"/texstb-*.err 2>/dev/null | grep -cE "$BAD")
 cycbad=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -cE "$BAD")
-echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs"
+# the particles run must have raised maxParticles (its Script reads the new value back)
+particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err 2>/dev/null | grep -c "PARTICLES_MAXPARTICLES_READBACK max=2000")
+echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles)"
 echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
-[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] || fail=1
+[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.
