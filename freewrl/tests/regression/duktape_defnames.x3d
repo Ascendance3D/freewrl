@@ -2,7 +2,7 @@
 <!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.3//EN" "http://www.web3d.org/specifications/x3d-3.3.dtd">
 <X3D profile='Interchange' version='3.3'>
   <head>
-    <meta name='description' content='Regression: X3DExecutionContext.updateNamedNode DEF-name Vector element size (duktape). The scene has no DEF, so the running scene proto __DEFnames is NULL; the first updateNamedNode add creates the per-context DEF list. FreeWRL 6.7 created it with newVector(struct brotoDefpair*,4) (4 pointer-sized slots = 32 bytes) but stack_push writes full struct brotoDefpair (16 bytes on arm64); the list only grows at n==4, so the 3rd add writes bytes 32..48 past the 32-byte buffer (heap overflow). The Script adds six distinct DEF names from initialize(). Pass: DUK_DEFNAMES_DONE prints and there is no AddressSanitizer report.'/>
+    <meta name='description' content='Functional smoke test (duktape): a Script initialize() gets Browser.currentScene (an X3DExecutionContext), creates six Group nodes with ec.createNode, and registers each with ec.updateNamedNode. This exercises the SAI createNode + updateNamedNode append path end to end. Pass: DUK_DEFNAMES_START, DUK_DEFNAMES_UPDATE_1..6 and DUK_DEFNAMES_DONE all print, with no crash and no AddressSanitizer report. NOTE: this is NOT a memory-safety regression guard. updateNamedNode has a latent DEF-name Vector element-size bug (it lazily creates the list with newVector(struct brotoDefpair*,4) instead of struct brotoDefpair), but createNewX3DNode always pre-creates a correctly-sized __DEFnames via add_empty_proto_vectors before any script runs, so the buggy branch is not reachable from script and this fixture passes with and without the fix.'/>
   </head>
   <Scene>
     <Background skyColor='0.1 0.1 0.2'/>
@@ -17,7 +17,7 @@ function initialize() {
 	print('DUK_DEFNAMES_START');
 	var ec = Browser.currentScene;
 	for (var i = 1; i <= 6; i++) {
-		var n = Browser.createNode('Group');
+		var n = ec.createNode('Group');
 		ec.updateNamedNode('defname_' + i, n);
 		print('DUK_DEFNAMES_UPDATE_' + i);
 	}

@@ -43,7 +43,7 @@ for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
 for ((i=1; i<=TSTB; i++)); do texrun "texstb-$i" "$G/texture_formats_stb.wrl"; done
 # ParticleSystem maxParticles raised 4 -> 2000 at run time (particle Vector growth), once per suite
 texrun "particles-1" "$G/particles_maxparticles.x3d"
-# X3DExecutionContext.updateNamedNode DEF-name Vector element size (duktape), once per suite
+# X3DExecutionContext createNode + updateNamedNode append path (duktape), functional smoke, once per suite
 texrun "defnames-1" "$G/duktape_defnames.x3d"
 } | tee "$OUT/textures.txt"
 
