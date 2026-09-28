@@ -103,10 +103,24 @@ change is out of scope for the release infrastructure and belongs in that engine
 
 ### 2. Confirm green CI
 
-- Find the `macOS Apple Silicon CI` run for the exact commit.
+- Find the **push** run on **`master`** of `.github/workflows/macos.yml` (`macOS Apple Silicon CI`)
+  for the exact commit. Only that run is formal-release evidence.
 - Confirm it succeeded: host container tests, build/package, package verify, doctypes, runtime,
   smoke, and the ASan gate (Total = 0).
 - Note the **run ID**; the release workflow verifies it.
+
+The release workflow reads the run from the GitHub Actions run API and refuses it unless **all** of
+these are true (`tools/macos-release/check-ci-run.sh`):
+
+- `conclusion` is `success`;
+- `head_sha` equals the full 40-char `expected_sha`;
+- `event` is `push`;
+- `head_branch` is `master`;
+- `path` is `.github/workflows/macos.yml` (the workflow file, not only its display name).
+
+A `workflow_dispatch` run (any profile, including `normal`) and a `pull_request` run are **not**
+release evidence. The run record does not carry the dispatch profile, and a `diagnostic` dispatch
+skips the macOS 14 runtime stress.
 
 ### 3. Create the annotated tag
 
@@ -133,10 +147,11 @@ Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml
 
 - `tag` — the annotated tag, e.g. `v6.8.0`
 - `expected_sha` — the full 40-char commit SHA
-- `ci_run_id` — the green CI run ID from step 2
+- `ci_run_id` — the green `master` push CI run ID from step 2
 - `prerelease` — `true` for a beta/rc, otherwise `false`
 
-The workflow re-proves everything in step 4, verifies the CI run, builds from the exact tag,
+The workflow re-proves everything in step 4, verifies the CI run against the contract in step 2,
+builds from the exact tag,
 packages, runs package verification and the document-type gate, checks the **built app's**
 `CFBundleShortVersionString` equals the tag version, names the asset to the contract, generates the
 checksums and manifest, verifies them against the archive bytes, and creates a **DRAFT** release.
@@ -184,19 +199,34 @@ approved GitHub Release, do these steps by hand:
    ```sh
    git push sourceforge-mirror master
    ```
-4. Push the exact annotated release tag to SourceForge:
+4. Push the exact annotated release tag to SourceForge (no `--force`, no `+` refspec):
    ```sh
-   git push sourceforge-mirror v6.8.0
+   git push sourceforge-mirror refs/tags/v6.8.0
    ```
-5. Confirm the peeled SourceForge tag commit matches GitHub:
+5. Confirm the **peeled** SourceForge tag commit equals the release commit and the GitHub/local
+   peeled tag commit.
+
+   An annotated tag ref (`refs/tags/v6.8.0`) points at a **tag object**, not at the commit. The
+   `refs/tags/v6.8.0^{}` entry is the **peeled** commit. `git ls-remote --tags REMOTE v6.8.0`
+   prints only the tag-object line, so it does not prove the commit. Ask for the `^{}` ref:
    ```sh
-   git ls-remote --tags sourceforge-mirror v6.8.0
+   TAG=v6.8.0
+   EXPECTED=<full-40-char-release-commit>
+   LOCAL=$(git rev-parse "refs/tags/$TAG^{commit}")
+   GH=$(git ls-remote origin "refs/tags/$TAG^{}" | cut -f1)
+   SF=$(git ls-remote sourceforge-mirror "refs/tags/$TAG^{}" | cut -f1)
+   echo "expected=$EXPECTED local=$LOCAL github=$GH sourceforge=$SF"
+   [ -n "$SF" ] && [ "$SF" = "$EXPECTED" ] && [ "$SF" = "$LOCAL" ] && [ "$SF" = "$GH" ] \
+     && echo "SourceForge tag OK" || echo "MISMATCH: stop, do not force anything"
    ```
+   All four values must be the same 40-char SHA. An empty `sourceforge` value means the tag is
+   missing or is lightweight (a lightweight tag has no `^{}` entry); stop.
 
 Rules:
 
 - Never create a SourceForge-only release commit.
-- Never force a SourceForge tag.
+- Never force-push to SourceForge (no `--force`, no `+` refspec), for `master` or a tag.
+- If the SourceForge peeled commit differs, stop and investigate. Do not move or re-push the tag.
 - The mirror only carries the modern release tags, not the historical upstream tag set.
 
 ## Future website Downloads contract
