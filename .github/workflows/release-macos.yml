@@ -9,9 +9,11 @@ name: macOS Release (draft)
 #   * the tag matches vMAJOR.MINOR.PATCH[-beta.N] and exists and is ANNOTATED;
 #   * the tag peels to expected_sha and that commit is reachable from origin/master;
 #   * the tag's FW_BUILD_VERSION_STR agrees with the tag version;
-#   * the supplied CI run is formal-release evidence: success, head_sha == expected_sha,
-#     event push, head_branch master, workflow file .github/workflows/macos.yml (read from the
-#     Actions run API; workflow_dispatch and pull_request runs are refused);
+#   * the supplied run is formal-release evidence: the successful MANUAL validation run of
+#     .github/workflows/macos.yml (macOS Release Validation): conclusion success, head_sha ==
+#     expected_sha, event workflow_dispatch, head_branch master, workflow file
+#     .github/workflows/macos.yml (read from the Actions run API; push and pull_request runs are
+#     refused);
 #   * no GitHub Release already exists for the tag.
 on:
   workflow_dispatch:
@@ -23,7 +25,7 @@ on:
         description: Full 40-char commit SHA the tag must point at
         required: true
       ci_run_id:
-        description: Run ID of the successful master push run of .github/workflows/macos.yml for expected_sha
+        description: Run ID of the successful manual (workflow_dispatch) master run of .github/workflows/macos.yml (macOS Release Validation) for expected_sha
         required: true
       prerelease:
         description: Mark the draft as a pre-release
@@ -46,8 +48,10 @@ env:
   CI_RUN_ID: ${{ github.event.inputs.ci_run_id }}
 
 jobs:
+  # The standard macos-15 runner builds the package with MACOS_MIN=14.0.
+  # The earlier validation run proved the runtime on a real macOS 14 runner.
   release:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - name: validate inputs
@@ -77,11 +81,11 @@ jobs:
       - name: validate the release tag (read-only)
         run: tools/macos-release/verify-release.sh --tag "$TAG" --expected-sha "$EXPECTED_SHA"
 
-      # Formal-release CI contract (fail-closed): the run must be a successful PUSH run on master of
-      # the workflow FILE .github/workflows/macos.yml for exactly expected_sha. The facts come from
-      # the Actions run API record, which carries the workflow path; the display name alone is not
-      # proof. workflow_dispatch (any profile) and pull_request runs are refused.
-      - name: verify the CI run is formal-release evidence
+      # Formal-release evidence contract (fail-closed): the run must be a successful manual
+      # (workflow_dispatch) run on master of the workflow FILE .github/workflows/macos.yml for
+      # exactly expected_sha. The facts come from the Actions run API record, which carries the
+      # workflow path; the display name alone is not proof. push and pull_request runs are refused.
+      - name: verify the run is formal-release evidence (manual validation run)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -8,9 +8,9 @@ never create tags, never create or edit releases, and never push. The full proce
 | --- | --- |
 | `verify-release.sh` | Read-only validation of a release tag: syntax, exists, annotated, peels to the expected SHA, reachable from `origin/master`, agrees with `buildversion.h`, release files present. |
 | `make-release-metadata.sh` | From the exact built archive, write `SHA256SUMS.txt` and `release-manifest.json`. SHA-256 comes from the archive bytes. `--selftest` runs built-in checks. |
-| `check-ci-run.sh` | Pure, fail-closed decision on whether a CI run is formal-release evidence: success, exact 40-char commit, `push` event, `master` branch, workflow file `.github/workflows/macos.yml`. `workflow_dispatch` and `pull_request` runs are refused. The release workflow feeds it facts from the Actions run API. |
+| `check-ci-run.sh` | Pure, fail-closed decision on whether a run is formal-release evidence: success, exact 40-char commit, `workflow_dispatch` event, `master` branch, workflow file `.github/workflows/macos.yml` (the manual macOS Release Validation run). `push` and `pull_request` runs are refused. The release workflow feeds it facts from the Actions run API. |
 | `check-app-version.sh` | Read `CFBundleShortVersionString` from the **built** app and require it to equal the tag version. Blocks a release whose app version does not match its tag. |
-| `test-release.sh` | Focused tests for all three, in throwaway repos and temp dirs. Creates no tags, no releases, touches no remote. |
+| `test-release.sh` | Focused tests for the scripts above, in throwaway repos and temp dirs. Creates no tags, no releases, touches no remote. |
 
 ## Quick use
 
@@ -29,10 +29,18 @@ tools/macos-release/test-release.sh
 
 ## The release build
 
-The build itself runs in GitHub Actions: `.github/workflows/release-macos.yml`. It is
-manual-dispatch only, builds from the exact annotated tag, reuses `tools/macos-deps/build.sh`,
-`tools/macos-package/package.sh`, `tools/macos-package/verify.py` and `tools/macos-ci/doctypes.sh`,
-and creates a **draft** release. It never publishes; Ryan publishes by hand.
+GitHub Actions is a release-validation system only. Pushes and pull requests do not start it;
+development QA runs locally.
+
+1. Ryan runs `.github/workflows/macos.yml` (macOS Release Validation) by hand from `master` with
+   `expected_sha`. It fails unless the run is on `master` and `github.sha` equals `expected_sha`.
+   Build and ASan run on `macos-15` (macOS 15); the minimum-OS runtime gate runs on `macos-14`.
+   `MACOS_MIN` stays `14.0`.
+2. The release build runs in `.github/workflows/release-macos.yml`. It is manual-dispatch only and
+   takes the ID of that successful validation run (checked by `check-ci-run.sh`). It builds from the
+   exact annotated tag on `macos-15`, reuses `tools/macos-deps/build.sh`,
+   `tools/macos-package/package.sh`, `tools/macos-package/verify.py` and `tools/macos-ci/doctypes.sh`,
+   and creates a **draft** release. It never publishes; Ryan publishes by hand.
 
 ## Asset contract
 

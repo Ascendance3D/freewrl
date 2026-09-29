@@ -6,6 +6,26 @@ from an approved commit to a published GitHub Release and the SourceForge mirror
 The process is deliberately safe and repeatable. A person, Ryan, makes every publish decision. The
 workflow never publishes on its own.
 
+## GitHub Actions policy: release validation only
+
+GitHub Actions is a release-validation system, not a development test system.
+
+- Normal development and PR QA run **locally**.
+- Pushes and pull requests do **not** start GitHub Actions.
+- Ryan explicitly starts formal release validation: a manual run of
+  `.github/workflows/macos.yml` (macOS Release Validation, `workflow_dispatch`).
+- Release validation runs from `master` for **one exact expected SHA** (`expected_sha`, 40 hex
+  characters). The run fails at once if it is not on `master` or if `github.sha` differs from
+  `expected_sha`.
+- The build and ASan jobs use a standard `macos-15` runner (Apple
+  Silicon).
+- The minimum-OS runtime gate runs on the standard `macos-14` runner. This is the real proof that
+  the app runs on the minimum supported macOS.
+- `MACOS_MIN` remains `14.0`. The macOS 15 build runner does not change the product minimum.
+- The draft release workflow accepts only the successful manual validation run for the same SHA.
+
+Codemagic is separate and supplemental. It never publishes releases.
+
 ## The tag-versus-release model
 
 A **tag** is an immutable Git label on one commit. A **release** is a GitHub object that carries
@@ -25,7 +45,7 @@ The two are separate on purpose:
 4. A correction gets a new version (for example `v6.8.0` then `v6.8.1`).
 5. New formal releases use **annotated** Git tags.
 6. A release must build from the exact tagged commit.
-7. GitHub Actions is the final release build system.
+7. GitHub Actions is the final release build system, and it runs only when Ryan starts it.
 8. Codemagic never publishes releases; it is supplemental only.
 9. SourceForge is a mirror; it never gets a unique release commit.
 10. Ryan publishes the final GitHub Release by hand.
@@ -94,43 +114,72 @@ stops.
 
 ## Step-by-step release procedure
 
-### 1. Prerequisites
+### 1. Finish local development QA
 
-- The commit to release is already on `master` and reviewed.
+- Development and PR QA are done locally. Nothing on GitHub Actions is used for this.
 - You chose the version. Do not assume the next number; pick it deliberately.
 - You are on macOS 14 (Sonoma) or newer on Apple Silicon for any local checks.
 
-### 2. Confirm green CI
+### 2. Merge the approved candidate to master
 
-- Find the **push** run on **`master`** of `.github/workflows/macos.yml` (`macOS Apple Silicon CI`)
-  for the exact commit. Only that run is formal-release evidence.
-- Confirm it succeeded: host container tests, build/package, package verify, doctypes, runtime,
-  smoke, and the ASan gate (Total = 0).
-- Note the **run ID**; the release workflow verifies it.
+The commit to release must be on `master` and reviewed.
+
+### 3. Record the exact master SHA
+
+```sh
+git fetch origin
+git rev-parse origin/master
+```
+
+Write down the full 40-char SHA. This is `expected_sha` for every later step.
+
+### 4. Run release validation (manual)
+
+Run the **macOS Release Validation** workflow (`.github/workflows/macos.yml`) by hand:
+
+- branch: `master`
+- `expected_sha`: the full 40-char SHA from step 3
+
+The workflow fails at the start unless `expected_sha` is 40 hex characters, the run is on `master`,
+and `github.sha` equals `expected_sha`. It has one fixed test contract and no profile selector:
+
+- `build` on `macos-15`: host container tests, dependency build, Release build, package,
+  package verify (every `minos` is `14.0`), doctypes, Debug build;
+- `runtime` on `macos-14`: smoke fixtures, world-replacement cycles, texture stress, runtime GATE,
+  crash count, allocator-abort count;
+- `asan` on `macos-15`: Debug AddressSanitizer build, world replacement, texture lifetime, ASan
+  classification, Total = 0.
+
+### 5. Require the validation run to pass
+
+Every job must succeed. If any job fails, do not release. Fix the problem, merge to `master`, and
+start again from step 3 with the new SHA.
+
+### 6. Record the validation run ID
+
+Write down the run ID of the successful validation run.
 
 The release workflow reads the run from the GitHub Actions run API and refuses it unless **all** of
 these are true (`tools/macos-release/check-ci-run.sh`):
 
 - `conclusion` is `success`;
 - `head_sha` equals the full 40-char `expected_sha`;
-- `event` is `push`;
+- `event` is `workflow_dispatch`;
 - `head_branch` is `master`;
 - `path` is `.github/workflows/macos.yml` (the workflow file, not only its display name).
 
-A `workflow_dispatch` run (any profile, including `normal`) and a `pull_request` run are **not**
-release evidence. The run record does not carry the dispatch profile, and a `diagnostic` dispatch
-skips the macOS 14 runtime stress.
+A `push` run and a `pull_request` run are **not** release evidence.
 
-### 3. Create the annotated tag
+### 7. Create the annotated tag on that exact SHA
 
 ```sh
-git tag -a v6.8.0 -m "FreeWRL Revival for Mac Silicon 6.8.0" <commit>
+git tag -a v6.8.0 -m "FreeWRL Revival for Mac Silicon 6.8.0" <expected_sha>
 git push origin v6.8.0
 ```
 
-Use an **annotated** tag (`-a`). A lightweight tag is rejected.
+Use an **annotated** tag (`-a`). A lightweight tag is rejected. `v6.8.0` is an example only.
 
-### 4. Verify the tag before building
+### 8. Verify the tag
 
 ```sh
 tools/macos-release/verify-release.sh --tag v6.8.0 --expected-sha <full-40-char-sha>
@@ -140,42 +189,38 @@ This proves the tag exists, is annotated, peels to the expected commit, is reach
 `origin/master`, agrees with `buildversion.h`, and that the release files are present. It is
 read-only.
 
-### 5. Dispatch the release workflow
+### 9. Run the draft release workflow (manual)
 
 Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml`) with:
 
 - `tag` — the annotated tag, e.g. `v6.8.0`
 - `expected_sha` — the full 40-char commit SHA
-- `ci_run_id` — the green `master` push CI run ID from step 2
+- `ci_run_id` — the run ID of the successful manual validation run from step 6
 - `prerelease` — `true` for a beta/rc, otherwise `false`
 
-The workflow re-proves everything in step 4, verifies the CI run against the contract in step 2,
-builds from the exact tag,
-packages, runs package verification and the document-type gate, checks the **built app's**
-`CFBundleShortVersionString` equals the tag version, names the asset to the contract, generates the
-checksums and manifest, verifies them against the archive bytes, and creates a **DRAFT** release.
-It does not publish.
+The release job runs on `macos-15` (macOS 15) with `MACOS_MIN=14.0`. It does not repeat the
+macOS 14 runtime tests; the validation run in step 4 already proved them.
 
-### 6. Review the draft
+The workflow re-proves everything in step 8, verifies the validation run against the contract in
+step 6, builds from the exact tag, packages, runs package verification and the document-type gate,
+checks the **built app's** `CFBundleShortVersionString` equals the tag version, names the asset to
+the contract, generates the checksums and manifest, verifies them against the archive bytes, and
+creates a **DRAFT** release. It does not publish.
+
+### 10. Review and publish the draft (Ryan only)
 
 - Open the draft release on GitHub.
 - Confirm the asset name, the notes, the version, the commit, and the minimum macOS.
 - Confirm the draft claims no code signing, no notarization, and no Intel support unless a real,
   proven signing/notarization step produced them.
+- Download the archive and `SHA256SUMS.txt`, then run `shasum -a 256 -c SHA256SUMS.txt`. Confirm
+  the SHA-256 in `release-manifest.json` equals the value in `SHA256SUMS.txt`.
+- Ryan edits the final notes and publishes the GitHub Release by hand. The workflow never
+  publishes.
 
-### 7. Verify the assets and checksums
+### 11. Mirror master and the exact release tag to SourceForge
 
-Download the archive and `SHA256SUMS.txt`, then:
-
-```sh
-shasum -a 256 -c SHA256SUMS.txt
-```
-
-Confirm the SHA-256 in `release-manifest.json` equals the value in `SHA256SUMS.txt`.
-
-### 8. Publish (Ryan only)
-
-Ryan edits the final notes and publishes the GitHub Release by hand. The workflow never publishes.
+Follow the manual procedure in the SourceForge section below.
 
 ## Tag immutability and rollback
 
