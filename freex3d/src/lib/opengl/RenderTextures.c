@@ -41,7 +41,7 @@ texture enabling - works for single texture, for multitexture.
 #include "../scenegraph/Component_Shape.h"
 #include "../scenegraph/RenderFuncs.h"
 #include "../scenegraph/LinearAlgebra.h"
-#include "../scenegraph/PolyRep.h"
+#include "../scenegraph/Polyrep.h"
 #include "Textures.h"
 #include "Material.h"
 

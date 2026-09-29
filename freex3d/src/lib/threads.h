@@ -44,6 +44,10 @@ OLD_IPHONE_AQUA #endif
 #include <system_threads.h>
 #endif
 
+#ifdef __linux__
+#include <system_threads.h>
+#endif
+
 
 
 int freewrlSystem(const char *string);
