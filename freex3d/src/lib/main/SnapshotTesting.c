@@ -20,13 +20,8 @@
 //#define USE_SNAPSHOT_TESTING 1
 #ifndef USE_SNAPSHOT_TESTING
 //stubs for options
-void fwl_set_modeRecord()
-{
-}
+//fwl_set_modeRecord and fwl_set_modePlayback are defined in ui/common.c
 void fwl_set_modeFixture()
-{
-}
-void fwl_set_modePlayback()
 {
 }
 void fwl_set_nameTest(char *nameTest)
