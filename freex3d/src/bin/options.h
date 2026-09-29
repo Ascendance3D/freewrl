@@ -29,6 +29,10 @@
 #define __FREEWRL_MAIN_OPTIONS_H__
 
 
+/* fv_parseCommandLine returns TRUE to continue, FALSE on a parse error,
+   or FV_PARSE_EXIT after --help or --version printed their output. */
+#define FV_PARSE_EXIT 2
+
 int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *, int *url_index);
 void fv_parseEnvVars(void);
 

@@ -295,14 +295,12 @@ int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *fv_params, int
 
 	case 'h': /* --help, no argument */
 	    fv_usage();
-	    //fwExit(0);
-		return FALSE;
+		return FV_PARSE_EXIT;
 	    break;
 
 	case 'v': /* --version, no argument */
 	    fv_print_version();
-	    //fwExit(0);
-		return FALSE;
+		return FV_PARSE_EXIT;
 	    break;
 
 /* Window options */
