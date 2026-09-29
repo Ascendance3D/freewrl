@@ -48,10 +48,10 @@ env:
   CI_RUN_ID: ${{ github.event.inputs.ci_run_id }}
 
 jobs:
-  # macOS-Runner is the organization larger runner (macOS 15). The package still targets
-  # MACOS_MIN=14.0; the earlier validation run proved the runtime on a real macOS 14 runner.
+  # The standard macos-15 runner builds the package with MACOS_MIN=14.0.
+  # The earlier validation run proved the runtime on a real macOS 14 runner.
   release:
-    runs-on: macOS-Runner
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - name: validate inputs

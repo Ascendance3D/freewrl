@@ -10,9 +10,9 @@ name: macOS Release Validation
 # Supported: macOS 14 Sonoma and newer on Apple Silicon. Everything here targets
 # MACOSX_DEPLOYMENT_TARGET=14.0 (MACOS_MIN stays 14.0).
 # Runners:
-#   build, asan:  macOS-Runner (organization larger runner, macOS 15, Apple Silicon M2). The macOS 15
-#                 image does not change the product minimum: the package still targets 14.0 and every
-#                 package minos check still requires 14.0.
+#   build, asan:  standard macos-15 runner. The macOS 15 image does not change the
+#                 product minimum: the package still targets 14.0 and every package minos
+#                 check still requires 14.0.
 #   runtime:      standard macos-14. This is the real minimum-supported-OS runtime proof.
 # Jobs:
 #   build:    host-only container tests (tools/c-tests, no app launch), FreeType, ODE and freealut
@@ -45,7 +45,7 @@ env:
   EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
 jobs:
   build:
-    runs-on: macOS-Runner
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       # first step, before checkout: refuse a wrong branch or a moving commit
@@ -172,7 +172,7 @@ jobs:
 
   asan:
     needs: build
-    runs-on: macOS-Runner
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5

@@ -17,7 +17,7 @@ GitHub Actions is a release-validation system, not a development test system.
 - Release validation runs from `master` for **one exact expected SHA** (`expected_sha`, 40 hex
   characters). The run fails at once if it is not on `master` or if `github.sha` differs from
   `expected_sha`.
-- The build and ASan jobs use the organization larger runner `macOS-Runner` (macOS 15, Apple
+- The build and ASan jobs use a standard `macos-15` runner (Apple
   Silicon).
 - The minimum-OS runtime gate runs on the standard `macos-14` runner. This is the real proof that
   the app runs on the minimum supported macOS.
@@ -143,11 +143,11 @@ Run the **macOS Release Validation** workflow (`.github/workflows/macos.yml`) by
 The workflow fails at the start unless `expected_sha` is 40 hex characters, the run is on `master`,
 and `github.sha` equals `expected_sha`. It has one fixed test contract and no profile selector:
 
-- `build` on `macOS-Runner`: host container tests, dependency build, Release build, package,
+- `build` on `macos-15`: host container tests, dependency build, Release build, package,
   package verify (every `minos` is `14.0`), doctypes, Debug build;
 - `runtime` on `macos-14`: smoke fixtures, world-replacement cycles, texture stress, runtime GATE,
   crash count, allocator-abort count;
-- `asan` on `macOS-Runner`: Debug AddressSanitizer build, world replacement, texture lifetime, ASan
+- `asan` on `macos-15`: Debug AddressSanitizer build, world replacement, texture lifetime, ASan
   classification, Total = 0.
 
 ### 5. Require the validation run to pass
@@ -198,7 +198,7 @@ Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml
 - `ci_run_id` — the run ID of the successful manual validation run from step 6
 - `prerelease` — `true` for a beta/rc, otherwise `false`
 
-The release job runs on `macOS-Runner` (macOS 15) with `MACOS_MIN=14.0`. It does not repeat the
+The release job runs on `macos-15` (macOS 15) with `MACOS_MIN=14.0`. It does not repeat the
 macOS 14 runtime tests; the validation run in step 4 already proved them.
 
 The workflow re-proves everything in step 8, verifies the validation run against the contract in

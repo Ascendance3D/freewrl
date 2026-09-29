@@ -34,11 +34,11 @@ development QA runs locally.
 
 1. Ryan runs `.github/workflows/macos.yml` (macOS Release Validation) by hand from `master` with
    `expected_sha`. It fails unless the run is on `master` and `github.sha` equals `expected_sha`.
-   Build and ASan run on `macOS-Runner` (macOS 15); the minimum-OS runtime gate runs on `macos-14`.
+   Build and ASan run on `macos-15` (macOS 15); the minimum-OS runtime gate runs on `macos-14`.
    `MACOS_MIN` stays `14.0`.
 2. The release build runs in `.github/workflows/release-macos.yml`. It is manual-dispatch only and
    takes the ID of that successful validation run (checked by `check-ci-run.sh`). It builds from the
-   exact annotated tag on `macOS-Runner`, reuses `tools/macos-deps/build.sh`,
+   exact annotated tag on `macos-15`, reuses `tools/macos-deps/build.sh`,
    `tools/macos-package/package.sh`, `tools/macos-package/verify.py` and `tools/macos-ci/doctypes.sh`,
    and creates a **draft** release. It never publishes; Ryan publishes by hand.
 
