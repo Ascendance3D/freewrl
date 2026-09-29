@@ -43,7 +43,7 @@ along with FreeWRL/FreeX3D.  If not, see <http://www.gnu.org/licenses/>.
 #include "../opengl/Textures.h"
 #include "../opengl/Frustum.h"
 #include "../opengl/Material.h"
-#include "Renderfuncs.h"
+#include "RenderFuncs.h"
 #include "Component_Shape.h"
 #include "LinearAlgebra.h"
 #include "Vector.h"
