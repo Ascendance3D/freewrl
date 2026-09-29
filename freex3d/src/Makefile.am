@@ -4,7 +4,7 @@
 # Conditional build of sub-directories
 
 DIST_SUBDIRS = lib bin java plugin sound message libeai libtess libnurbs
-SUBDIRS = lib bin  libtess libnurbs
+SUBDIRS = lib bin libnurbs
 
 SUBDIRS+=$(MAYBE_PLUGIN)
 SUBDIRS+=$(MAYBE_LIBEAI)
