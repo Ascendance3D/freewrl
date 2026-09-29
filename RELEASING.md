@@ -75,23 +75,22 @@ That value drives the built app on macOS (`freex3d/src_aqua/fwVersion.c` →
 `libFreeWRL_get_version` in `ui/common.c`). The release validator checks the tag version against
 this file **at the tagged commit**.
 
-Other version strings in the tree are stale and are **not** authoritative:
+The Desktop app's `OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist` sets
+`CFBundleShortVersionString` to the same value as `FW_BUILD_VERSION_STR`. When you change the
+version in `buildversion.h`, change the plist in the same commit. The `source-version-identity`
+check in `tools/macos-release/test-release.sh` fails when the two values differ.
+
+Some other version strings in the tree are stale and are **not** authoritative:
 
 - `freex3d/configure.ac` (`AC_INIT ... 4.3.0`) — Linux autotools only, unused on macOS.
 - `freex3d/versions/FREEWRL` (`5.0.0`) — stale.
-- `OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist` (`CFBundleShortVersionString 4.2`) — stale;
-  the app's Info.plist short version does not track `buildversion.h`.
 
 **Built-app version gate.** The release workflow also reads `CFBundleShortVersionString` from the
 **built** `FreeWRL.app` and requires it to equal the tag version (core `MAJOR.MINOR.PATCH`, so
 `v6.8.0-beta.1` expects `6.8.0`). This inspects the real build artifact, not the source plist. It
-runs `tools/macos-release/check-app-version.sh`.
-
-**First formal release is blocked until the version-identity fix.** Today the Desktop app plist
-still reads `4.2` while `buildversion.h` reads `6.7.0`, so the built-app version gate FAILS by
-design. The first formal release is blocked until a separate, narrow version-identity PR sets
-`CFBundleShortVersionString` (and, as needed, `buildversion.h`) to the release version. That code
-change is out of scope for the release infrastructure and belongs in that engine PR.
+runs `tools/macos-release/check-app-version.sh`. This gate is the final artifact check: if drift in
+the sources or in the build settings gives the app a version that differs from the tag, the release
+stops.
 
 ## Step-by-step release procedure
 
