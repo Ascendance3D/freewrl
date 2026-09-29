@@ -1,56 +1,64 @@
-name: macOS Apple Silicon CI
+name: macOS Release Validation
+# FORMAL RELEASE VALIDATION ONLY. GitHub Actions is not a development test system here.
+# Development and PR QA run locally. Pushes and pull requests do NOT start this workflow.
+# Ryan starts it by hand (workflow_dispatch) from master for one exact commit:
+#   expected_sha  the full 40-char commit SHA. The run fails at once unless expected_sha is 40 hex
+#                 characters, the run is on master, and github.sha equals expected_sha.
+# It is the evidence run that .github/workflows/release-macos.yml accepts (tools/macos-release/
+# check-ci-run.sh: workflow_dispatch, master, exact SHA, this file's path, conclusion success).
+# There is one fixed test contract. There is no profile selector.
 # Supported: macOS 14 Sonoma and newer on Apple Silicon. Everything here targets
-# MACOSX_DEPLOYMENT_TARGET=14.0. Routine CI (push, pull_request, normal and deep profiles) runs
-# only on GitHub's arm64 macOS 14 runners; macOS 15 is used only by the diagnostic profile.
-#  build:    on macOS 14: host-only container tests (tools/c-tests, no app launch),
-#            FreeType, ODE and freealut from their pinned source archives into an empty prefix,
-#            Release and Debug builds, the standalone package (ad-hoc signed), verify.py
-#  runtime:  the same package on macOS 14 (the supported minimum and the canonical routine
-#            runtime): smoke fixtures, then (only when smoke passed) world-replacement cycles and
-#            texture stress. One FreeWRL at a time. macOS 15 is not a routine gate; it runs only
-#            for an explicit compatibility investigation (the diagnostic profile) or release
-#            spot-check.
-#  asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
-#            fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
-#            (PROTO lifetime, Frustum extent stack, Vector, GLCore client attributes, other).
-# Stress profiles (tools/macos-ci/suite.sh reads CYC/CSEC/TEX/TSTB/TSEC):
-#   normal (push, pull_request, and workflow_dispatch by default): release 2 cycles x 120 s,
-#          10 + 5 texture runs x 25 s; ASan 2 cycles x 120 s, 3 + 2 texture runs x 30 s.
-#          Runtime job about 20 minutes, ASan job about 10 minutes.
-#   deep   (workflow_dispatch profile=deep, for release candidates and torture testing):
-#          release 3 cycles x 180 s, 50 + 10 texture runs x 40 s; ASan 3 cycles x 300 s,
-#          5 + 2 texture runs x 60 s.
-#   diagnostic (workflow_dispatch profile=diagnostic, for a candidate branch before its PR):
-#          build, then in parallel: macOS 15 smoke only (no stress), the normal ASan set, and
-#          the focused start-up check (tools/macos-ci/startup.sh: 8.wrl started 15 times for
-#          14 s each on macOS 15, for the intermittent prep_Proto crash seen once about 7 s
-#          after launch). About 15 minutes.
+# MACOSX_DEPLOYMENT_TARGET=14.0 (MACOS_MIN stays 14.0).
+# Runners:
+#   build, asan:  macOS-Runner (organization larger runner, macOS 15, Apple Silicon M2). The macOS 15
+#                 image does not change the product minimum: the package still targets 14.0 and every
+#                 package minos check still requires 14.0.
+#   runtime:      standard macos-14. This is the real minimum-supported-OS runtime proof.
+# Jobs:
+#   build:    host-only container tests (tools/c-tests, no app launch), FreeType, ODE and freealut
+#             from their pinned source archives into an empty prefix, Release and Debug builds, the
+#             standalone package (ad-hoc signed), verify.py, doctypes
+#   runtime:  the same package on macOS 14: smoke fixtures, then (only when smoke passed)
+#             world-replacement cycles and texture stress. One FreeWRL at a time.
+#   asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
+#             fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
+#             (PROTO lifetime, Frustum extent stack, Vector, GLCore client attributes, other).
+# Stress counts (tools/macos-ci/suite.sh reads CYC/CSEC/TEX/TSTB/TSEC):
+#   runtime: release 2 cycles x 120 s, 10 + 5 texture runs x 25 s.
+#   asan:    2 cycles x 120 s, 3 + 2 texture runs x 30 s.
+# Focused start-up or diagnostic checks (tools/macos-ci/startup.sh) are local development QA.
 # No secrets are used; signing with a Developer ID and notarization happen outside CI.
 on:
-  push:
-    branches: [master, 'macos/**', 'ci/macos-**']
-  pull_request:
-    branches: [master]
   workflow_dispatch:
     inputs:
-      profile:
-        description: normal = 2 cycles, 10+5 texture runs; deep = 3 cycles, 50+10; diagnostic = macOS 15 smoke + normal ASan + 8.wrl start-up check
-        type: choice
-        options: [normal, deep, diagnostic]
-        default: normal
+      expected_sha:
+        description: Full 40-char commit SHA of master to validate (the run fails unless github.sha equals it)
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
-  group: macos-${{ github.ref }}
-  cancel-in-progress: true
+  group: macos-release-validation-${{ github.event.inputs.expected_sha }}
+  cancel-in-progress: false
 env:
   MACOS_MIN: '14.0'
-  PROFILE: ${{ github.event.inputs.profile || 'normal' }}
+  EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macOS-Runner
     timeout-minutes: 60
     steps:
+      # first step, before checkout: refuse a wrong branch or a moving commit
+      - name: guard (expected_sha, master, exact commit)
+        run: |
+          set -eu
+          echo "expected_sha=$EXPECTED_SHA ref_name=$GITHUB_REF_NAME sha=$GITHUB_SHA"
+          printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-fA-F]{40}$' \
+            || { echo "expected_sha must be exactly 40 hexadecimal characters"; exit 1; }
+          test "$GITHUB_REF_NAME" = master \
+            || { echo "release validation runs from master only, not '$GITHUB_REF_NAME'"; exit 1; }
+          test "$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')" = "$(printf '%s' "$EXPECTED_SHA" | tr 'A-F' 'a-f')" \
+            || { echo "github.sha $GITHUB_SHA does not equal expected_sha $EXPECTED_SHA"; exit 1; }
       - uses: actions/checkout@v5
       - name: environment
         run: sw_vers; xcodebuild -version; uname -m
@@ -121,11 +129,7 @@ jobs:
 
   runtime:
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ github.event.inputs.profile == 'diagnostic' && fromJSON('["macos-15"]') || fromJSON('["macos-14"]') }}
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-14
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -145,66 +149,30 @@ jobs:
       # runs only when smoke passed: a failed smoke skips the stress and fails the job, while the
       # summary, crash reports and artifacts below are still collected
       - name: world-replacement cycles and texture stress
-        if: env.PROFILE != 'diagnostic'
         run: |
           OUT=$RUNNER_TEMP/out
           set -o pipefail
-          if [ "$PROFILE" = deep ]; then export CYC=3 CSEC=180 TEX=50 TSTB=10 TSEC=40
-          else export CYC=2 CSEC=120 TEX=10 TSTB=5 TSEC=25; fi
-          echo "profile=$PROFILE cycles=$CYC x ${CSEC}s textures=$TEX+$TSTB x ${TSEC}s"
+          export CYC=2 CSEC=120 TEX=10 TSTB=5 TSEC=25
+          echo "cycles=$CYC x ${CSEC}s textures=$TEX+$TSTB x ${TSEC}s"
           tools/macos-ci/suite.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT release | tee $OUT/results.txt
       - name: summary
         if: always()
         run: |
           OUT=$RUNNER_TEMP/out
-          { echo "### package on ${{ matrix.os }} ($(sw_vers -productVersion), $(uname -m)), profile $PROFILE"; echo '```'
+          { echo "### package on macos-14 ($(sw_vers -productVersion), $(uname -m)), expected_sha $EXPECTED_SHA"; echo '```'
             grep -hm1 GL_RENDERER $OUT/*.err $OUT/*.out 2>/dev/null | head -1
             cat $OUT/smoke.txt 2>/dev/null
-            grep '^GATE' $OUT/results.txt 2>/dev/null || echo "stress not run (smoke failed, or diagnostic profile)"; echo '```'; } >> $GITHUB_STEP_SUMMARY
+            grep '^GATE' $OUT/results.txt 2>/dev/null || echo "stress not run (smoke failed)"; echo '```'; } >> $GITHUB_STEP_SUMMARY
       - name: collect crash reports
         if: always()
         run: mkdir -p $RUNNER_TEMP/out/crash; cp ~/Library/Logs/DiagnosticReports/FreeWRL* $RUNNER_TEMP/out/crash/ 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         if: always()
-        with: {name: "runtime-${{ matrix.os }}", path: "${{ runner.temp }}/out"}
-
-  # diagnostic profile only: the focused start-up check, in parallel with smoke and ASan
-  startup:
-    needs: build
-    if: github.event.inputs.profile == 'diagnostic'
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
-        with: {name: package, path: pkg}
-      - name: unpack
-        run: |
-          sw_vers; uname -m; sudo DevToolsSecurity -enable || true
-          (cd pkg && shasum -a 256 -c FreeWRL-macos-arm64.zip.sha256)
-          ditto -x -k pkg/FreeWRL-macos-arm64.zip "$RUNNER_TEMP/app"
-      - name: 8.wrl started 15 times, 14 s each
-        run: |
-          OUT=$RUNNER_TEMP/out; mkdir -p $OUT
-          set -o pipefail
-          tools/macos-ci/startup.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT freewrl/tests/8.wrl 15 14 | tee $OUT/startup.txt
-      - name: summary
-        if: always()
-        run: |
-          OUT=$RUNNER_TEMP/out
-          { echo "### start-up check on macos-15 ($(sw_vers -productVersion), $(uname -m))"; echo '```'
-            grep -hm1 GL_RENDERER $OUT/*.err $OUT/*.out 2>/dev/null | head -1
-            cat $OUT/startup.txt 2>/dev/null; echo '```'; } >> $GITHUB_STEP_SUMMARY
-      - name: collect crash reports
-        if: always()
-        run: mkdir -p $RUNNER_TEMP/out/crash; cp ~/Library/Logs/DiagnosticReports/FreeWRL* $RUNNER_TEMP/out/crash/ 2>/dev/null || true
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with: {name: startup-macos-15, path: "${{ runner.temp }}/out"}
+        with: {name: runtime-macos-14, path: "${{ runner.temp }}/out"}
 
   asan:
     needs: build
-    runs-on: macos-14
+    runs-on: macOS-Runner
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -222,15 +190,14 @@ jobs:
         run: |
           OUT=$RUNNER_TEMP/out; mkdir -p $OUT
           set -o pipefail
-          if [ "$PROFILE" = deep ]; then export CYC=3 CSEC=300 TEX=5 TSTB=2 TSEC=60
-          else export CYC=2 CSEC=120 TEX=3 TSTB=2 TSEC=30; fi
-          echo "profile=$PROFILE cycles=$CYC x ${CSEC}s textures=$TEX+$TSTB x ${TSEC}s"
+          export CYC=2 CSEC=120 TEX=3 TSTB=2 TSEC=30
+          echo "cycles=$CYC x ${CSEC}s textures=$TEX+$TSTB x ${TSEC}s"
           tools/macos-ci/suite.sh "$RUNNER_TEMP/dd/Build/Products/Debug/FreeWRL.app" $OUT asan | tee $OUT/results.txt
       - name: summary
         if: always()
         run: |
           OUT=$RUNNER_TEMP/out
-          { echo "### ASan ($(sw_vers -productVersion)), profile $PROFILE"; echo '```'; cat $OUT/results.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+          { echo "### ASan ($(sw_vers -productVersion)), expected_sha $EXPECTED_SHA"; echo '```'; cat $OUT/results.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v6
         if: always()
         with: {name: asan, path: "${{ runner.temp }}/out"}

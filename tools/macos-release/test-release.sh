@@ -83,12 +83,13 @@ check "version-mismatch-rejected" "'$verify' --repo '$R' --tag v9.9.9 --expected
 
 echo
 echo "== check-ci-run.sh (CI-run gate) =="
-# the formal-release contract: success, exact SHA, push, master, .github/workflows/macos.yml.
-# ciargs overrides fields of a good run: ciargs [FIELD VALUE]...
+# the formal-release contract: success, exact SHA, workflow_dispatch, master,
+# .github/workflows/macos.yml. GitHub Actions is release validation only, so a push or pull_request
+# run is never release evidence. ciargs overrides fields of a good run: ciargs [FIELD VALUE]...
 SHA1=1111111111111111111111111111111111111111 SHA2=2222222222222222222222222222222222222222
 ciargs() {
-	local conclusion=success head=$SHA1 event=push branch=master path=.github/workflows/macos.yml
-	local name='macOS Apple Silicon CI'
+	local conclusion=success head=$SHA1 event=workflow_dispatch branch=master path=.github/workflows/macos.yml
+	local name='macOS Release Validation'
 	while [ $# -ge 2 ]; do
 		case $1 in
 		conclusion) conclusion=$2 ;; head) head=$2 ;; event) event=$2 ;; branch) branch=$2 ;;
@@ -99,13 +100,10 @@ ciargs() {
 	printf "%s --conclusion '%s' --head-sha '%s' --expected-sha '%s' --event '%s' --head-branch '%s' --workflow-path '%s' --workflow-name '%s'" \
 		"'$ci'" "$conclusion" "$head" "$SHA1" "$event" "$branch" "$path" "$name"
 }
-check "ci-master-push-passes" "$(ciargs)" 0 "RESULT: PASS"
-# the run record does not carry the dispatch profile, so every workflow_dispatch run is refused:
-# a diagnostic dispatch (typically on a candidate branch) and a normal-profile dispatch on master
-check "ci-dispatch-diagnostic-rejected" "$(ciargs event workflow_dispatch branch macos/candidate)" 1 "FAIL ci-event"
-check "ci-dispatch-normal-rejected" "$(ciargs event workflow_dispatch)" 1 "FAIL ci-event"
+check "ci-master-dispatch-passes" "$(ciargs)" 0 "RESULT: PASS"
+check "ci-push-rejected" "$(ciargs event push)" 1 "FAIL ci-event"
 check "ci-pull-request-rejected" "$(ciargs event pull_request)" 1 "FAIL ci-event"
-check "ci-other-branch-push-rejected" "$(ciargs branch macos/some-branch)" 1 "FAIL ci-branch"
+check "ci-other-branch-dispatch-rejected" "$(ciargs branch macos/some-branch)" 1 "FAIL ci-branch"
 check "ci-wrong-workflow-path-rejected" "$(ciargs path .github/workflows/release-macos.yml)" 1 "FAIL ci-workflow-path"
 check "ci-wrong-sha-rejected" "$(ciargs head $SHA2)" 1 "FAIL ci-sha"
 check "ci-short-sha-rejected" "$(ciargs head ${SHA1:0:12})" 1 "FAIL ci-sha"
@@ -115,7 +113,10 @@ check "ci-in-progress-run-rejected" "$(ciargs conclusion null)" 1 "FAIL ci-succe
 check "ci-right-name-wrong-path-rejected" "$(ciargs path .github/workflows/other.yml)" 1 "PASS ci-workflow-name"
 check "ci-right-name-wrong-path-fails" "$(ciargs path .github/workflows/other.yml)" 1 "FAIL ci-workflow-path"
 check "ci-wrong-name-rejected" "$(ciargs name 'Some Other CI')" 1 "FAIL ci-workflow-name"
-check "ci-missing-event-usage-error" "'$ci' --conclusion success --head-sha $SHA1 --expected-sha $SHA1 --head-branch master --workflow-path .github/workflows/macos.yml" 1 "--event is required"
+# the path is authoritative: no display name given, the right path still passes
+check "ci-path-only-passes" "'$ci' --conclusion success --head-sha $SHA1 --expected-sha $SHA1 --event workflow_dispatch --head-branch master --workflow-path .github/workflows/macos.yml" 0 "RESULT: PASS"
+# a missing required field is a usage error (exit 2), not a decision
+check "ci-missing-event-usage-error" "'$ci' --conclusion success --head-sha $SHA1 --expected-sha $SHA1 --head-branch master --workflow-path .github/workflows/macos.yml; [ \$? -eq 2 ]" 0 "--event is required"
 
 echo
 echo "== check-app-version.sh (built-app version gate) =="
