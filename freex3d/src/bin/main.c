@@ -85,6 +85,7 @@ int main (int argc, char **argv)
     const char *libver;
     const char  *progver;
 	int url_index;
+	int parse_result;
 	char * start_url;
 
 //#if defined(_ANDROID)
@@ -208,7 +209,10 @@ int main (int argc, char **argv)
     /* parse command line arguments */
 	start_url = NULL;
 	printf("-h for commandline use\n");
-    if (fv_parseCommandLine(argc, argv,fv_params, &url_index)) {
+    parse_result = fv_parseCommandLine(argc, argv,fv_params, &url_index);
+    if (parse_result == FV_PARSE_EXIT)
+		return 0;
+    if (parse_result) {
 		if(argc > 1 && url_index > -1){
 			start_url = argv[url_index];
 #ifdef _MSC_VER
