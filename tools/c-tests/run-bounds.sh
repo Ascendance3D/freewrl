@@ -29,7 +29,9 @@ cflags="-std=gnu17 -g -O0 $san"
 export ASAN_OPTIONS=${ASAN_OPTIONS:-halt_on_error=1:detect_stack_use_after_return=1}
 export UBSAN_OPTIONS=${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}
 
-x() { awk -v fn="$2" -v to="${3:-}" -f "$here/extract.awk" "$lib/$1"; }
+# LC_ALL=C: the sources hold non-UTF-8 byte literals (e.g. the JPEG magic in
+# LoadTextures.c), which a UTF-8 awk rejects; read them as bytes.
+x() { LC_ALL=C awk -v fn="$2" -v to="${3:-}" -f "$here/extract.awk" "$lib/$1"; }
 {
 	x scenegraph/Component_HAnim.c char_is_separator
 	x scenegraph/Component_HAnim.c next_token
