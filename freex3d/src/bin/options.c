@@ -285,8 +285,8 @@ int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *fv_params, int
 	    /* Error handling */
 
 	case '?': /* getopt error: unknown option or missing argument */
-	    printf("ERROR: unknown option or missing argument to option: %c (%s)\n", 
-		     c, real_option_name);
+	    ERROR_MSG("ERROR: unknown option or missing argument to option: %c (%s)\n",
+		     optopt ? optopt : '?', real_option_name);
 	    //fwExit(1);
 		return FALSE;
 
