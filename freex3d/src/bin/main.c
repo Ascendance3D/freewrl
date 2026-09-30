@@ -212,6 +212,8 @@ int main (int argc, char **argv)
     parse_result = fv_parseCommandLine(argc, argv,fv_params, &url_index);
     if (parse_result == FV_PARSE_EXIT)
 		return 0;
+    if (!parse_result)
+		return 1;
     if (parse_result) {
 		if(argc > 1 && url_index > -1){
 			start_url = argv[url_index];
