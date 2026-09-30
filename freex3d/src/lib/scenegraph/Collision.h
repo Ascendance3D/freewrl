@@ -44,7 +44,8 @@ Collision ???
 #endif
 #endif // HAVE_OPENCL
 
-
+/* Defined in Polyrep.h; declared here so the prototypes below use the file-scope type. */
+struct X3D_PolyRep;
 
 /* Collision detection results structure*/
 struct sCollisionInfo {

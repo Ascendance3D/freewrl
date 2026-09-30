@@ -28,6 +28,9 @@ Linear algebra.
 #ifndef __FREEWRL_LINEAR_ALGEBRA_H__
 #define __FREEWRL_LINEAR_ALGEBRA_H__
 
+/* Defined in Structs.h; declared here so the prototypes below use the file-scope type. */
+struct point_XYZ;
+
 double angleNormalized(double angle);
 
 #define VECSQ(a) VECPT(a,a)
@@ -281,6 +284,7 @@ struct point_XYZ* double2pointxyz(struct point_XYZ* r, double* p); /* ditto */
 double *transformAFFINEd(double *r, double *a, const double* mat); /* same as transformAFFINE which is the same as transform() - just different parameter types */
 double * matrixAFFINE2RotationMatrix(double* rotmat, double *fullmat);
 void AFFINEmatrix2axisangle(double* axisangle, double* matrix4);
+void AFFINEmatrix2axisangled(double* axisangle, double* matrix4);
 double *transformUPPER3X3d(double *r, double *a, const double* mat);
 double *transformFULL4d(double *r4, double *a4, double *mat);
 
