@@ -23,5 +23,6 @@
 struct Vector;
 int dis_read_stream(unsigned char * datastream, int streamsize, struct Vector *pdus, int *heard);
 int dis_write_stream(unsigned char * datastream, struct Vector *pdus);
+int disverbose(void);
 
 #endif /* __FREEWRL_SCENEGRAPH_COMPONENT_DIS_H__ */

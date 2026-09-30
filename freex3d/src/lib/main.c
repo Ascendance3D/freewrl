@@ -299,7 +299,8 @@ void splitpath3(const char* url, char** folder, char** local_name, char** suff) 
 				break;
 			localname = (char*)&url[i];
 		}
-		*folder = strndup(url, i);
+		/* no '/' leaves i == -1: keep the whole url, as strndup(url, (size_t)-1) did */
+		*folder = i >= 0 ? strndup(url, i) : strdup(url);
 		if (localname) {
 			*local_name = STRDUP(localname);
 			localname = *local_name;

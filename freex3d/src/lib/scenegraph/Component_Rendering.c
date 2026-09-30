@@ -989,7 +989,6 @@ void render_PointRep(void* _pointrep) {
 
 				printf("\n");
 			}
-			printf("");
 		}
 	} else {
 		//PointProperties needs fancy scaling or sprite texturing 

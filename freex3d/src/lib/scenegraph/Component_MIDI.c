@@ -560,7 +560,7 @@ double midiump_values2packet(ubyte channel, ubyte command, ubyte note, ushort ve
 }
 
 void render_MIDIConverterOut(struct X3D_MIDIConverterOut* node) {}
-void render_MIDIConverterIn(struct MIDIConverterIn* node) {}
+void render_MIDIConverterIn(struct X3D_MIDIConverterIn* node) {}
 void offset_notefields_MidiToneSplitter(size_t* cfield) {
 	cfield[0] = (offsetof(struct X3D_MIDIToneSplitter, C));
 	cfield[1] = (offsetof(struct X3D_MIDIToneSplitter, Cs));
@@ -764,7 +764,7 @@ void render_MIDIToneMerger(struct X3D_MIDIToneMerger* node) {
 	}
 
 }
-void render_MIDIAudioSynth(struct MIDIAudioSynth* node) {}
+void render_MIDIAudioSynth(struct X3D_MIDIAudioSynth* node) {}
 
 static midi_transport_method = MIDI_UMP;
 void set_MIDITransport(int method) {
@@ -788,9 +788,9 @@ void render_MIDIIn(struct X3D_MIDIIn* node) {}
 void render_MIDIProgram(struct X3D_MIDIProgram* node) {}
 void render_MIDIDelay(struct X3D_MIDIDelay* node) {}
 void render_MIDIConverterOut(struct X3D_MIDIConverterOut* node) {}
-void render_MIDIConverterIn(struct MIDIConverterIn* node) {}
-void render_MIDIToneSplitter(struct MIDIToneSplitter* node) {}
-void render_MIDIToneMerger(struct MIDIToneMerger* node) {}
-void render_MIDIAudioSynth(struct MIDIAudioSynth* node) {}
+void render_MIDIConverterIn(struct X3D_MIDIConverterIn* node) {}
+void render_MIDIToneSplitter(struct X3D_MIDIToneSplitter* node) {}
+void render_MIDIToneMerger(struct X3D_MIDIToneMerger* node) {}
+void render_MIDIAudioSynth(struct X3D_MIDIAudioSynth* node) {}
 
 #endif //HAVE_LIBREMIDI

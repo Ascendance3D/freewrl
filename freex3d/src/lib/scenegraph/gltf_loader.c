@@ -226,7 +226,6 @@ void render_MeshRep(void* _meshrep) {
 			}
 			printf("\n");
 		}
-		printf("");
 	}
 }
 void rendray_MeshRep(void* _meshrep) {
@@ -457,7 +456,7 @@ void save_texture_transforms(struct X3D_Node* appearance, int ntextrans, struct 
 	}
 }
 struct Uni_String* set_mat_mapping(cgltf_texture_view ctexture, int itextrans) {
-	char scratch[20], ctemp[10];
+	char scratch[32], ctemp[16]; /* "C" and "T" each followed by any int */
 	//sprintf(scratch, "%d%d", itextrans, ctexture.texcoord);
 	scratch[0] = '\0';
 	if (ctexture.texcoord > -1) {
@@ -1091,7 +1090,7 @@ int parse_gltf(struct X3D_Node *ectx, struct Multi_Node *spot, cgltf_data * data
 }
 
 struct uri_data {
-	char *uri;
+	const char *uri;
 	void **data;
 	int data_size;
 	void* cdata;
@@ -1208,7 +1207,7 @@ int parser_do_parse_gltf(const char *input, const int len, struct X3D_Node *ectx
 				nn = file_list->n;
 				for (int k = 0; k < nn; k++) {
 					struct uri_data* ud = vector_get_ptr(struct uri_data, file_list, k);
-					char* uri = ud->uri;
+					const char* uri = ud->uri;
 					res = resource_create_single(uri);
 					res->ectx = ectx;
 					res->media_type = resm_unknown; // resm_bin;
