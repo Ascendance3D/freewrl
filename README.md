@@ -119,6 +119,23 @@ Useful options include `--with-target` (`x11`, `motif`), `--with-javascript`
 (`duk` for the bundled duktape, `sm` for SpiderMonkey, `stub` for none),
 `--enable-libeai`, and `--enable-debug`.
 
+A git checkout does not contain the Autotools outputs (`configure`,
+`config.h.in`, the automake `Makefile.in` files, `INSTALL`, `doc/doxyfile`).
+Run `./autogen.sh` to make them. `src/libnurbs/Makefile.in` and
+`src/libtess/Makefile.in` are hand-written and tracked. A source archive from
+`make dist` contains all generated files and builds with `./configure && make`
+without `autogen.sh`.
+
+Linux configuration status (checked on Ubuntu 24.04):
+
+| Configuration | Status |
+|---|---|
+| `--with-target=x11 --with-javascript=duk` | Supported and tested: build, `make distcheck`, install, runtime |
+| `--with-target=motif --with-javascript=duk` | Supported and tested: build, install, runtime. Needs `libmotif-dev` |
+| `--with-javascript=stub` | Builds and runs; Script nodes do not run |
+| `--with-javascript=sm` | Legacy. The code uses the SpiderMonkey 1.8.5–24 API (`JSRuntime`). `configure` looks only for `mozjs-24`, `mozjs-17.0`, `mozjs187`, `mozjs185` or `mozilla-js` < 3.0. Current distributions do not package these, so `configure` stops with an error |
+| `--enable-plugin` (default on) | Legacy. The plugin uses NPAPI, which current browsers removed. `configure` finds no NPAPI SDK, warns and does not build the plugin |
+
 ### macOS (Apple Silicon)
 
 Supported: macOS 14 Sonoma and newer on Apple Silicon (arm64). Build from the
@@ -178,9 +195,9 @@ The numbered worlds in `freewrl/tests/` are described in
 | Path | Contents |
 | --- | --- |
 | `freex3d/` | Core engine source (`src/lib`), standalone executable (`src/bin`), autotools build, code generator (`codegen/`), icons |
-| `OSX_gui/` | Xcode projects for macOS desktop and iOS |
+| `OSX_gui/` | Xcode projects for macOS desktop (the iOS project is historical and unsupported) |
 | `freex3d/projectfiles_*` | Visual Studio projects for Windows |
-| `Android/` | Android NDK build |
+| `Android/` | Historical Android NDK build (unsupported) |
 | `linux_appimage/` | Scripts that bundle an installed FreeWRL into an AppImage |
 | `freewrl/tests/` | Numbered sample VRML/X3D worlds |
 | `SoundEngine/` | Separate sound engine |

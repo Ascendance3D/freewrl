@@ -1,4 +1,4 @@
-man_MANS = \
+dist_man_MANS = \
 	freewrl.1
 
 if FW_DOCS

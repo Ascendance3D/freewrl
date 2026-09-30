@@ -46,18 +46,6 @@ pixmap_DATA = data/freewrl.png
 freedesktopdir = $(datadir)/applications
 freedesktop_DATA = data/freewrl.desktop
 
-dist_man_MANS = doc/freewrl.1
-
-dist-minimal: clean distclean
-	if test -f freewrl-$(PACKAGE_VERSION).tar.gz; then \
-		rm -f freewrl-$(PACKAGE_VERSION).tar.gz; fi
-	find . -type f -name "*~" -exec rm {} \;
-	rm -rf aclocal.m4 autom4te.cache config config.h.in configure $$(find . -type f -name Makefile.in | xargs)
-	cd .. && \
-	if test -h freewrl-$(PACKAGE_VERSION); then \
-		rm -f freewrl-$(PACKAGE_VERSION); fi && \
-	ln -s freewrl freewrl-$(PACKAGE_VERSION) && \
-	tar cfz freewrl-minimal-$(PACKAGE_VERSION).tar.gz \
-		freewrl-$(PACKAGE_VERSION)/* --exclude '.svn'
+# doc/Makefile.am installs and distributes the freewrl.1 man page.
 
 all: vtempl

@@ -6,9 +6,11 @@
 # Clean all *~ files
 # Clean all generated files
 
-rm -rf aclocal.m4 configure config.status config.log config.h config.h.in libtool stamp-h1 autom4te.cache config m4/lt* m4/libtool.m4
+rm -rf aclocal.m4 configure config.status config.log config.h config.h.in libtool stamp-h1 autom4te.cache config m4/lt* m4/libtool.m4 INSTALL doc/doxyfile
 
-find . -name Makefile.in -delete
+# Delete only the Makefile.in files that automake generates from a Makefile.am.
+# src/libnurbs/Makefile.in and src/libtess/Makefile.in are hand-written sources.
+find . -name Makefile.in -exec sh -c 'test -f "${1%.in}.am" && rm -f "$1"' sh {} \;
 
 find . -name Makefile ! -path "*libtess/Makefile*" -delete
 
