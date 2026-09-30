@@ -10,6 +10,8 @@ Ubuntu), and Windows.
 
 If you want to build FreeWRL from sources please refer to the 
 documentation in INSTALL.
+In a git checkout, run ./autogen.sh first: it creates configure
+and INSTALL. A release archive already contains them.
 
 Included documentation
 ----------------------
