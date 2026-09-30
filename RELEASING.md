@@ -100,10 +100,16 @@ The Desktop app's `OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist` sets
 version in `buildversion.h`, change the plist in the same commit. The `source-version-identity`
 check in `tools/macos-release/test-release.sh` fails when the two values differ.
 
-Some other version strings in the tree are stale and are **not** authoritative:
+The Linux autotools build does not read `buildversion.h`. It takes the same product version from
+three files, which are not used on macOS. When you change the version in `buildversion.h`, change
+these in the same commit:
 
-- `freex3d/configure.ac` (`AC_INIT ... 4.3.0`) — Linux autotools only, unused on macOS.
-- `freex3d/versions/FREEWRL` (`5.0.0`) — stale.
+- `freex3d/versions/FREEWRL` → program version (`freewrl --version`).
+- `freex3d/versions/LIBFREEWRL` → library version (`libFreeWRL_get_version` on Linux).
+- `freex3d/configure.ac` `AC_INIT` → autotools package version, `libFreeWRL.pc`, dist archive name.
+
+Do not change `freex3d/versions/LIBFREEWRL_LTVERSION` for a product-version change. It is the
+libtool ABI version (`-version-info`) and changes only when the library interface changes.
 
 **Built-app version gate.** The release workflow also reads `CFBundleShortVersionString` from the
 **built** `FreeWRL.app` and requires it to equal the tag version (core `MAJOR.MINOR.PATCH`, so

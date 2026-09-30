@@ -51,7 +51,9 @@ This fork's maintained `master` trunk is based on FreeWRL 6.7:
 - SourceForge `develop` commit `b3254b11e`, the upstream base of this
   fork's 6.7 line, is titled `Version 6.7`.
 - `freex3d/src/buildversion.h` reports version `6.7.0`.
-- `freex3d/versions/FREEWRL` is stale and still reports `5.0.0`.
+- The Linux autotools build reports `6.7.0` too: `freex3d/versions/FREEWRL`
+  (program), `freex3d/versions/LIBFREEWRL` (library) and `AC_INIT` in
+  `freex3d/configure.ac` (package and `libFreeWRL.pc`).
 
 ## Supported formats
 
