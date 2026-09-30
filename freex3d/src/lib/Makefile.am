@@ -130,7 +130,7 @@ endif
 # WINDOW_USE_* are exclusive
 #
 if WINDOW_USE_X11
-libFreeWRL_la_SOURCES += ui/fwCommonX11.c ui/fwBareWindow.c ui/fwBareWindow.h scenegraph/BVHreader.c
+libFreeWRL_la_SOURCES += ui/fwCommonX11.c ui/fwBareWindow.c ui/fwBareWindow.h
 AM_CPPFLAGS+=-DTARGET_X11
 endif
 

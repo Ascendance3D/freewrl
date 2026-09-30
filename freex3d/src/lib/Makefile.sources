@@ -129,6 +129,7 @@ scenegraph/Component_Core.c \
 scenegraph/Component_EnvironEffects.c \
 scenegraph/Component_Grouping.h \
 scenegraph/Component_Grouping.c \
+scenegraph/BVHreader.c \
 scenegraph/Collision.c \
 scenegraph/CollisionGPU.c \
 scenegraph/Component_Text.c \
