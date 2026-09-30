@@ -441,7 +441,7 @@ void setMessageBar()
 {
 	ppcommon p = (ppcommon)gglobal()->common.prv;
 
-	snprintf(p->messagebar, MAXSTAT-1, "%s", p->myMenuStatus);
+	snprintf(p->messagebar, sizeof(p->messagebar), "%s", p->myMenuStatus);
 }
 char *getMessageBar()
 {

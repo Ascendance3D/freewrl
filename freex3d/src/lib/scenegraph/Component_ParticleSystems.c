@@ -1116,10 +1116,8 @@ void apply_VolumeEmitter(particle* pp, struct X3D_Node* emitter) {
 
 
 // BEGIN HUMANOID PARTICLE SECTION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-struct rgba { unsigned char r, g, b, a; };
 typedef union {
 	unsigned char bytes[4];
-	struct rgba;
 	short int16[2];
 	int   int32;
 } pix;

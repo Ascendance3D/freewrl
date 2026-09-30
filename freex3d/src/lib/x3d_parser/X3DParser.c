@@ -1502,7 +1502,7 @@ void startProto_B(void* ud, const char* name, struct X3D_Proto* nodetype, const 
 				svalue = atts[i + 1];
 				if (findFieldInARR(fname, ignore, 5) == INT_ID_UNDEFINED) {
 					int ok, builtIn, type, kind, iifield;
-					char* cname;
+					const char* cname;
 					union anyVrml *value;
 					ok = 0;
 					cname = NULL;

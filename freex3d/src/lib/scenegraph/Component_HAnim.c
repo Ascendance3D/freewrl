@@ -1967,7 +1967,7 @@ Stack* parse_joint_names(struct X3D_Node* node, char *joint_names){
 	Stack* jnames = newStack(char*);
 	//adapted from cson >>
 	int len, rc;
-	char *beg, *end;
+	const char *beg, *end;
     beg = joint_names;
     end = NULL;
     for(int i=0;; ++i, beg=end, end=NULL )
@@ -2049,7 +2049,7 @@ char *channame_lookup(int ichan){
 	}while(cn->iname != CHAN_NONE);
 	return cname;
 }
-char *next_buffer_token(char **beg, char* sep, char **end){
+char *next_buffer_token(const char **beg, char* sep, const char **end){
 	static char buffer[128];
 	int len, rc;
 	buffer[0] = '\0';
@@ -2069,7 +2069,8 @@ int parse_channels(char *channelstring, int nentries, struct joint_frame_motion 
 	char *sep = " \n\r\t,";
 	//adapted from cson >>
 	int len, rc, count, totalcount;
-	char *beg, *end, *token;
+	const char *beg, *end;
+	char *token;
 	totalcount = 0;
     beg = channelstring;
     end = NULL;
@@ -2097,7 +2098,8 @@ int parse_channels(char *channelstring, int nentries, struct joint_frame_motion 
 //	struct mojoint * mj;
 //};
 float *parse_float_values(int n, char *str){
-	char *beg, *end, *token;
+	const char *beg, *end;
+	char *token;
 	int len;
 	char *sep = " \n\r\t,";
 	float *fv = malloc(n*sizeof(float));

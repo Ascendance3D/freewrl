@@ -2114,7 +2114,7 @@ void sprintnorm(float *N, float *B, int n)
 {
 	int i, j;
 	float *a;
-	printf(" NE.sz= %ld \n", n );
+	printf(" NE.sz= %d \n", n );
 	for( i=0; i< n; i++ )
 	{
 		a = &N[i*n];
