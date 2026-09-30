@@ -1174,19 +1174,19 @@ static void possiblyUnzip (openned_file_t *of) {
 		int num_read = 0;
 		openned_file_t *newFile;
 
-		char *tempname; // [1000];
+		char *tempname;
 
-		/* make a temporary name for the gunzipped file */
-        // sprintf (tempname, "%s",tempnam(gglobal()->Mainloop.tmpFileLocation,"freewrl_tmp")); 
-		tempname = TEMPNAM(gglobal()->Mainloop.tmpFileLocation, "freewrl_tmp");
-
-		/* read in the text, unzip it, write it out again */
+		/* write the gunzipped text to a new private temporary file */
 		source = gzopen(of->fileFileName,"rb");
-		dest = fopen(tempname,"wb");
-
-		if (!source || !source) {
+		if (!source) {
 			ConsoleMessage ("unable to unzip this file: %s\n",of->fileFileName);
-			printf ("wow - problem\n");
+			return;
+		}
+		dest = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation, "freewrl_tmp_", &tempname);
+		if (!dest) {
+			ConsoleMessage ("unable to create a temporary file to unzip %s\n",of->fileFileName);
+			gzclose(source);
+			return;
 		}
 
 		while ((num_read = gzread(source, buffer, GZIP_BUFF_SIZE)) > 0) {
@@ -1199,9 +1199,11 @@ static void possiblyUnzip (openned_file_t *of) {
 		/* read in the unzipped text... */
 		newFile = load_file((const char *) tempname);
 		UNLINK(tempname);
+		free(tempname);
 
-		if (newFile->fileData == NULL) {
+		if (!newFile || newFile->fileData == NULL) {
 			ConsoleMessage ("problem re-reading gunzipped text file");
+			FREE_IF_NZ(newFile);
 			return;
 		}
 
@@ -1211,7 +1213,6 @@ static void possiblyUnzip (openned_file_t *of) {
 /* seems odd that we wouldn't need to also update the fileDataSize, like so:
 		of->fileDataSize = newFile->fileDataSize; */
 		FREE_IF_NZ(newFile);
-		unlink (tempname);
 	}
 #endif
 }

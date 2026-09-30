@@ -33,6 +33,7 @@
 #include <internal.h>
 
 #include <libFreeWRL.h>
+#include <io_files.h>
 //#include <list.h>
 //
 //#include <io_files.h>
@@ -194,17 +195,12 @@ char* download_url_curl_OLD(char *parsed_request, char *temp_dir)
 
     if (temp_dir) {
 	    temp = STRDUP(temp_dir);
+	    file = fopen(temp, "w");
     } else {
-	    temp = TEMPNAM(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_curl_XXXXXXXX");
-		if (!temp) {
-		    PERROR_MSG("download_url_curl: can't create temporary name.\n");
-		    return NULL;	
-	    }
+	    file = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_curl_", &temp);
     }
-
-    file = fopen(temp, "w");
     if (!file) {
-	FREE(temp);
+	FREE_IF_NZ(temp);
 	ERROR_MSG("Cannot create temp file (fopen)\n");
 	return NULL;	
     }   
@@ -250,17 +246,12 @@ char* download_url_curl(char *parsed_request, char *temp_dir)
 
     if (temp_dir) {
 	    temp = STRDUP(temp_dir);
+	    file = fopen(temp, "w");
     } else {
-	    temp = TEMPNAM(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_curl_XXXXXXXX");
-	    if (!temp) {
-		    PERROR_MSG("download_url_curl: can't create temporary name.\n");
-		    return NULL;	
-	    }
+	    file = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_curl_", &temp);
     }
-
-    file = fopen(temp, "w");
     if (!file) {
-	FREE(temp);
+	FREE_IF_NZ(temp);
 	ERROR_MSG("Cannot create temp file (fopen)\n");
 	return NULL;	
     }   
@@ -496,15 +487,16 @@ char* download_url_wget(char *parsed_request, char *temp_dir)
 
 // OLD_IPHONE_AQUA #endif
 
-    // create temp filename
+    // create the temp file (wget -O then writes into it)
     if (temp_dir) {
 	    temp = STRDUP(temp_dir);
     } else {
-	    temp = TEMPNAM(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_wget_XXXXXXXX");
-	    if (!temp) {
-		    PERROR_MSG("download_url_wget: can't create temporary name.\n");
+	    FILE *file = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_wget_", &temp);
+	    if (!file) {
+		    PERROR_MSG("download_url_wget: can't create temporary file.\n");
 		    return NULL;
 	    }
+	    fclose(file);
     }
 
     // create wget command line
@@ -530,6 +522,7 @@ char* download_url_wget(char *parsed_request, char *temp_dir)
     ret = freewrlSystem(wgetcmd);
     if (ret < 0) {
 	ERROR_MSG("Error in wget (%s)\n", wgetcmd);
+	if (!temp_dir) unlink(temp);
 	FREE(temp);
 	FREE(wgetcmd);
 	return NULL;

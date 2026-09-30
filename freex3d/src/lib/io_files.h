@@ -42,6 +42,8 @@ bool do_file_exists(const char *filename);
 bool do_file_readable(const char *filename);
 bool do_dir_exists(const char *dir);
 int fw_mkdir(const char* path);
+FILE *fw_temp_file_create(const char *dir, const char *prefix, char **path);
+char *fw_temp_dir_create(const char *dir, const char *prefix);
 
 typedef struct openned_file {
 	const char *fileFileName;

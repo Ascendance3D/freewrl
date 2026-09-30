@@ -89,6 +89,7 @@ Handle incoming EAI (and java class) events with panache.
 
 #include "EAIHelpers.h"
 #include "EAIHeaders.h"
+#include <io_files.h>
 
 #include <ctype.h> /* FIXME: config armor */
 
@@ -455,8 +456,13 @@ void EAI_core_commands () {
 
 				UNUSED(throwAway); // for compiler warnings
 
-				dumpname = TEMPNAM(gglobal()->Mainloop.tmpFileLocation,"fwtmp");
-				dumpfd = fopen(dumpname,"w+");
+				dumpfd = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation,"fwtmp",&dumpname);
+				if (!dumpfd) {
+					/* no file: reply with an empty file name */
+					ConsoleMessage ("DUMPSCENE: cannot create a temporary file\n");
+					sprintf (th->outBuffer,"RE\n%f\n%d\n",TickTime(),count);
+					break;
+				}
 				dump_scene(dumpfd, 0, (struct X3D_Node*) rootNode());
 				fflush(dumpfd) ;
 				if (sendNameNotFile) {
@@ -475,6 +481,7 @@ void EAI_core_commands () {
 					fclose(dumpfd) ;
 					unlink(dumpname) ;
 				}
+				free(dumpname);
 
 				break;
 				}

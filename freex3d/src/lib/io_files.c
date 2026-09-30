@@ -84,6 +84,132 @@ int fw_mkdir(const char* path){
 #endif
 }
 
+/* returns a new "<base>/<prefix>XXXXXX" template for mkstemp or mkdtemp, or NULL.
+   base is $TMPDIR if it is a directory, else dir if it is one, else /tmp (the order
+   tempnam used). Not used on Windows, which has no mkstemp. */
+static char *temp_template(const char *dir, const char *prefix)
+{
+#ifndef _MSC_VER
+	const char *candidates[3];
+	const char *where = "/tmp";
+	struct stat st;
+	size_t len;
+	char *name;
+	int i;
+
+	candidates[0] = getenv("TMPDIR");
+	candidates[1] = dir;
+	candidates[2] = "/tmp";
+	for (i = 0; i < 3; i++) {
+		if (candidates[i] && candidates[i][0] && stat(candidates[i], &st) == 0 && S_ISDIR(st.st_mode)) {
+			where = candidates[i];
+			break;
+		}
+	}
+	len = strlen(where);
+	while (len > 1 && where[len - 1] == '/') len--;
+	name = malloc(len + 1 + strlen(prefix) + 6 + 1);
+	if (name) {
+		memcpy(name, where, len);
+		sprintf(name + len, "/%sXXXXXX", prefix);
+	}
+	return name;
+#else
+	(void)dir; (void)prefix;
+	return NULL;
+#endif
+}
+
+/**
+ *   fw_temp_file_create: create a new temporary file and open it ("w+b": binary
+ *   writing, and reading back).
+ *   The file is in $TMPDIR, else dir, else /tmp, and its name is prefix and 6 random
+ *   characters. mkstemp creates it with O_EXCL and mode 0600, so no other process
+ *   can take or replace the name between choosing and opening it, or read the data.
+ *   Returns the open file and sets *path to a malloc'd path; the caller closes the
+ *   file, unlinks it when done and frees the path. On failure returns NULL, sets
+ *   *path to NULL and leaves no file.
+ */
+FILE *fw_temp_file_create(const char *dir, const char *prefix, char **path)
+{
+	FILE *fp = NULL;
+	char *name;
+	int fd;
+
+	*path = NULL;
+#ifndef _MSC_VER
+	name = temp_template(dir, prefix);
+	if (!name) return NULL;
+	fd = mkstemp(name);
+	if (fd < 0) {
+		ERROR_MSG("fw_temp_file_create: cannot create %s: %s\n", name, strerror(errno));
+		free(name);
+		return NULL;
+	}
+	fp = fdopen(fd, "w+b");
+	if (!fp) {
+		ERROR_MSG("fw_temp_file_create: cannot open %s: %s\n", name, strerror(errno));
+		close(fd);
+		unlink(name);
+		free(name);
+		return NULL;
+	}
+#else
+	/* no mkstemp: take a name, then create it only if it does not exist */
+	{
+		int tries;
+		for (tries = 0; tries < 100 && !fp; tries++) {
+			name = _tempnam(dir, prefix);
+			if (!name) return NULL;
+			fd = _open(name, _O_CREAT | _O_EXCL | _O_WRONLY | _O_BINARY, _S_IREAD | _S_IWRITE);
+			if (fd >= 0) {
+				fp = _fdopen(fd, "w+b");
+				if (!fp) {
+					_close(fd);
+					_unlink(name);
+				}
+			}
+			if (!fp) free(name);
+		}
+		if (!fp) return NULL;
+	}
+#endif
+	*path = name;
+	return fp;
+}
+
+/**
+ *   fw_temp_dir_create: create a new temporary directory, mode 0700, in $TMPDIR,
+ *   else dir, else /tmp. Its name is prefix and 6 random characters. Returns a
+ *   malloc'd path (the caller removes the directory and frees the path), or NULL.
+ */
+char *fw_temp_dir_create(const char *dir, const char *prefix)
+{
+	char *name;
+#ifndef _MSC_VER
+	name = temp_template(dir, prefix);
+	if (!name) return NULL;
+	if (!mkdtemp(name)) {
+		ERROR_MSG("fw_temp_dir_create: cannot create %s: %s\n", name, strerror(errno));
+		free(name);
+		return NULL;
+	}
+#else
+	/* no mkdtemp: take a name, then create it; _mkdir fails if it exists */
+	{
+		int tries;
+		for (tries = 0; tries < 100; tries++) {
+			name = _tempnam(dir, prefix);
+			if (!name) return NULL;
+			if (_mkdir(name) == 0) break;
+			free(name);
+			name = NULL;
+		}
+	}
+#endif
+	return name;
+}
+
 /**
  *   concat_path: concat two string with a / in between
  */
@@ -1178,24 +1304,28 @@ char *strBackslash2fore(char *str);
 void resitem_enqueue(s_list_t *item);
 void process_x3z(resource_item_t *res){
 	int err;
-	char request[256];
+	char *request;
 	char* tempfolderpath;
 	if (1){
-		tempfolderpath = TEMPNAM(gglobal()->Mainloop.tmpFileLocation, "freewrl_download_XXXXXXXX");
+		tempfolderpath = fw_temp_dir_create(gglobal()->Mainloop.tmpFileLocation, "fwx3z_");
 	}else{
 		//for debugging if you need to have the temp unzip files in your working folder where your data files are
 		tempfolderpath = STRDUP(res->URLrequest);
 		tempfolderpath = strBackslash2fore(tempfolderpath);
 		tempfolderpath = remove_filename_from_path(tempfolderpath);
-		tempfolderpath = TEMPNAM(tempfolderpath, "freewrl_download_XXXXXXXX");
+		tempfolderpath = fw_temp_dir_create(tempfolderpath, "fwx3z_");
+	}
+	if (!tempfolderpath) {
+		ConsoleMessage("unzip failed: cannot create a temporary folder\n");
+		return;
 	}
 	err = unzip_archive_to_temp_folder(res->actual_file, tempfolderpath);
 	if(!err){
 		resource_item_t *docx3d;
 		//I need a resource just for cleaning up the temp folder in one shot
-		strcpy(request,tempfolderpath);
-		strcat(request,"/doc.x3d");
+		request = concat_path(tempfolderpath, "doc.x3d");
 		docx3d = resource_create_single(request);
+		FREE_IF_NZ(request);
 		docx3d->parent = NULL; //divorce so it doesn't inherit rest_url
 		docx3d->type = rest_file;
 		docx3d->media_type = resm_x3d;
@@ -1208,6 +1338,8 @@ void process_x3z(resource_item_t *res){
 	}
 	else{
 		ConsoleMessage("unzip failed to folder:%s\n", tempfolderpath);
+		remove_file_or_folder(tempfolderpath);
+		free(tempfolderpath);
 	}
 }
 
