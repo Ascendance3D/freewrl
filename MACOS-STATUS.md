@@ -3,7 +3,7 @@
 Fork: https://github.com/Ascendance3D/freewrl. The Apple Silicon port is on the maintained `master` trunk (the single canonical branch; the old `develop` integration line was retired).
 Base: upstream SourceForge `develop` @ `b3254b11e` (2024-04-20, "Version 6.7", FreeWRL 6.7.0).
 Reference: branch `macos-arm64` ([PR #1](https://github.com/DJAscendance/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
-Development machine: MacBook Pro M1 (8 GB, Retina), macOS 27.0, Xcode 27.0; builds and static checks only. Runtime evidence for the packaged app comes from GitHub Actions (macOS 14 and 15, Apple Silicon). Last updated 2026-09-27.
+Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation on GitHub's macOS 14 and 15 runners is manual only (see below). Last updated 2026-09-30.
 
 Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verified · ⛔ unsupported on macOS · ❔ unresolved · ❌ broken
 
@@ -13,14 +13,15 @@ Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verifie
 
 | | |
 | --- | --- |
-| supported | macOS 14 Sonoma, macOS 15, and newer macOS versions once CI has run on them |
+| supported | macOS 14 Sonoma, macOS 15, and newer macOS versions once release validation has run on them |
 | architecture | arm64 only |
 | not a release target | Intel (x86_64) Macs; macOS 13 Ventura and older |
-| tested continuously | [`.github/workflows/macos.yml`](.github/workflows/macos.yml) (Node-24 Actions): the packaged app on GitHub's macOS 14 and macOS 15 arm64 runners |
+| local QA | pull requests that can affect macOS, on a physical Apple Silicon Mac, before merge |
+| release validation | [`.github/workflows/macos.yml`](.github/workflows/macos.yml) (Node-24 Actions), manual `workflow_dispatch` only, started by Ryan from `master` for one exact SHA: the packaged app on GitHub's macOS 14 and macOS 15 arm64 runners. Pushes and pull requests do not start it. See [`RELEASING.md`](RELEASING.md) |
 
-Earlier development targeted macOS 13, but the supported minimum is macOS 14 because Sonoma is the oldest Apple Silicon environment in the continuous CI test matrix. Everything is built with `MACOSX_DEPLOYMENT_TARGET=14.0`; no binary is patched to claim an older macOS.
+Earlier development targeted macOS 13, but the supported minimum is macOS 14 because Sonoma is the oldest Apple Silicon environment in the release-validation test matrix (the `macos-14` runner). Everything is built with `MACOSX_DEPLOYMENT_TARGET=14.0`; no binary is patched to claim an older macOS.
 
-## Current status (2026-09-27)
+## Current status (2026-09-30)
 
 | | item | evidence |
 | --- | --- | --- |
@@ -30,7 +31,9 @@ Earlier development targeted macOS 13, but the supported minimum is macOS 14 bec
 | ✅ | macOS 14 runtime | PASS (GitHub Actions arm64 runner) |
 | ✅ | macOS 15 runtime | PASS (GitHub Actions arm64 runner) |
 | ✅ | Package static verify | PASS (`verify.py --macos 14.0`) |
-| 🟡 | Public signed/notarized beta | packaging tooling is complete and tested; no public beta has been published yet |
+| ✅ | Physical Apple Silicon runtime QA | local QA on a physical M1 before merge; latest: PR #47, head `a0807a576`: builds, package verify, smoke 17/17, LaunchServices 7/7, host bounds tests 67/67 |
+| ✅ | Public macOS prereleases | `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization |
+| 🟡 | First desktop release `v6.7.0` | still needs: Developer ID signed, hardened-runtime, notarized and stapled release packaging; release validation; the annotated tag; the draft release; publication. See [`RELEASING.md`](RELEASING.md) |
 
 Texture decoder on macOS: **stb_image** (compiled in; `HAVE_IMLIB2` off). The packaged app links only FreeType, ODE and freealut and uses Apple's `OpenAL.framework`; it needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time. See [Standalone packaging](#standalone-packaging).
 
@@ -173,7 +176,7 @@ The packaging tooling is complete and tested; see [`tools/macos-package/README.m
 - `verify.py` fails if the bundle references Homebrew, `/usr/local`, MacPorts, the source tree or a temp/home path, needs a newer macOS than `--macos`, or embeds a library the build no longer uses (Imlib2, FFmpeg, OpenAL Soft). The unpackaged build fails it as a negative control.
 - The packaged app needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time.
 
-A public signed/notarized beta has not been published yet.
+The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization. The draft release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed app only. That ad-hoc output is not the planned macOS release asset: `v6.7.0` ships only a Developer ID signed, hardened-runtime, notarized and stapled app that `package.sh -s … -r --notarize` builds locally from the release tag (see [`RELEASING.md`](RELEASING.md)).
 
 *Historical:* an earlier candidate embedded Homebrew bottles (Imlib2 and its X11/image loaders, and more) and required macOS 27 because those bottles were built for it. That design is obsolete: libraries are now built from source for macOS 14, textures are decoded by stb_image, and the app links only FreeType, ODE and freealut.
 
@@ -195,5 +198,6 @@ A public signed/notarized beta has not been published yet.
 - [x] Standalone package for macOS 14+ with libraries built from source; see [Standalone packaging](#standalone-packaging)
 - [ ] GeneratedCubeMapTexture: find why the generated faces sample black
 - [ ] Directional light shadows outside the shadow map (upstream)
-- [ ] Publish a public signed/notarized beta
+- [x] Publish a public macOS prerelease (`v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`)
+- [ ] Sign, notarize, validate, tag and publish the first desktop release `v6.7.0` (see [`RELEASING.md`](RELEASING.md))
 - [ ] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+ (MovieTexture)

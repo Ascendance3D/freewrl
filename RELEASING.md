@@ -1,7 +1,36 @@
-# Releasing FreeWRL Revival for Mac Silicon
+# Releasing FreeWRL
 
-This guide describes how to make a formal macOS Apple Silicon release. It covers the whole path,
-from an approved commit to a published GitHub Release and the SourceForge mirror.
+This guide describes how to make a formal FreeWRL desktop release for macOS Apple Silicon and
+Ubuntu/Linux. It covers the whole path, from an approved commit to a published GitHub Release and
+the SourceForge mirror.
+
+The first maintained desktop release is **`v6.7.0`**, with the release title **`FreeWRL 6.7.0`**.
+
+## Release platforms
+
+| Platform | Release artifact |
+| --- | --- |
+| macOS 14 Sonoma or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle: Developer ID signed, hardened runtime, notarized, stapled) |
+| Ubuntu 24.04 x86_64 desktop (X11 or Motif, Duktape JavaScript) | `freewrl-VERSION.tar.gz` (source tarball from `make dist`) |
+
+Not release targets: iOS, Android, Intel (x86_64) Macs, and macOS 13 or older. The historical
+iOS and Android source trees stay in the repository; they do not block a release and are not built.
+
+## macOS signing requirement
+
+The published macOS asset of `v6.7.0` must be:
+
+- signed with a **Developer ID Application** identity;
+- signed with the **hardened runtime**;
+- **notarized** by Apple;
+- **stapled** (the notarization ticket is in the app);
+- accepted by **Gatekeeper** (`spctl` reports `source=Notarized Developer ID`).
+
+The first maintained desktop release must **not** ship an ad-hoc signed macOS artifact. The draft
+release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed zip, because
+notarization needs credentials that CI does not have. That zip is not the release asset. Step 9a
+builds the signed and notarized zip locally from the exact tag and replaces the workflow zip on the
+draft before publication.
 
 The process is deliberately safe and repeatable. A person, Ryan, makes every publish decision. The
 workflow never publishes on its own.
@@ -42,10 +71,12 @@ The two are separate on purpose:
 1. A published version tag is immutable.
 2. Never move an existing version tag.
 3. Never replace a published version with a different commit.
-4. A correction gets a new version (for example `v6.8.0` then `v6.8.1`).
+4. A correction gets a new version (for example `v6.7.0` then `v6.7.1`).
 5. New formal releases use **annotated** Git tags.
 6. A release must build from the exact tagged commit.
-7. GitHub Actions is the final release build system, and it runs only when Ryan starts it.
+7. GitHub Actions validates the release and creates the draft, and it runs only when Ryan starts
+   it. The final macOS asset is the locally signed and notarized package (step 9a), built from the
+   exact tagged commit.
 8. Codemagic never publishes releases; it is supplemental only.
 9. SourceForge is a mirror; it never gets a unique release commit.
 10. Ryan publishes the final GitHub Release by hand.
@@ -64,7 +95,9 @@ Pre-release tags are allowed when needed:
 vMAJOR.MINOR.PATCH-beta.N     (also -alpha.N, -rc.N)
 ```
 
-`VERSION` is the tag without the leading `v`, for example `6.8.0` or `6.8.0-beta.1`.
+`VERSION` is the tag without the leading `v`, for example `6.7.0` or `6.7.1-rc.1`.
+
+The release title is `FreeWRL VERSION`, for example `FreeWRL 6.7.0`.
 
 The macOS Apple Silicon asset name is fixed:
 
@@ -72,12 +105,20 @@ The macOS Apple Silicon asset name is fixed:
 FreeWRL-VERSION-macOS-arm64.zip
 ```
 
-Example only (do not create this version now): `FreeWRL-6.8.0-macOS-arm64.zip`.
+The Linux source tarball name is fixed by `AC_INIT` in `freex3d/configure.ac` and `make dist`:
+
+```
+freewrl-VERSION.tar.gz
+```
+
+For the first desktop release: `FreeWRL-6.7.0-macOS-arm64.zip` and `freewrl-6.7.0.tar.gz`.
 
 Each release also carries:
 
-- `SHA256SUMS.txt` — the archive SHA-256, in `shasum -a 256 -c` format.
-- `release-manifest.json` — a small machine-readable record for the future Downloads page.
+- `SHA256SUMS.txt` — the SHA-256 of **both** release archives (the macOS zip and the Linux
+  tarball), one line each, in `shasum -a 256 -c` format.
+- `release-manifest.json` — a small machine-readable record for the future Downloads page. The
+  draft release workflow writes it for the macOS archive only.
 
 GitHub attaches source `zip` and `tar.gz` archives automatically. We do not duplicate those.
 
@@ -113,7 +154,7 @@ libtool ABI version (`-version-info`) and changes only when the library interfac
 
 **Built-app version gate.** The release workflow also reads `CFBundleShortVersionString` from the
 **built** `FreeWRL.app` and requires it to equal the tag version (core `MAJOR.MINOR.PATCH`, so
-`v6.8.0-beta.1` expects `6.8.0`). This inspects the real build artifact, not the source plist. It
+`v6.7.1-rc.1` expects `6.7.1`). This inspects the real build artifact, not the source plist. It
 runs `tools/macos-release/check-app-version.sh`. This gate is the final artifact check: if drift in
 the sources or in the build settings gives the app a version that differs from the tag, the release
 stops.
@@ -124,7 +165,8 @@ stops.
 
 - Development and PR QA are done locally. Nothing on GitHub Actions is used for this.
 - You chose the version. Do not assume the next number; pick it deliberately.
-- You are on macOS 14 (Sonoma) or newer on Apple Silicon for any local checks.
+- You are on macOS 14 (Sonoma) or newer on Apple Silicon for any local macOS checks, and on
+  Ubuntu 24.04 x86_64 for the Linux checks.
 
 ### 2. Merge the approved candidate to master
 
@@ -161,6 +203,48 @@ and `github.sha` equals `expected_sha`. It has one fixed test contract and no pr
 Every job must succeed. If any job fails, do not release. Fix the problem, merge to `master`, and
 start again from step 3 with the new SHA.
 
+### 5a. Run Linux release validation (local)
+
+Run the Linux gates on Ubuntu 24.04 x86_64 for the same `expected_sha`. Use a clean worktree at
+that SHA and a **fresh** build directory outside the source tree. Do not reuse an old build
+directory.
+
+```sh
+git worktree add --detach <worktree> <expected_sha>
+cd <worktree>/freex3d
+./autogen.sh
+B=$(mktemp -d /tmp/freewrl-release.XXXXXX)
+cd "$B"
+<worktree>/freex3d/configure --with-target=x11 --with-javascript=duk
+make -j"$(nproc)"
+make dist                 # writes freewrl-6.7.0.tar.gz
+make distcheck
+```
+
+Then prove that the tarball builds on its own, without `autogen.sh`:
+
+```sh
+A=$(mktemp -d /tmp/freewrl-archive.XXXXXX)
+tar -xzf "$B/freewrl-6.7.0.tar.gz" -C "$A"
+cd "$A/freewrl-6.7.0"
+./configure --with-target=x11 --with-javascript=duk
+make -j"$(nproc)"
+./src/bin/freewrl --version       # must print 6.7.0
+```
+
+Every step must pass. If a step fails, do not release. Fix the problem, merge to `master`, and
+start again from step 3 with the new SHA.
+
+Keep `$B/freewrl-6.7.0.tar.gz` for step 9b; copy it to the Mac that runs step 9a. Record its
+SHA-256:
+
+```sh
+sha256sum freewrl-6.7.0.tar.gz
+```
+
+The tarball comes from the same commit as the tag in step 7, because `expected_sha` is the tagged
+commit.
+
 ### 6. Record the validation run ID
 
 Write down the run ID of the successful validation run.
@@ -179,16 +263,16 @@ A `push` run and a `pull_request` run are **not** release evidence.
 ### 7. Create the annotated tag on that exact SHA
 
 ```sh
-git tag -a v6.8.0 -m "FreeWRL Revival for Mac Silicon 6.8.0" <expected_sha>
-git push origin v6.8.0
+git tag -a v6.7.0 -m "FreeWRL 6.7.0" <expected_sha>
+git push origin v6.7.0
 ```
 
-Use an **annotated** tag (`-a`). A lightweight tag is rejected. `v6.8.0` is an example only.
+Use an **annotated** tag (`-a`). A lightweight tag is rejected. `v6.7.0` is the first maintained desktop release.
 
 ### 8. Verify the tag
 
 ```sh
-tools/macos-release/verify-release.sh --tag v6.8.0 --expected-sha <full-40-char-sha>
+tools/macos-release/verify-release.sh --tag v6.7.0 --expected-sha <full-40-char-sha>
 ```
 
 This proves the tag exists, is annotated, peels to the expected commit, is reachable from
@@ -199,7 +283,7 @@ read-only.
 
 Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml`) with:
 
-- `tag` — the annotated tag, e.g. `v6.8.0`
+- `tag` — the annotated tag, e.g. `v6.7.0`
 - `expected_sha` — the full 40-char commit SHA
 - `ci_run_id` — the run ID of the successful manual validation run from step 6
 - `prerelease` — `true` for a beta/rc, otherwise `false`
@@ -213,35 +297,134 @@ checks the **built app's** `CFBundleShortVersionString` equals the tag version, 
 the contract, generates the checksums and manifest, verifies them against the archive bytes, and
 creates a **DRAFT** release. It does not publish.
 
+The workflow output is **not** the final draft:
+
+- its macOS zip is **ad-hoc signed**; step 9a replaces it with the signed and notarized zip;
+- its `SHA256SUMS.txt` and `release-manifest.json` describe the ad-hoc zip; step 9a replaces them;
+- it attaches no Linux tarball; step 9b attaches it by hand;
+- it sets the draft title to `FreeWRL Revival for Mac Silicon VERSION` and writes matching notes;
+  step 9b sets the title to `FreeWRL VERSION`, and Ryan rewrites the notes in step 10.
+
+### 9a. Build the signed and notarized macOS package (local, Ryan)
+
+On an Apple Silicon Mac with the Developer ID Application identity in the keychain, build the
+package from the **exact tag** with the existing package tool, `tools/macos-package/package.sh`
+(see `tools/macos-package/README.md`). `-s` sets the Developer ID identity, `-r` enables the
+hardened runtime, and `--notarize` submits to Apple with `notarytool`, staples the ticket, runs
+`stapler validate`, requires `spctl` to report `source=Notarized Developer ID`, and then zips the
+app. `--notarize` refuses to run without `-s` and `-r`.
+
+Notarization credentials come from the environment and are never printed: `NOTARY_KEYCHAIN_PROFILE`
+(a profile saved with `xcrun notarytool store-credentials`), or `NOTARY_KEY_ID`, `NOTARY_ISSUER`
+and `NOTARY_KEY`, or a `NOTARY_ENV_FILE` that sets them.
+
+```sh
+TAG=v6.7.0
+git fetch origin --tags
+git worktree add --detach <mac-worktree> "$TAG"
+cd <mac-worktree>
+test "$(git rev-parse HEAD)" = "<expected_sha>"
+tools/macos-deps/build.sh -p ~/freewrl-deps
+OUT=$(mktemp -d /tmp/freewrl-6.7.0-signed.XXXXXX)
+NOTARY_ENV_FILE=~/.config/notary.env tools/macos-package/package.sh \
+    -D ~/freewrl-deps -o "$OUT" \
+    -s "Developer ID Application: <name> (<team>)" -r --notarize
+```
+
+The tool writes `$OUT/FreeWRL.app` and `$OUT/FreeWRL-macos-arm64.zip`. Check the signed app:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "$OUT/FreeWRL.app"
+codesign -dv --verbose=4 "$OUT/FreeWRL.app" 2>&1 | grep -E 'Authority=Developer ID Application|flags=.*runtime|Timestamp='
+xcrun stapler validate "$OUT/FreeWRL.app"
+spctl --assess --type execute --verbose=4 "$OUT/FreeWRL.app"     # source=Notarized Developer ID
+tools/macos-package/verify.py --macos 14.0 "$OUT/FreeWRL.app"
+tools/macos-release/check-app-version.sh --app "$OUT/FreeWRL.app" --tag "$TAG"
+tools/macos-ci/smoke.sh "$OUT/FreeWRL.app" "$OUT/smoke"
+tools/macos-ci/launchservices.sh "$OUT/FreeWRL.app" "$OUT/launchservices"
+```
+
+Every check must pass. Name the zip to the asset contract, write its checksum and manifest with the
+existing metadata tool, and replace the workflow's ad-hoc files on the **draft**:
+
+```sh
+cd "$OUT"
+cp FreeWRL-macos-arm64.zip FreeWRL-6.7.0-macOS-arm64.zip
+mkdir meta
+<mac-worktree>/tools/macos-release/make-release-metadata.sh \
+    --archive "$OUT/FreeWRL-6.7.0-macOS-arm64.zip" --version 6.7.0 --tag "$TAG" \
+    --commit <expected_sha> --out "$OUT/meta"
+gh release upload "$TAG" -R Ascendance3D/freewrl --clobber \
+    FreeWRL-6.7.0-macOS-arm64.zip meta/release-manifest.json
+```
+
+`--clobber` replaces the ad-hoc zip that has the same asset name. `meta/SHA256SUMS.txt` now holds
+the signed zip line; step 9b adds the Linux line and uploads it.
+
+### 9b. Attach the Linux tarball to the draft (manual)
+
+Attach the Linux tarball from step 5a to the **draft** by hand. Until automation is approved, this
+step stays manual. Then upload a `SHA256SUMS.txt` that lists **both** archives: the signed macOS
+zip from step 9a and `freewrl-6.7.0.tar.gz`:
+
+```sh
+TAG=v6.7.0
+cd "$OUT/meta"                           # from step 9a
+cp <path-from-step-5a>/freewrl-6.7.0.tar.gz .
+shasum -a 256 freewrl-6.7.0.tar.gz >> SHA256SUMS.txt
+cat SHA256SUMS.txt                       # two lines: the signed macOS zip and the Linux tarball
+gh release upload "$TAG" -R Ascendance3D/freewrl freewrl-6.7.0.tar.gz
+gh release upload "$TAG" -R Ascendance3D/freewrl SHA256SUMS.txt --clobber
+gh release edit "$TAG" -R Ascendance3D/freewrl --title "FreeWRL 6.7.0"
+```
+
+The tarball SHA-256 must equal the value recorded in step 5a (`sha256sum` and `shasum -a 256` print
+the same value).
+
+Do steps 9a and 9b only while the release is a draft. Do not change the assets of a published
+release.
+
 ### 10. Review and publish the draft (Ryan only)
 
 - Open the draft release on GitHub.
-- Confirm the asset name, the notes, the version, the commit, and the minimum macOS.
-- Confirm the draft claims no code signing, no notarization, and no Intel support unless a real,
-  proven signing/notarization step produced them.
-- Download the archive and `SHA256SUMS.txt`, then run `shasum -a 256 -c SHA256SUMS.txt`. Confirm
-  the SHA-256 in `release-manifest.json` equals the value in `SHA256SUMS.txt`.
+- Confirm the title is `FreeWRL VERSION`, and confirm the asset names, the notes, the version, the
+  commit, and the minimum macOS.
+- Confirm that both archives are attached: `FreeWRL-VERSION-macOS-arm64.zip` and
+  `freewrl-VERSION.tar.gz`.
+- Confirm the macOS zip is the signed and notarized zip from step 9a, not the ad-hoc workflow zip:
+  download it, unzip it into a temporary directory, and run `codesign --verify --deep --strict`,
+  `xcrun stapler validate` and `spctl --assess --type execute --verbose=4` on the unzipped app.
+  `spctl` must report `source=Notarized Developer ID`. If it does not, do not publish.
+- Confirm the notes state Developer ID signing, hardened runtime, notarization and stapling only
+  because step 9a proved them, and claim no Intel support.
+- Confirm the notes list the supported platforms, state that iOS and Android are not supported,
+  and give the Linux build steps (`./configure --with-target=x11 --with-javascript=duk`, `make`,
+  `make install`).
+- Download both archives and `SHA256SUMS.txt`, then run `shasum -a 256 -c SHA256SUMS.txt`. Every
+  line must report `OK`. Confirm the SHA-256 in `release-manifest.json` equals the signed macOS zip line in
+  `SHA256SUMS.txt`.
 - Ryan edits the final notes and publishes the GitHub Release by hand. The workflow never
   publishes.
 
 ### 11. Mirror master and the exact release tag to SourceForge
 
-Follow the manual procedure in the SourceForge section below.
+Do this only **after** Ryan publishes the GitHub Release. Never mirror a draft or an unpublished
+tag. Follow the manual procedure in the SourceForge section below.
 
 ## Tag immutability and rollback
 
 - **Never move a published tag.** Never force-push a tag.
 - A published release is immutable. Do not replace its commit.
 - To correct a released version, create a **new** version:
-  - a patch fix → next PATCH (e.g. `v6.8.0` → `v6.8.1`);
+  - a patch fix → next PATCH (e.g. `v6.7.0` → `v6.7.1`);
   - build the new version through this same process.
 - If a draft is wrong, delete the **draft** (it was never published) and start again with a new
   tag if the tag was also wrong. Do not reuse a tag that already points at published content.
 
 ## SourceForge mirror procedure (manual)
 
-SourceForge is a mirror. It is **not** automated from GitHub Actions. After Ryan publishes an
-approved GitHub Release, do these steps by hand:
+SourceForge is a mirror. It is **not** automated from GitHub Actions. Do not start these steps
+before Ryan publishes the approved GitHub Release. After publication, do these steps by hand:
 
 1. Verify GitHub `master` and the release tag are what you expect.
 2. Verify the release tag peels to the published commit.
@@ -251,16 +434,16 @@ approved GitHub Release, do these steps by hand:
    ```
 4. Push the exact annotated release tag to SourceForge (no `--force`, no `+` refspec):
    ```sh
-   git push sourceforge-mirror refs/tags/v6.8.0
+   git push sourceforge-mirror refs/tags/v6.7.0
    ```
 5. Confirm the **peeled** SourceForge tag commit equals the release commit and the GitHub/local
    peeled tag commit.
 
-   An annotated tag ref (`refs/tags/v6.8.0`) points at a **tag object**, not at the commit. The
-   `refs/tags/v6.8.0^{}` entry is the **peeled** commit. `git ls-remote --tags REMOTE v6.8.0`
+   An annotated tag ref (`refs/tags/v6.7.0`) points at a **tag object**, not at the commit. The
+   `refs/tags/v6.7.0^{}` entry is the **peeled** commit. `git ls-remote --tags REMOTE v6.7.0`
    prints only the tag-object line, so it does not prove the commit. Ask for the `^{}` ref:
    ```sh
-   TAG=v6.8.0
+   TAG=v6.7.0
    EXPECTED=<full-40-char-release-commit>
    LOCAL=$(git rev-parse "refs/tags/$TAG^{commit}")
    GH=$(git ls-remote origin "refs/tags/$TAG^{}" | cut -f1)
@@ -287,6 +470,7 @@ page can read a release entirely from the GitHub Releases API:
 - the release **tag** and **name**;
 - the release **notes**;
 - the macOS archive `FreeWRL-VERSION-macOS-arm64.zip`;
+- the Linux source tarball `freewrl-VERSION.tar.gz`;
 - `SHA256SUMS.txt`;
 - `release-manifest.json`.
 
@@ -295,13 +479,19 @@ guess a package filename. That is why the asset contract matters.
 
 ## What the release process does NOT claim
 
-The current macOS build is ad-hoc signed only. Release notes must not claim:
+The draft release workflow builds an ad-hoc signed macOS app only. That app is never published as a
+release asset (see [macOS signing requirement](#macos-signing-requirement)). Release notes claim
+Developer ID signing, hardened runtime, notarization and stapling only for an asset that step 9a
+built and proved. Release notes must not claim:
 
-- code signing with a Developer ID;
-- notarization;
+- Developer ID signing or notarization for an asset that step 9a did not prove;
 - Intel (x86_64) support;
-- any compatibility that CI did not prove.
+- iOS or Android support;
+- a prebuilt Linux binary package (the Linux artifact is a source tarball);
+- any compatibility that validation did not prove.
 
-If a future release adds real Developer ID signing and notarization (see
-`tools/macos-package/package.sh` `-s`/`-r`), update this guide and the notes to match what the
-build actually produced.
+(The `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` release notes state Developer ID signing and
+notarization. Those claims apply to those beta archives only, not to a workflow-built app.)
+
+If the release-draft workflow later gets approved signing and notarization, update this guide so
+that step 9a matches what the workflow actually produces.
