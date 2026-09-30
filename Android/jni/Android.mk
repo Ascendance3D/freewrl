@@ -20,7 +20,6 @@ common_SRC_FILES:=../../freex3d/src/lib/vrml_parser/CProto.c \
 	../../freex3d/src/lib/main/MainLoop.c \
 	../../freex3d/src/lib/main/ProdCon.c \
 	../../freex3d/src/lib/main/Snapshot.c \
-	../../freex3d/src/lib/main/SoundEngineClient.c \
 	../../freex3d/src/lib/main/utils.c \
 	../../freex3d/src/lib/scenegraph/Children.c \
 	../../freex3d/src/lib/scenegraph/Collision.c \
