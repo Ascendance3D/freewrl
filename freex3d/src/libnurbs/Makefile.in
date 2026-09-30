@@ -109,3 +109,15 @@ $(TESS_LIB_NAME): $(OBJECTS)
 clean:
 	-rm -f *.o
 
+# Linux compiles no libnurbs sources; Component_NURBS.c only includes
+# libnurbs2.h, and configure needs this Makefile.in.
+srcdir = @srcdir@
+DIST_FILES = Makefile.in libnurbs2.h
+
+distdir:
+	test -d "$(distdir)" || mkdir -p "$(distdir)"
+	for f in $(DIST_FILES); do cp -p "$(srcdir)/$$f" "$(distdir)/$$f" || exit 1; done
+
+distclean: clean
+	-rm -f Makefile
+
