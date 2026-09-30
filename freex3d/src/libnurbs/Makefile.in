@@ -110,9 +110,9 @@ clean:
 	-rm -f *.o
 
 # Linux compiles no libnurbs sources; Component_NURBS.c only includes
-# libnurbs2.h, and configure needs this Makefile.in.
+# libnurbs2.h. The top-level dist already copies this Makefile.in.
 srcdir = @srcdir@
-DIST_FILES = Makefile.in libnurbs2.h
+DIST_FILES = libnurbs2.h
 
 distdir:
 	test -d "$(distdir)" || mkdir -p "$(distdir)"
@@ -120,4 +120,12 @@ distdir:
 
 distclean: clean
 	-rm -f Makefile
+
+# No documentation is built here.
+dvi:
+
+# No tests exist here, and install installs nothing.
+check:
+
+installcheck:
 
