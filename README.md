@@ -195,9 +195,9 @@ The numbered worlds in `freewrl/tests/` are described in
 | Path | Contents |
 | --- | --- |
 | `freex3d/` | Core engine source (`src/lib`), standalone executable (`src/bin`), autotools build, code generator (`codegen/`), icons |
-| `OSX_gui/` | Xcode projects for macOS desktop and iOS |
+| `OSX_gui/` | Xcode projects for macOS desktop (the iOS project is historical and unsupported) |
 | `freex3d/projectfiles_*` | Visual Studio projects for Windows |
-| `Android/` | Android NDK build |
+| `Android/` | Historical Android NDK build (unsupported) |
 | `linux_appimage/` | Scripts that bundle an installed FreeWRL into an AppImage |
 | `freewrl/tests/` | Numbered sample VRML/X3D worlds |
 | `SoundEngine/` | Separate sound engine |

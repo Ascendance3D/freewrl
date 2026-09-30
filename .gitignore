@@ -24,7 +24,6 @@ Thumbs.db
 *.lo
 *.la
 *.pc
-*.in
 .deps/
 .dirstamp
 .libs/
@@ -33,6 +32,10 @@ Makefile
 # Autotools outputs. autogen.sh (autoreconf --force --install) and configure
 # write these; make dist puts them in the source archive. The hand-written
 # freex3d/src/libnurbs/Makefile.in and freex3d/src/libtess/Makefile* stay tracked.
+# Ignore only automake Makefile.in, so new *.in source templates stay visible.
+Makefile.in
+!freex3d/src/libnurbs/Makefile.in
+!freex3d/src/libtess/Makefile.in
 freex3d/INSTALL
 freex3d/doc/doxyfile
 # editor and autoheader backup files

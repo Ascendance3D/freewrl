@@ -14,6 +14,8 @@ FreeWRL is an X3D / VRML97 browser written in C (with some C++), usable as a sta
 - `freewrl/tests/` — numbered `.wrl`/`.x3d` sample worlds (descriptions in `freewrl/tests/README`); `freewrl/JS/` holds bundled SpiderMonkey sources.
 - `SoundEngine/` — separate sound engine.
 
+Supported platforms: macOS Apple Silicon and Ubuntu/Linux desktop. This project does not develop or support iOS or Android. The `Android/` tree and the iPhone Xcode files are historical source: do not build, test or repair them, and do not treat them as release blockers.
+
 ## Build (Linux / autotools)
 
 ```sh
