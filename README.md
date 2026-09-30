@@ -88,15 +88,21 @@ FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
   `tools/macos-package/package.sh`) is complete and tested: it builds a
   self-contained, Developer ID-signed, hardened-runtime, notarizable
   `FreeWRL.app` that runs on macOS 14+ with no Homebrew, Imlib2, FFmpeg or
-  OpenAL Soft at run time. **No public signed/notarized beta has been published
-  yet.**
+  OpenAL Soft at run time.
+- Two macOS prereleases are published on GitHub Releases:
+  `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`. Their release notes state
+  that the app is Developer ID signed and Apple notarized.
 
-Current QA: the final tested Mac candidate is
-`32caaa36a845fc668c9fd36cd2cfd8b047c46733`, with interaction QA token
-`FREEWRL_6_7_MACOS_ARM64_GL41_KEYBOARD_AND_INTERACTION_QA_PASS`. The manual
+Current QA: the release line is the merged `master` trunk. Pull requests are
+tested locally before they merge: on Ubuntu 24.04 x86_64, and on a physical
+Apple Silicon Mac for changes that can affect macOS. The latest merge,
+[pull request #47](https://github.com/Ascendance3D/freewrl/pull/47), passed
+both. The first maintained desktop release is `v6.7.0`, for
+macOS Apple Silicon and Ubuntu/Linux; [`RELEASING.md`](RELEASING.md) gives
+the release procedure and its validation gates. The manual interaction
 checks are recorded in
-[`docs/MANUAL-INTERACTION-CHECKLIST.md`](docs/MANUAL-INTERACTION-CHECKLIST.md),
-and the full review history is on
+[`docs/MANUAL-INTERACTION-CHECKLIST.md`](docs/MANUAL-INTERACTION-CHECKLIST.md).
+The Apple Silicon port review history is on
 [pull request #2](https://github.com/DJAscendance/freewrl/pull/2).
 
 Detailed engineering status, per-feature evidence, and the OpenGL
@@ -212,8 +218,10 @@ On macOS:
 - Lines are always drawn one pixel wide.
 - TIFF and WebP textures are not decoded (stb_image has no decoder for them);
   such a texture is drawn untextured.
-- The packaging tooling produces a self-contained, signable app, but no public
-  signed/notarized beta has been released yet.
+- The draft release workflow (`.github/workflows/release-macos.yml`) builds
+  an ad-hoc signed app. It does not sign with a Developer ID and does not
+  notarize. A release claims Developer ID signing or notarization only when a
+  real signing and notarization step produced it.
 
 Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
 
