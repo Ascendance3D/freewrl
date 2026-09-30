@@ -38,6 +38,7 @@ main/ProdCon.h \
 main/ConsoleMessage.c \
 main/installdir.h \
 main/utils.c \
+main/Snapshot.h \
 main/Snapshot.c \
 main/SnapshotTesting.c \
  \
@@ -76,6 +77,9 @@ world_script/JScript.c \
 world_script/JScript_stub.c \
 world_script/JScript_duk.c \
 world_script/include_duktape.c \
+world_script/duktape/duktape.h \
+world_script/duktape/duk_config.h \
+world_script/FWTYPE.h \
 world_script/jsVRMLBrowser_duk.c \
 world_script/jsVRMLClasses_duk.c \
 world_script/jsNative.h \
@@ -114,15 +118,16 @@ scenegraph/NormalCalcs.c \
 scenegraph/Component_Geospatial.h \
 scenegraph/MPEG_Utils.c \
 scenegraph/MPEG_Utils_ffmpeg.c \
-scenegraph/sounds.h \
 scenegraph/Tess.h \
 scenegraph/Tess.c \
+scenegraph/Component_DIS.h \
 scenegraph/Component_DIS.c \
 scenegraph/Component_Rendering.c \
 scenegraph/Component_Interpolation.c \
 scenegraph/Component_Core.h \
 scenegraph/Component_Core.c \
 scenegraph/Component_EnvironEffects.c \
+scenegraph/Component_Grouping.h \
 scenegraph/Component_Grouping.c \
 scenegraph/Collision.c \
 scenegraph/CollisionGPU.c \
@@ -131,7 +136,6 @@ scenegraph/Component_Text.h \
 scenegraph/LinearAlgebra.c \
 scenegraph/Component_Geometry2D.c \
 scenegraph/Vector.h \
-scenegraph/mpeg.h \
 scenegraph/Component_Texturing.c \
 scenegraph/Component_Texturing3D.c \
 scenegraph/GeneratedCode.c \
@@ -210,6 +214,7 @@ opengl/Compositing_Shaders.c \
 opengl/Material.h \
 opengl/Material.c \
 opengl/LoadTextures.h \
+opengl/stb_image.h \
 opengl/LoadTextures.c \
 opengl/RasterFont.h \
  \
@@ -260,4 +265,5 @@ plugin/PluginSocket.h  \
 
 
 EXTRA_DIST = \
-scenegraph/OSCcallbacks.c
+scenegraph/OSCcallbacks.c \
+world_script/duktape/duktape.c
