@@ -27,7 +27,7 @@
 #include <config.h>
 #include <system.h>
 //#include <internal.h>
-#define ERROR_MSG
+#define ERROR_MSG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG_MSG
 #define TRACE_MSG
 #include <libFreeWRL.h>
@@ -288,8 +288,7 @@ int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *fv_params, int
 	    printf("ERROR: unknown option or missing argument to option: %c (%s)\n", 
 		     c, real_option_name);
 	    //fwExit(1);
-		//return TRUE;
-	    break;
+		return FALSE;
 
 	    /* Options handling */
 
