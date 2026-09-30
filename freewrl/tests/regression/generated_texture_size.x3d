@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.3//EN" "http://www.web3d.org/specifications/x3d-3.3.dtd">
+<X3D profile='Full' version='3.3'>
+  <head>
+    <meta name='description' content='FreeWRL GeneratedTexture (unfinished in 6.7) with update ALWAYS and a missing or invalid size: the default empty size, a negative width, zero, and one size value. The size must have a width and a height above zero. Pass: FreeWRL reports GeneratedTexture: size needs a valid width and height once, shows the four white boxes and does not crash (6.7 dereferenced the empty size and crashed). Other X3D browsers may not know this node.'/>
+  </head>
+  <Scene>
+    <Background skyColor='0.2 0.2 0.3'/>
+    <Viewpoint position='0 0 9' description='front'/>
+    <Transform translation='-3 0 0'>
+      <Shape><Appearance><Material diffuseColor='1 1 1'/><GeneratedTexture update='ALWAYS'/></Appearance><Box/></Shape>
+    </Transform>
+    <Transform translation='-1 0 0'>
+      <Shape><Appearance><Material diffuseColor='1 1 1'/><GeneratedTexture update='ALWAYS' size='-5 4'/></Appearance><Box/></Shape>
+    </Transform>
+    <Transform translation='1 0 0'>
+      <Shape><Appearance><Material diffuseColor='1 1 1'/><GeneratedTexture update='ALWAYS' size='0 0'/></Appearance><Box/></Shape>
+    </Transform>
+    <Transform translation='3 0 0'>
+      <Shape><Appearance><Material diffuseColor='1 1 1'/><GeneratedTexture update='ALWAYS' size='128'/></Appearance><Box/></Shape>
+    </Transform>
+  </Scene>
+</X3D>

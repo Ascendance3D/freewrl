@@ -33,6 +33,7 @@ X3D Texturing Component
 #include <internal.h>
 
 #include <libFreeWRL.h>
+#include <limits.h>
 
 #include "../vrml_parser/Structs.h"
 #include "../main/headers.h"
@@ -59,6 +60,15 @@ void render_GeneratedTexture(struct X3D_GeneratedTexture* node) {
 	int count, iface;
 
 	if (!strcmp(node->update->strptr, "ALWAYS") || !strcmp(node->update->strptr, "NEXT_FRAME_ONLY")) {
+		// size is MFInt32 [width height], empty by default; same limits as the blank
+		// texture in LoadTextures.c
+		if (node->size.n < 2 || !node->size.p || node->size.p[0] <= 0 || node->size.p[1] <= 0
+			|| node->size.p[0] > INT_MAX / 4 / node->size.p[1]) {
+			static int reported = 0;
+			if (!reported) ConsoleMessage("GeneratedTexture: size needs a valid width and height\n");
+			reported = 1;
+			return;
+		}
 		ttrenderstate rs;
 		rs = renderstate();
 		if (rs->render_geom) {

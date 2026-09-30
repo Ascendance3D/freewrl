@@ -89,6 +89,7 @@ Handle incoming EAI (and java class) events with panache.
 
 #include "EAIHelpers.h"
 #include "EAIHeaders.h"
+#include <io_files.h>
 
 #include <ctype.h> /* FIXME: config armor */
 
@@ -455,8 +456,13 @@ void EAI_core_commands () {
 
 				UNUSED(throwAway); // for compiler warnings
 
-				dumpname = TEMPNAM(gglobal()->Mainloop.tmpFileLocation,"fwtmp");
-				dumpfd = fopen(dumpname,"w+");
+				dumpfd = fw_temp_file_create(gglobal()->Mainloop.tmpFileLocation,"fwtmp",&dumpname);
+				if (!dumpfd) {
+					/* no file: reply with an empty file name */
+					ConsoleMessage ("DUMPSCENE: cannot create a temporary file\n");
+					sprintf (th->outBuffer,"RE\n%f\n%d\n",TickTime(),count);
+					break;
+				}
 				dump_scene(dumpfd, 0, (struct X3D_Node*) rootNode());
 				fflush(dumpfd) ;
 				if (sendNameNotFile) {
@@ -475,6 +481,7 @@ void EAI_core_commands () {
 					fclose(dumpfd) ;
 					unlink(dumpname) ;
 				}
+				free(dumpname);
 
 				break;
 				}
@@ -1095,9 +1102,14 @@ static void handleGETNODE (char *bufptr, int repno) {
 
 static void handleGETNODEPARENTS (char *bufptr, int repno)
 {	
+	/* reply: "RE\n<time>\n<seq>\n", then each parent handle followed by a space,
+	   or the result code followed by a space when there are no parents (0) or an
+	   error (-1). The list grows with the scene, so it is built in a heap buffer. */
+	#define PARENT_ADR_MAX 12	/* "%d " of any int */
 	int nodeHandle;
-	char parentAdr[10];
-	char buffer[EAIREADSIZE];
+	int headerlen;
+	double now;
+	char *buffer, *cur;
 	struct tEAIHelpers* th;
 	int eaiverbose;
 
@@ -1121,23 +1133,35 @@ static void handleGETNODEPARENTS (char *bufptr, int repno)
 
 	result = EAI_GetNodeParents(nodeHandle,&parentArray);
 
-	snprintf(buffer,EAIREADSIZE,"RE\n%f\n%d\n",TickTime(),repno);
+	now = TickTime();
+	headerlen = snprintf(NULL,0,"RE\n%f\n%d\n",now,repno);
+	buffer = NULL;
+	if(headerlen > 0)
+		buffer = MALLOC(char *, (size_t)headerlen + (size_t)(result > 0 ? result : 1) * PARENT_ADR_MAX + 1);
 
-	if(result > 0)
+	if(buffer == NULL)
 	{
-		for(index = 0; index < result; index++)
-		{			
-			snprintf(parentAdr,10,"%d ",parentArray[index]);
-			strncat(buffer,parentAdr,strlen(parentAdr));
-		}
+		/* cannot build the list: report an error, not a partial list */
+		char reply[400];
+		ConsoleMessage("GETNODEPARENTS: no memory for %d parents\n", result);
+		snprintf(reply,sizeof(reply),"RE\n%f\n%d\n-1 ",now,repno);
+		outBufferCat(reply);
 	}
 	else
 	{
-		snprintf(parentAdr,10,"%d ",result);
-		strncat(buffer,parentAdr,strlen(parentAdr));
+		cur = buffer + sprintf(buffer,"RE\n%f\n%d\n",now,repno);
+		if(result > 0)
+		{
+			for(index = 0; index < result; index++)
+				cur += sprintf(cur, "%d ", parentArray[index]);
+		}
+		else
+		{
+			sprintf(cur, "%d ", result);
+		}
+		outBufferCat(buffer);
+		FREE_IF_NZ(buffer);
 	}
-
-	outBufferCat(buffer);
 
 	if (eaiverbose) {	
 		printf ("GETNODE returns %s\n",th->outBuffer); 
@@ -1145,6 +1169,7 @@ static void handleGETNODEPARENTS (char *bufptr, int repno)
 
 	if(parentArray)
 		free(parentArray);
+	#undef PARENT_ADR_MAX
 }
 
 

@@ -7,6 +7,7 @@ audio or load a world, so they are safe to run locally and take a few seconds.
 ```sh
 tools/c-tests/run-containers.sh                  # routine run, also in CI (build job)
 tools/c-tests/run-containers.sh --known-defects  # plus the reproducers in known_defects/
+tools/c-tests/run-bounds.sh                      # bounds and data-safety tests (Linux and macOS)
 ```
 
 ## Containers
@@ -34,12 +35,39 @@ releaseData, clear, testVector, delete). Whether a reallocation moves the block 
 to the allocator, so the tests read values back through a fresh lookup and never compare
 addresses.
 
+## Bounds and data safety
+
+`run-bounds.sh` tests library functions that cannot be compiled on their own, because
+their source files need OpenGL, the scene graph and the global state. `extract.awk`
+copies each function unchanged out of the real source file, and each test file
+declares only the types and test doubles that the function uses. If a function is
+renamed or removed, the extraction fails and the run stops. It does not use a
+`config.h`, so it runs on Linux and macOS (`CC` defaults to `cc`).
+
+- `test_hanim.c`: `parse_float_values` (`Component_HAnim.c`): spaces, commas, tabs,
+  newlines, negative and decimal values, malformed tokens and missing values (0.0),
+  a last token without a separator, a 200-character token, a count below 1.
+- `test_texture.c`: the GeneratedTexture blank texture (`LoadTextures.c`): the empty
+  default size, one value, zero, negative and overflowing sizes are rejected with no
+  allocation; valid sizes give black opaque pixels.
+- `test_shader_plug.c`: shader PLUG compositing (`Compositing_Shaders.c`): plug names,
+  parameter lists, plugs and shader parts longer than the old fixed buffers, malformed
+  `void PLUG_` declarations and `/* PLUG: */` points, `AddDefine0`, `AddVersion0`,
+  `AddExtension`. Results are compared with the exact expected text.
+- `test_eai_reply.c`: the EAI GETNODEPARENTS reply (`EAIEventsIn.c`) with
+  `outBufferCat` (`EAIHelpers.c`): no parents, errors, widest handles, replies larger
+  than the old 8192-byte buffer, allocation failures.
+- `test_tempfile.c`: `fw_temp_file_create` and `fw_temp_dir_create` (`io_files.c`):
+  mode 0600 files and 0700 directories, unique names, `$TMPDIR` order, failures that
+  leave no file.
+
 ## Sanitizers
 
-The test binary and the two production objects it links are built with
+The test binaries (and, for `run-containers.sh`, the two production objects) are built with
 `-fsanitize=address,undefined -fno-sanitize-recover=all`; any report fails the run.
-This applies only to this test program, not to the FreeWRL build. LeakSanitizer is not
-available with Apple clang on arm64 macOS, so leaks are not checked.
+This applies only to the test programs, not to the FreeWRL build. LeakSanitizer is not
+available with Apple clang on arm64 macOS, so there leaks are not checked; on Linux it
+runs as part of AddressSanitizer.
 
 ## Known defects
 

@@ -2097,20 +2097,23 @@ int parse_channels(char *channelstring, int nentries, struct joint_frame_motion 
 //struct moframe {
 //	struct mojoint * mj;
 //};
+//returns n floats (caller frees), or NULL if n < 1 or str is NULL
+//values missing from str, or tokens that are not numbers, are 0.0
 float *parse_float_values(int n, char *str){
 	const char *beg, *end;
 	char *token;
-	int len;
 	char *sep = " \n\r\t,";
-	float *fv = malloc(n*sizeof(float));
+	float *fv;
+	if(n < 1 || !str) return NULL;
+	fv = calloc((size_t)n,sizeof(float));
+	if(!fv) return NULL;
     beg = str;
     end = NULL;
     for(int i=0;i<n; ++i, beg=end, end=NULL )
     {
         token = next_buffer_token( &beg, sep, &end );
-		len = (unsigned int)(*end - *beg);
-        if(!len) break;
-		sscanf(token,"%f",&fv[i]);
+		if(end == beg) break; //no token left
+		if(sscanf(token,"%f",&fv[i]) != 1) fv[i] = 0.0f;
     }
 	return fv;
 }

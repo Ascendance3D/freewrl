@@ -47,6 +47,8 @@
 #include <internal.h>
 
 #include <libFreeWRL.h>
+#include <ctype.h>
+#include <stdarg.h>
 #define TRUE 1
 #define FALSE 0
 //type
@@ -63,57 +65,77 @@ enum TShaderType {
 //  FinalShader: TShaderSource;
 
 
-char *insertBefore(char *current, char *insert, char* wholeBuffer, int wholeBuffersize){
-	//inserts insert at current location
-	char *newcurrent, *here;
-	int insertlen, wholelen, need, movesize;
+// Shader parts (CompleteCode[]) and plugs are heap strings that grow as needed:
+// a user Effect plug (EffectPart url text) has no length limit, so no fixed buffers.
 
-	wholelen = strlen(current) +1; //plus 1 to get the \0 at the end in memmove
-	insertlen = strlen(insert);
-	need = wholelen + insertlen + 1;
-	movesize = wholelen;
-	newcurrent = current;
-	if(need < wholeBuffersize){
-		here = current;
-		newcurrent = current + insertlen;
-		memmove(newcurrent,current,movesize);
-		memcpy(here,insert,insertlen);
-	}else{
-		ConsoleMessage("Not enough buffer for compositing shader buffsz=%d need=%d\n",wholeBuffersize,need);
+//returns a new string with the first n chars of s, or NULL if no memory
+static char *dupRange(const char *s, size_t n){
+	char *out = malloc(n + 1);
+	if(out){
+		memcpy(out, s, n);
+		out[n] = '\0';
 	}
-	//if(1){
-	//	char *tmp = strdup(wholeBuffer);
-	//	printf("strdup: %s",tmp);
-	//	free(tmp);
-	//}
-	return newcurrent;
+	return out;
 }
-void removeAt(char *here, int len){
-	//removes len bytes from string, moving tail bytes up by len bytes
-	int wholelen, movesize;
-	char *source;
-	wholelen = strlen(here) + 1; //take the \0
-	source = here + len;
-	movesize = wholelen - len;
-	memmove(here,source,movesize);
-}
-
-void extractPlugCall(char *start, char *PlugName,char *PlugParameters){
-	//from the addon shader, get the name PLUG_<name>(declaredParameters)
-	char *pns, *pne, *pps, *ppe;
+//returns a new printf-formatted string, or NULL if no memory
+static char *shaderPrintf(const char *fmt, ...){
+	va_list ap;
 	int len;
-	pns = strstr(start,"PLUG: ");
-	pns += strlen("PLUG: ");
-	pne = strchr(pns,' ');
-	len = pne - pns;
-	strncpy(PlugName,pns,len);
-	PlugName[len] = '\0';
-	pps = strchr(pne,'(');
-	ppe = strchr(pps,')') + 1;
-	len = ppe - pps;
-	strncpy(PlugParameters,pps,len);
-	PlugParameters[len] = '\0';
-	//printf("PlugName %s PlugParameters %s\n",PlugName,PlugParameters);
+	char *out;
+	va_start(ap, fmt);
+	len = vsnprintf(NULL, 0, fmt, ap);
+	va_end(ap);
+	if(len < 0) return NULL;
+	out = malloc((size_t)len + 1);
+	if(!out) return NULL;
+	va_start(ap, fmt);
+	vsnprintf(out, (size_t)len + 1, fmt, ap);
+	va_end(ap);
+	return out;
+}
+//inserts text into *code at offset, replacing *code
+//returns FALSE, with *code unchanged, if no memory
+static int insertInto(char **code, size_t offset, const char *text){
+	size_t codelen = strlen(*code), textlen = strlen(text);
+	char *out = malloc(codelen + textlen + 1);
+	if(!out){
+		ConsoleMessage("Not enough memory for compositing shader, need=%d\n", (int)(codelen + textlen + 1));
+		return FALSE;
+	}
+	memcpy(out, *code, offset);
+	memcpy(out + offset, text, textlen);
+	memcpy(out + offset + textlen, *code + offset, codelen - offset + 1);
+	FREE_IF_NZ(*code);
+	*code = out;
+	return TRUE;
+}
+static int isPlugNameChar(char c){
+	return isalnum((unsigned char)c) || c == '_';
+}
+//parses "<name> (<parameters>)" at start; spaces before the "(" are optional
+//on success sets *name and *parameters (with the parentheses) to new strings
+//returns FALSE if the name is empty, or no ")" closes the "(" before another "("
+static int extractPlugSignature(const char *start, char **name, char **parameters){
+	const char *pns, *pne, *pps, *ppe;
+	pns = start;
+	for(pne = pns; isPlugNameChar(*pne); pne++);
+	if(pne == pns) return FALSE;
+	for(pps = pne; isspace((unsigned char)*pps); pps++);
+	if(*pps != '(') return FALSE;
+	for(ppe = pps + 1; *ppe && *ppe != ')' && *ppe != '('; ppe++);
+	if(*ppe != ')') return FALSE;
+	*name = dupRange(pns, pne - pns);
+	*parameters = dupRange(pps, ppe + 1 - pps);
+	if(!*name || !*parameters){
+		FREE_IF_NZ(*name);
+		FREE_IF_NZ(*parameters);
+		return FALSE;
+	}
+	return TRUE;
+}
+//from the main shader at "/* PLUG: <name> (callParameters) */", get the name and parameters
+static int extractPlugCall(const char *start, char **PlugName, char **PlugParameters){
+	return extractPlugSignature(start + strlen("/* PLUG: "), PlugName, PlugParameters);
 }
 //{ Look for /* PLUG: PlugName (...) */ inside
 	//given CodeForPlugDeclaration.
@@ -121,126 +143,82 @@ void extractPlugCall(char *start, char *PlugName,char *PlugParameters){
 	//function LookForPlugDeclaration(
 	//  CodeForPlugDeclaration: string list): boolean;
 	//begin
-int LookForPlugDeclarations( char * CodeForPlugDeclarations, int bsize, char *PlugName, char *ProcedureName, char *ForwardDeclaration) {
+static int LookForPlugDeclarations( char **CodeForPlugDeclarations, const char *PlugName, const char *ProcedureName, const char *ForwardDeclaration) {
 	//in the main code, look for matching PLUG: <PlugName>(plugparams) and place a call to ProcedureName(plugparams)
-	//Result := false
-	//for each S: string in CodeForPlugDeclaration do
-	//begin
-	int Result;
-	//i = 0;
-	//while(CodeForPlugDeclarations[i]){
-		char *S;
-		char MainPlugName[100], MainPlugParams[1000];
-		//char PlugDeclarationBuffer[10000];
-		int AnyOccurrencesHere = FALSE; //:= false
-	Result = FALSE;
-		//strcpy_s(PlugDeclarationBuffer,10000,*CodeForPlugDeclarations);
-		S = CodeForPlugDeclarations;
-		do {
-			//while we can find an occurrence
-			//  of /* PLUG: PlugName (...) */ inside S do
-			//begin
-			S = strstr(S,"/* PLUG: ");
-			//if(S)
-			//	printf("found PLUG:\n");
-			//else
-			//	printf("PLUG: not found\n");
-			if(S){  ////where = strstr(haystack,needle)
-				char ProcedureCallBuffer[500], *ProcedureCall;
-				extractPlugCall(S,MainPlugName,MainPlugParams);
-				if(!strcmp(MainPlugName,PlugName)){
-					//found the place in the main shader to make the call to addon function
-					//insert into S a call to ProcedureName,
-					//with parameters specified inside the /* PLUG: PlugName (...) */,
-					//right before the place where we found /* PLUG: PlugName (...) */
-					ProcedureCall = ProcedureCallBuffer;
-					sprintf(ProcedureCall,"%s%s;\n",ProcedureName,MainPlugParams);
-					S = insertBefore(S,ProcedureCall,CodeForPlugDeclarations,bsize);
-					AnyOccurrencesHere = TRUE; //:= true
-					Result = TRUE; //:= true
-				}else{
-					//printf("found a PLUG: %s but doesn't match PLUG_%s\n",MainPlugName,PlugName);
-				}
-				S += strlen("/* PLUG:") + strlen(MainPlugName) + strlen(MainPlugParams);
+	//*CodeForPlugDeclarations is replaced when text is inserted
+	int AnyOccurrencesHere = FALSE; //:= false
+	size_t pos = 0;
+	char *S;
+	//while we can find an occurrence
+	//  of /* PLUG: PlugName (...) */ inside S do
+	while((S = strstr(*CodeForPlugDeclarations + pos, "/* PLUG: "))){
+		char *MainPlugName, *MainPlugParams;
+		size_t at = S - *CodeForPlugDeclarations;
+		if(!extractPlugCall(S, &MainPlugName, &MainPlugParams)){
+			pos = at + strlen("/* PLUG: ");
+			continue;
+		}
+		if(!strcmp(MainPlugName,PlugName)){
+			//found the place in the main shader to make the call to addon function
+			//insert into S a call to ProcedureName,
+			//with parameters specified inside the /* PLUG: PlugName (...) */,
+			//right before the place where we found /* PLUG: PlugName (...) */
+			char *ProcedureCall = shaderPrintf("%s%s;\n",ProcedureName,MainPlugParams);
+			if(ProcedureCall && insertInto(CodeForPlugDeclarations, at, ProcedureCall)){
+				at += strlen(ProcedureCall);
+				AnyOccurrencesHere = TRUE; //:= true
 			}
-		}
-		while(S); //AnyOccurrencesHere);
-		//end
-
-		//if AnyOccurrencesHere then
-		if(AnyOccurrencesHere){
-			//insert the PlugForwardDeclaration into S,
-			//at the place of /* PLUG-DECLARATIONS */ inside
-			//(or at the beginning, if no /* PLUG-DECLARATIONS */)
-			S = CodeForPlugDeclarations;
-			S = strstr(S,"/* PLUG-DECLARATIONS */");
-			if(!S) S = CodeForPlugDeclarations;
-			S = insertBefore(S,ForwardDeclaration,CodeForPlugDeclarations,bsize);
-			//S = *CodeForPlugDeclarations;
-			//*CodeForPlugDeclarations = strdup(PlugDeclarationBuffer);
-			//FREE_IF_NZ(S);
+			FREE_IF_NZ(ProcedureCall);
 		}else{
-			printf("didn't find PLUG_%s\n",PlugName);
+			//printf("found a PLUG: %s but doesn't match PLUG_%s\n",MainPlugName,PlugName);
 		}
-	//	i++;
-	//} //end
-	return Result;
-} //end
-
-
-void replaceAll(char *buffer,int bsize, char *oldstr, char *newstr){
-	char *found;
-	while((found = strstr(buffer,oldstr))){
-		removeAt(found,strlen(oldstr));
-		insertBefore(found,newstr,buffer,bsize);
+		pos = at + strlen("/* PLUG:") + strlen(MainPlugName) + strlen(MainPlugParams);
+		FREE_IF_NZ(MainPlugName);
+		FREE_IF_NZ(MainPlugParams);
 	}
 
+	//if AnyOccurrencesHere then
+	if(AnyOccurrencesHere){
+		//insert the PlugForwardDeclaration into S,
+		//at the place of /* PLUG-DECLARATIONS */ inside
+		//(or at the beginning, if no /* PLUG-DECLARATIONS */)
+		S = strstr(*CodeForPlugDeclarations,"/* PLUG-DECLARATIONS */");
+		insertInto(CodeForPlugDeclarations, S ? (size_t)(S - *CodeForPlugDeclarations) : 0, ForwardDeclaration);
+	}else{
+		printf("didn't find PLUG_%s\n",PlugName);
+	}
+	return AnyOccurrencesHere;
+} //end
+
+//replaces every oldstr in *text with newstr, replacing *text
+//*mark is an offset into *text before the change; it is moved to the same text after it
+static int replaceAll(char **text, const char *oldstr, const char *newstr, size_t *mark){
+	size_t oldlen = strlen(oldstr), newlen = strlen(newstr), pos = 0;
+	char *found;
+	while((found = strstr(*text + pos, oldstr))){
+		size_t at = found - *text;
+		char *out = malloc(strlen(*text) - oldlen + newlen + 1);
+		if(!out){
+			ConsoleMessage("Not enough memory for compositing shader plug\n");
+			return FALSE;
+		}
+		memcpy(out, *text, at);
+		memcpy(out + at, newstr, newlen);
+		strcpy(out + at + newlen, found + oldlen);
+		FREE_IF_NZ(*text);
+		*text = out;
+		if(at < *mark) *mark = *mark - oldlen + newlen;
+		pos = at + newlen;
+	}
+	return TRUE;
 }
 //procedure Plug(
 //  EffectPartType: TShaderType;
 //  PlugValue: string;
 //  CompleteCode: TShaderSource);
-//char *strpbrk(const char *str1, const char *str2) finds the first character in the string str1 that matches any character specified in str2. This does not include the terminating null-characters.
-void extractPlugName(char *start, char *PlugName,char *PlugDeclaredParameters){
-	//from the addon shader, get the name PLUG_<name>(declaredParameters)
-	char *pns, *pne, *pps, *ppe;
-	int len;
-	pns = strstr(start,"PLUG_");
-	pns += strlen("PLUG_");
-	//pne = strchr(pns,' ');
-	pne = strpbrk(pns," (");
-	len = pne - pns;
-	strncpy(PlugName,pns,len);
-	PlugName[len] = '\0';
-	pps = strchr(pne,'(');
-	ppe = strchr(pps,')') + 1;
-	len = ppe - pps;
-	strncpy(PlugDeclaredParameters,pps,len);
-	PlugDeclaredParameters[len] = '\0';
-	//printf("PlugName %s PlugDeclaredParameters %s\n",PlugName,PlugDeclaredParameters);
-}
-#define SBUFSIZE 65534 //32767 //must hold final size of composited shader part, could do per-gglobal-instance malloced buffer instead and resize to largest composited shader
-#define PBUFSIZE 16384 //must hold largets PlugValue
-int fw_strcpy_s(char *dest, int destsize, const char *source){
-	int ier = -1;
-	if(dest)
-	if(source && strlen(source) < (unsigned)destsize){
-		strcpy(dest,source);
-		ier = 0;
-	}
-	return ier;
-}
-int fw_strcat_s(char *dest, int destsize, const char *source){
-	int ier = -1;
-	if(dest){
-		int destlen = strlen(dest);
-		if(source)
-			if(strlen(source)+destlen < (unsigned)destsize){
-				strcat(dest,source);
-				ier = 0;
-			}
-	}
-	return ier;
+//from the addon shader at "void PLUG_<name>(declaredParameters)", get the name and parameters
+static int extractPlugName(const char *start, char **PlugName, char **PlugDeclaredParameters){
+	return extractPlugSignature(start + strlen("void PLUG_"), PlugName, PlugDeclaredParameters);
 }
 void Plug( int EffectPartType, const char *PlugValue, char **CompleteCode, int *unique_int)
 {
@@ -253,57 +231,59 @@ void Plug( int EffectPartType, const char *PlugValue, char **CompleteCode, int *
 	//        c) method definition at bottom
 	//var
 	//  PlugName, ProcedureName, PlugForwardDeclaration: string;
-	char PlugName[100], PlugDeclaredParameters[1000], PlugForwardDeclaration[1000], ProcedureName[100], PLUG_PlugName[100];
-	char Code[SBUFSIZE], Plug[PBUFSIZE];
-	int HasGeometryMain = FALSE, AnyOccurrences;
-	char *found;
-	int err;
-
-	UNUSED(err);
+	char *Code, *Plug, *found;
+	size_t pos;
 
 	//var
 	// Code: string list;
 	//begin
 	
-	if(!CompleteCode[EffectPartType]) return;
-	err = fw_strcpy_s(Code,SBUFSIZE, CompleteCode[EffectPartType]);
-	err = fw_strcpy_s(Plug,PBUFSIZE, PlugValue);
-
-	//HasGeometryMain := HasGeometryMain or
-	//  ( EffectPartType = geometry and
-	//    PlugValue contains 'main()' );
-	HasGeometryMain = HasGeometryMain || 
-		((EffectPartType == SHADERPART_GEOMETRY) && strstr("main(",Plug));
+	if(!CompleteCode[EffectPartType] || !PlugValue) return;
+	Code = strdup(CompleteCode[EffectPartType]);
+	Plug = strdup(PlugValue);
+	if(!Code || !Plug){
+		ConsoleMessage("Not enough memory for compositing shader plug\n");
+		FREE_IF_NZ(Code);
+		FREE_IF_NZ(Plug);
+		return;
+	}
 
 	//while we can find PLUG_xxx inside PlugValue do
 	//begin
-	found = Plug;
-	do {
-		found = strstr(found,"void PLUG_"); //where = strstr(haystack,needle)
-		//if(!found)
-		//	printf("I'd like to complain: void PLUG_ isn't found in the addon\n");
-		if(found){
-			//PlugName := the plug name we found, the "xxx" inside PLUG_xxx
-			//PlugDeclaredParameters := parameters declared at PLUG_xxx function
-			extractPlugName(found,PlugName,PlugDeclaredParameters);
-			found += strlen("void PLUG_") + strlen(PlugName) + strlen(PlugDeclaredParameters);
-			//{ Rename found PLUG_xxx to something unique. }
-			//ProcedureName := generate new unique procedure name,
-			//for example take 'plugged_' + some unique integer
-			sprintf(ProcedureName,"%s_%d",PlugName,(*unique_int));
-			(*unique_int)++;
+	pos = 0;
+	while((found = strstr(Plug + pos,"void PLUG_"))){ //where = strstr(haystack,needle)
+		char *PlugName, *PlugDeclaredParameters, *ProcedureName, *PLUG_PlugName, *PlugForwardDeclaration;
+		size_t declaration = found - Plug;
+		int AnyOccurrences;
+		//PlugName := the plug name we found, the "xxx" inside PLUG_xxx
+		//PlugDeclaredParameters := parameters declared at PLUG_xxx function
+		if(!extractPlugName(found,&PlugName,&PlugDeclaredParameters)){
+			ConsoleMessage("Plug declaration is not valid: %.60s\n", found);
+			pos = declaration + strlen("void PLUG_");
+			continue;
+		}
+		//{ Rename found PLUG_xxx to something unique. }
+		//ProcedureName := generate new unique procedure name,
+		//for example take 'plugged_' + some unique integer
+		ProcedureName = shaderPrintf("%s_%d",PlugName,(*unique_int));
+		(*unique_int)++;
+		PLUG_PlugName = shaderPrintf("%s%s","PLUG_",PlugName);
+		//PlugForwardDeclaration := 'void ' + ProcedureName +
+		//PlugDeclaredParameters + ';' + newline
+		PlugForwardDeclaration = shaderPrintf("void %s%s;\n",ProcedureName,PlugDeclaredParameters);
 
-			//replace inside PlugValue all occurrences of 'PLUG_' + PlugName
-			//with ProcedureName
-			sprintf(PLUG_PlugName,"%s%s","PLUG_",PlugName);
-			replaceAll(Plug,PBUFSIZE,PLUG_PlugName,ProcedureName);
-
-			//PlugForwardDeclaration := 'void ' + ProcedureName +
-			//PlugDeclaredParameters + ';' + newline
-			sprintf(PlugForwardDeclaration,"void %s%s;\n",ProcedureName,PlugDeclaredParameters);
+		//replace inside PlugValue all occurrences of 'PLUG_' + PlugName
+		//with ProcedureName
+		if(!ProcedureName || !PLUG_PlugName || !PlugForwardDeclaration
+			|| !replaceAll(&Plug,PLUG_PlugName,ProcedureName,&declaration)){
+			ConsoleMessage("Not enough memory for compositing shader plug %s\n",PlugName);
+			pos = declaration + strlen("void PLUG_");
+		}else{
+			//continue after the renamed declaration "void <ProcedureName>"
+			pos = declaration + strlen("void ") + strlen(ProcedureName);
 
 			//AnyOccurrences := LookForPlugDeclaration(Code)
-			AnyOccurrences = LookForPlugDeclarations(Code,SBUFSIZE, PlugName,ProcedureName,PlugForwardDeclaration);
+			AnyOccurrences = LookForPlugDeclarations(&Code,PlugName,ProcedureName,PlugForwardDeclaration);
 
 			/* If the plug declaration is not found in Code, then try to find it
 				in the final shader. This happens if Code is special for given
@@ -312,12 +292,6 @@ void Plug( int EffectPartType, const char *PlugValue, char **CompleteCode, int *
 				For example, using PLUG_vertex_object_space inside
 				the X3DTextureNode.effects. 
 			*/
-			//if not AnyOccurrences and
-			//	Code <> Source[EffectPartType] then
-			//	AnyOccurrences := LookForPlugDeclaration(Source[EffectPartType])
-			//if(!AnyOccurrences && Code != Source[EffectPartType]){
-			//	AnyOccurrences = LookForPlugDeclarations(Source[EffectPartType]);
-			//}
 			//if not AnyOccurrences then
 			//	Warning('Plug name ' + PlugName + ' not declared')
 			//}
@@ -325,55 +299,43 @@ void Plug( int EffectPartType, const char *PlugValue, char **CompleteCode, int *
 				ConsoleMessage("Plug name %s not declared\n",PlugName);
 			}
 		}
-	}while(found);
+		FREE_IF_NZ(PlugName);
+		FREE_IF_NZ(PlugDeclaredParameters);
+		FREE_IF_NZ(ProcedureName);
+		FREE_IF_NZ(PLUG_PlugName);
+		FREE_IF_NZ(PlugForwardDeclaration);
+	}
 	//end
 
 	/*{ regardless if any (and how many) plug points were found,
 	always insert PlugValue into Code. This way EffectPart with a library
 	of utility functions (no PLUG_xxx inside) also works. }*/
 	//Code.Add(PlugValue)
-	//printf("strlen Code = %d strlen PlugValue=%d\n",strlen(Code),strlen(PlugValue));
-	err = fw_strcat_s(Code,SBUFSIZE,Plug);
+	insertInto(&Code, strlen(Code), Plug);
+	FREE_IF_NZ(Plug);
 	FREE_IF_NZ(CompleteCode[EffectPartType]);
-	CompleteCode[EffectPartType] = strdup(Code);
+	CompleteCode[EffectPartType] = Code;
 } //end
 
 void AddVersion0( int EffectPartType, int versionNumber, char *versionSuffix, char **CompleteCode){
 	//puts #version <number> at top of shader, first line
-	char Code[SBUFSIZE], line[1000];
-	char *found;
-	int err;
-
-	UNUSED(err);
+	char *line;
 
 	if (!CompleteCode[EffectPartType]) return;
-	err = fw_strcpy_s(Code, SBUFSIZE, CompleteCode[EffectPartType]);
-
-	found = Code;
-	if (found) {
-		sprintf(line, "#version %d %s\n", versionNumber, versionSuffix);
-		insertBefore(found, line, Code, SBUFSIZE);
-		FREE_IF_NZ(CompleteCode[EffectPartType]);
-		CompleteCode[EffectPartType] = strdup(Code);
-	}
+	line = shaderPrintf("#version %d %s\n", versionNumber, versionSuffix);
+	if (line) insertInto(&CompleteCode[EffectPartType], 0, line);
+	FREE_IF_NZ(line);
 }
 void AddExtension(int EffectPartType, char* extensionName, char* behavior, char** CompleteCode) {
-	//puts #version <number> at top of shader, first line
-	char Code[SBUFSIZE], line[1000];
-	char* found;
-	int err;
-
-	UNUSED(err);
+	//puts #extension <name> : <behavior> above the /*EXTENSIONS line
+	char *line, *found;
 
 	if (!CompleteCode[EffectPartType]) return;
-	err = fw_strcpy_s(Code, SBUFSIZE, CompleteCode[EffectPartType]);
-
-    found = strstr(Code, "/*EXTENSIONS");
+	found = strstr(CompleteCode[EffectPartType], "/*EXTENSIONS");
 	if (found) {
-		sprintf(line, "#extension %s : %s\n", extensionName, behavior);
-		insertBefore(found, line, Code, SBUFSIZE);
-		FREE_IF_NZ(CompleteCode[EffectPartType]);
-		CompleteCode[EffectPartType] = strdup(Code);
+		line = shaderPrintf("#extension %s : %s\n", extensionName, behavior);
+		if (line) insertInto(&CompleteCode[EffectPartType], found - CompleteCode[EffectPartType], line);
+		FREE_IF_NZ(line);
 	}
 }
 void AddVersion(int EffectPartType, int versionNumber, char** CompleteCode) {
@@ -382,21 +344,14 @@ void AddVersion(int EffectPartType, int versionNumber, char** CompleteCode) {
 void AddDefine0( int EffectPartType, const char *defineName, int defineValue, char **CompleteCode)
 {
 	//same as AddDEfine but you can say a number other than 1
-	char Code[SBUFSIZE], line[1000];
-	char *found;
-	int err;
-
-	UNUSED(err);
+	char *line, *found;
 
 	if(!CompleteCode[EffectPartType]) return;
-	err = fw_strcpy_s(Code,SBUFSIZE, CompleteCode[EffectPartType]);
-
-	found = strstr(Code,"/* DEFINE"); 
+	found = strstr(CompleteCode[EffectPartType],"/* DEFINE");
 	if(found){
-		sprintf(line,"#define %s %d \n",defineName,defineValue);
-		insertBefore(found,line,Code,SBUFSIZE);
-		FREE_IF_NZ(CompleteCode[EffectPartType]);
-		CompleteCode[EffectPartType] = strdup(Code);
+		line = shaderPrintf("#define %s %d \n",defineName,defineValue);
+		if (line) insertInto(&CompleteCode[EffectPartType], found - CompleteCode[EffectPartType], line);
+		FREE_IF_NZ(line);
 	}
 } 
 void AddDefine( int EffectPartType, const char *defineName, char **CompleteCode){

@@ -73,6 +73,7 @@ Dec 6, 2016 tti->data now always in RGBA
 #include <threads.h>
 
 #include <libFreeWRL.h>
+#include <limits.h>
 
 /* We do not want to include Struct.h: enormous file :) */
 typedef struct _Multi_String Multi_String;
@@ -420,42 +421,45 @@ static void texture_load_from_pixelTexture (textureTableIndexStruct_s* this_tex,
 
 static void texture_load_blank_Texture(textureTableIndexStruct_s* this_tex, struct X3D_GeneratedTexture* node)
 {
+	// size is MFInt32 [width height]; its default is empty.
+	// width and height must be > 0, and width * height * 4 bytes must fit in an int,
+	// which the texture code uses for sizes. Otherwise there is no texture, as for a
+	// texture url that is not found.
 	int hei, wid, depth;
 	unsigned char* texture;
-	int count;
-	int ok;
-	int* iptr;
-	int tctr;
-	char pix;
+	size_t count, npixels;
 
-	wid = node->size.p[0];
-	hei = node->size.p[1];
 	depth = 4;
-
-	/* did we have any errors? if so, create a grey pixeltexture and get out of here */
-	if (!wid*hei) {
+	if (node->size.n < 2 || !node->size.p) {
+		ConsoleMessage("GeneratedTexture: size needs width and height, has %d values\n", node->size.n);
+		this_tex->status = TEX_NOTFOUND;
 		return;
 	}
+	wid = node->size.p[0];
+	hei = node->size.p[1];
+	if (wid <= 0 || hei <= 0 || wid > INT_MAX / 4 / hei) {
+		ConsoleMessage("GeneratedTexture: size %d %d is not valid\n", wid, hei);
+		this_tex->status = TEX_NOTFOUND;
+		return;
+	}
+	npixels = (size_t)wid * (size_t)hei;
 
-	/* ok, we are good to go here */
+	texture = MALLOC(unsigned char*, npixels * 4);
+	if (texture == NULL) {
+		ConsoleMessage("GeneratedTexture: no memory for size %d %d\n", wid, hei);
+		this_tex->status = TEX_NOTFOUND;
+		return;
+	}
+	memset(texture, 0, npixels * 4);
+	for (count = 0; count < npixels; count++)
+		texture[count * 4 + 3] = 0xff; /*alpha, but force it to be ff */
+
 	this_tex->x = wid;
 	this_tex->y = hei;
 	this_tex->hasAlpha = (depth == 4);
 	this_tex->channels = depth;
-
-	texture = MALLOC(unsigned char*, wid * hei * 4);
-	memset(texture, 0, wid * hei * 4);
 	this_tex->texdata = texture; /* this will be freed when texture opengl-ized */
 	this_tex->status = TEX_NEEDSBINDING;
-
-	tctr = 0;
-	if (texture != NULL) {
-
-		for (count = 0; count < (wid * hei); count++) {
-			texture[tctr+3] = 0xff; /*alpha, but force it to be ff */
-			tctr += 4;
-		}
-	}
 }
 
 
