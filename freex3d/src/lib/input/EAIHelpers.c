@@ -391,6 +391,8 @@ int EAI_GetNodeParents(int cNode, int **parentNodesAdr)
 	parentVectorSize = myNode->_parentVector->n;
 
 	tmp =(int*) calloc(parentVectorSize,sizeof(int));
+	if(!tmp && parentVectorSize > 0)
+		return -1;
 
 	//cycle along the parent vector
 	for(i=0; i < parentVectorSize; i++)
@@ -846,9 +848,16 @@ void outBufferCat (char *str) {
 
 	/* should we increase the size here? */
 	if ((a+b+2) >= t->outBufferLen) {
-		t->outBufferLen = a+b+200; /* give it more space, and a bit more, so maybe
+		int len = a+b+200; /* give it more space, and a bit more, so maybe
 					   REALLOC does not need to be called all the time */
-		t->outBuffer = REALLOC(t->outBuffer, t->outBufferLen);
+		char *grown = REALLOC(t->outBuffer, len);
+		if (!grown) {
+			/* keep the reply so far; the caller's text is lost */
+			ERROR_MSG("outBufferCat: no memory for %d bytes\n", len);
+			return;
+		}
+		t->outBuffer = grown;
+		t->outBufferLen = len;
 	}
 	strcat (t->outBuffer, str);
 }
