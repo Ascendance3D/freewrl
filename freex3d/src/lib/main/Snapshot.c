@@ -439,7 +439,7 @@ void saveSnapshotImlib2Png(char *folder, char *prefix, const char *sufx, int cou
 void saveSnapshotRawPng(char *folder, char *prefix, const char *sufx, int count, void *buffer, int bpp, int width, int height){
 	char thisRawFile[2000];
 	char thisGoodFile[2000];
-	char sysline[2000];
+	char sysline[sizeof(thisRawFile) + sizeof(thisGoodFile) + 256];
 
 	FILE * tmpfile;
 
@@ -462,8 +462,12 @@ void saveSnapshotRawPng(char *folder, char *prefix, const char *sufx, int count,
 
 
 	snprintf (thisGoodFile, sizeof(thisGoodFile),"%s/%s.%04d.%s",folder,prefix,count,sufx);
-	snprintf(sysline,sizeof(sysline),"%s -size %dx%d -depth 8 -flip %s %s",
-	IMAGECONVERT,width, height,thisRawFile,thisGoodFile);
+	if (snprintf(sysline,sizeof(sysline),"%s -size %dx%d -depth 8 -flip %s %s",
+	IMAGECONVERT,width, height,thisRawFile,thisGoodFile) >= (int)sizeof(sysline)) {
+		printf ("Freewrl: convert line too long, snapshot %s not converted\n",thisRawFile);
+		UNLINK (thisRawFile);
+		return;
+	}
 
 	if (system (sysline) != 0) {
 		printf ("Freewrl: error running convert line %s\n",sysline);
