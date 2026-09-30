@@ -99,7 +99,7 @@ static int insertInto(char **code, size_t offset, const char *text){
 	size_t codelen = strlen(*code), textlen = strlen(text);
 	char *out = malloc(codelen + textlen + 1);
 	if(!out){
-		ConsoleMessage("Not enough memory for compositing shader, need=%zu\n", codelen + textlen + 1);
+		ConsoleMessage("Not enough memory for compositing shader, need=%d\n", (int)(codelen + textlen + 1));
 		return FALSE;
 	}
 	memcpy(out, *code, offset);
