@@ -10,11 +10,27 @@ The first maintained desktop release is **`v6.7.0`**, with the release title **`
 
 | Platform | Release artifact |
 | --- | --- |
-| macOS 14 Sonoma or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle) |
+| macOS 14 Sonoma or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle: Developer ID signed, hardened runtime, notarized, stapled) |
 | Ubuntu 24.04 x86_64 desktop (X11 or Motif, Duktape JavaScript) | `freewrl-VERSION.tar.gz` (source tarball from `make dist`) |
 
 Not release targets: iOS, Android, Intel (x86_64) Macs, and macOS 13 or older. The historical
 iOS and Android source trees stay in the repository; they do not block a release and are not built.
+
+## macOS signing requirement
+
+The published macOS asset of `v6.7.0` must be:
+
+- signed with a **Developer ID Application** identity;
+- signed with the **hardened runtime**;
+- **notarized** by Apple;
+- **stapled** (the notarization ticket is in the app);
+- accepted by **Gatekeeper** (`spctl` reports `source=Notarized Developer ID`).
+
+The first maintained desktop release must **not** ship an ad-hoc signed macOS artifact. The draft
+release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed zip, because
+notarization needs credentials that CI does not have. That zip is not the release asset. Step 9a
+builds the signed and notarized zip locally from the exact tag and replaces the workflow zip on the
+draft before publication.
 
 The process is deliberately safe and repeatable. A person, Ryan, makes every publish decision. The
 workflow never publishes on its own.
@@ -58,7 +74,9 @@ The two are separate on purpose:
 4. A correction gets a new version (for example `v6.7.0` then `v6.7.1`).
 5. New formal releases use **annotated** Git tags.
 6. A release must build from the exact tagged commit.
-7. GitHub Actions is the final release build system, and it runs only when Ryan starts it.
+7. GitHub Actions validates the release and creates the draft, and it runs only when Ryan starts
+   it. The final macOS asset is the locally signed and notarized package (step 9a), built from the
+   exact tagged commit.
 8. Codemagic never publishes releases; it is supplemental only.
 9. SourceForge is a mirror; it never gets a unique release commit.
 10. Ryan publishes the final GitHub Release by hand.
@@ -217,7 +235,8 @@ make -j"$(nproc)"
 Every step must pass. If a step fails, do not release. Fix the problem, merge to `master`, and
 start again from step 3 with the new SHA.
 
-Keep `$B/freewrl-6.7.0.tar.gz` for step 9a. Record its SHA-256:
+Keep `$B/freewrl-6.7.0.tar.gz` for step 9b; copy it to the Mac that runs step 9a. Record its
+SHA-256:
 
 ```sh
 sha256sum freewrl-6.7.0.tar.gz
@@ -278,28 +297,92 @@ checks the **built app's** `CFBundleShortVersionString` equals the tag version, 
 the contract, generates the checksums and manifest, verifies them against the archive bytes, and
 creates a **DRAFT** release. It does not publish.
 
-The workflow attaches only the macOS archive, and its `SHA256SUMS.txt` lists only that archive.
-It sets the draft title to `FreeWRL Revival for Mac Silicon VERSION`; step 9a corrects the title.
+The workflow output is **not** the final draft:
 
-### 9a. Attach the Linux tarball to the draft (manual)
+- its macOS zip is **ad-hoc signed**; step 9a replaces it with the signed and notarized zip;
+- its `SHA256SUMS.txt` and `release-manifest.json` describe the ad-hoc zip; step 9a replaces them;
+- it attaches no Linux tarball; step 9b attaches it by hand;
+- it sets the draft title to `FreeWRL Revival for Mac Silicon VERSION` and writes matching notes;
+  step 9b sets the title to `FreeWRL VERSION`, and Ryan rewrites the notes in step 10.
 
-Attach the Linux tarball from step 5a to the **draft** by hand, and replace `SHA256SUMS.txt` with a
-file that lists both archives:
+### 9a. Build the signed and notarized macOS package (local, Ryan)
+
+On an Apple Silicon Mac with the Developer ID Application identity in the keychain, build the
+package from the **exact tag** with the existing package tool, `tools/macos-package/package.sh`
+(see `tools/macos-package/README.md`). `-s` sets the Developer ID identity, `-r` enables the
+hardened runtime, and `--notarize` submits to Apple with `notarytool`, staples the ticket, runs
+`stapler validate`, requires `spctl` to report `source=Notarized Developer ID`, and then zips the
+app. `--notarize` refuses to run without `-s` and `-r`.
+
+Notarization credentials come from the environment and are never printed: `NOTARY_KEYCHAIN_PROFILE`
+(a profile saved with `xcrun notarytool store-credentials`), or `NOTARY_KEY_ID`, `NOTARY_ISSUER`
+and `NOTARY_KEY`, or a `NOTARY_ENV_FILE` that sets them.
 
 ```sh
 TAG=v6.7.0
-W=$(mktemp -d /tmp/freewrl-draft.XXXXXX)
-cd "$W"
-gh release download "$TAG" -R Ascendance3D/freewrl -p SHA256SUMS.txt
+git fetch origin --tags
+git worktree add --detach <mac-worktree> "$TAG"
+cd <mac-worktree>
+test "$(git rev-parse HEAD)" = "<expected_sha>"
+tools/macos-deps/build.sh -p ~/freewrl-deps
+OUT=$(mktemp -d /tmp/freewrl-6.7.0-signed.XXXXXX)
+NOTARY_ENV_FILE=~/.config/notary.env tools/macos-package/package.sh \
+    -D ~/freewrl-deps -o "$OUT" \
+    -s "Developer ID Application: <name> (<team>)" -r --notarize
+```
+
+The tool writes `$OUT/FreeWRL.app` and `$OUT/FreeWRL-macos-arm64.zip`. Check the signed app:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "$OUT/FreeWRL.app"
+codesign -dv --verbose=4 "$OUT/FreeWRL.app" 2>&1 | grep -E 'Authority=Developer ID Application|flags=.*runtime|Timestamp='
+xcrun stapler validate "$OUT/FreeWRL.app"
+spctl --assess --type execute --verbose=4 "$OUT/FreeWRL.app"     # source=Notarized Developer ID
+tools/macos-package/verify.py --macos 14.0 "$OUT/FreeWRL.app"
+tools/macos-release/check-app-version.sh --app "$OUT/FreeWRL.app" --tag "$TAG"
+tools/macos-ci/smoke.sh "$OUT/FreeWRL.app" "$OUT/smoke"
+tools/macos-ci/launchservices.sh "$OUT/FreeWRL.app" "$OUT/launchservices"
+```
+
+Every check must pass. Name the zip to the asset contract, write its checksum and manifest with the
+existing metadata tool, and replace the workflow's ad-hoc files on the **draft**:
+
+```sh
+cd "$OUT"
+cp FreeWRL-macos-arm64.zip FreeWRL-6.7.0-macOS-arm64.zip
+mkdir meta
+<mac-worktree>/tools/macos-release/make-release-metadata.sh \
+    --archive "$OUT/FreeWRL-6.7.0-macOS-arm64.zip" --version 6.7.0 --tag "$TAG" \
+    --commit <expected_sha> --out "$OUT/meta"
+gh release upload "$TAG" -R Ascendance3D/freewrl --clobber \
+    FreeWRL-6.7.0-macOS-arm64.zip meta/release-manifest.json
+```
+
+`--clobber` replaces the ad-hoc zip that has the same asset name. `meta/SHA256SUMS.txt` now holds
+the signed zip line; step 9b adds the Linux line and uploads it.
+
+### 9b. Attach the Linux tarball to the draft (manual)
+
+Attach the Linux tarball from step 5a to the **draft** by hand. Until automation is approved, this
+step stays manual. Then upload a `SHA256SUMS.txt` that lists **both** archives: the signed macOS
+zip from step 9a and `freewrl-6.7.0.tar.gz`:
+
+```sh
+TAG=v6.7.0
+cd "$OUT/meta"                           # from step 9a
 cp <path-from-step-5a>/freewrl-6.7.0.tar.gz .
-sha256sum freewrl-6.7.0.tar.gz >> SHA256SUMS.txt
-cat SHA256SUMS.txt                       # two lines: the macOS zip and the Linux tarball
+shasum -a 256 freewrl-6.7.0.tar.gz >> SHA256SUMS.txt
+cat SHA256SUMS.txt                       # two lines: the signed macOS zip and the Linux tarball
 gh release upload "$TAG" -R Ascendance3D/freewrl freewrl-6.7.0.tar.gz
 gh release upload "$TAG" -R Ascendance3D/freewrl SHA256SUMS.txt --clobber
 gh release edit "$TAG" -R Ascendance3D/freewrl --title "FreeWRL 6.7.0"
 ```
 
-Do this only while the release is a draft. Do not change the assets of a published release.
+The tarball SHA-256 must equal the value recorded in step 5a (`sha256sum` and `shasum -a 256` print
+the same value).
+
+Do steps 9a and 9b only while the release is a draft. Do not change the assets of a published
+release.
 
 ### 10. Review and publish the draft (Ryan only)
 
@@ -308,13 +391,17 @@ Do this only while the release is a draft. Do not change the assets of a publish
   commit, and the minimum macOS.
 - Confirm that both archives are attached: `FreeWRL-VERSION-macOS-arm64.zip` and
   `freewrl-VERSION.tar.gz`.
-- Confirm the draft claims no Developer ID signing, no notarization, and no Intel support unless a
-  real, proven signing/notarization step produced them.
+- Confirm the macOS zip is the signed and notarized zip from step 9a, not the ad-hoc workflow zip:
+  download it, unzip it into a temporary directory, and run `codesign --verify --deep --strict`,
+  `xcrun stapler validate` and `spctl --assess --type execute --verbose=4` on the unzipped app.
+  `spctl` must report `source=Notarized Developer ID`. If it does not, do not publish.
+- Confirm the notes state Developer ID signing, hardened runtime, notarization and stapling only
+  because step 9a proved them, and claim no Intel support.
 - Confirm the notes list the supported platforms, state that iOS and Android are not supported,
   and give the Linux build steps (`./configure --with-target=x11 --with-javascript=duk`, `make`,
   `make install`).
 - Download both archives and `SHA256SUMS.txt`, then run `shasum -a 256 -c SHA256SUMS.txt`. Every
-  line must report `OK`. Confirm the SHA-256 in `release-manifest.json` equals the macOS zip line in
+  line must report `OK`. Confirm the SHA-256 in `release-manifest.json` equals the signed macOS zip line in
   `SHA256SUMS.txt`.
 - Ryan edits the final notes and publishes the GitHub Release by hand. The workflow never
   publishes.
@@ -392,11 +479,12 @@ guess a package filename. That is why the asset contract matters.
 
 ## What the release process does NOT claim
 
-The draft release workflow builds an ad-hoc signed macOS app only. Release notes for an app from
-that workflow must not claim:
+The draft release workflow builds an ad-hoc signed macOS app only. That app is never published as a
+release asset (see [macOS signing requirement](#macos-signing-requirement)). Release notes claim
+Developer ID signing, hardened runtime, notarization and stapling only for an asset that step 9a
+built and proved. Release notes must not claim:
 
-- code signing with a Developer ID;
-- notarization;
+- Developer ID signing or notarization for an asset that step 9a did not prove;
 - Intel (x86_64) support;
 - iOS or Android support;
 - a prebuilt Linux binary package (the Linux artifact is a source tarball);
@@ -405,6 +493,5 @@ that workflow must not claim:
 (The `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` release notes state Developer ID signing and
 notarization. Those claims apply to those beta archives only, not to a workflow-built app.)
 
-If a future release adds real Developer ID signing and notarization (see
-`tools/macos-package/package.sh` `-s`/`-r`), update this guide and the notes to match what the
-build actually produced.
+If the release-draft workflow later gets approved signing and notarization, update this guide so
+that step 9a matches what the workflow actually produces.

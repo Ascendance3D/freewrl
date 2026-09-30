@@ -218,10 +218,12 @@ On macOS:
 - Lines are always drawn one pixel wide.
 - TIFF and WebP textures are not decoded (stb_image has no decoder for them);
   such a texture is drawn untextured.
-- The draft release workflow (`.github/workflows/release-macos.yml`) builds
-  an ad-hoc signed app. It does not sign with a Developer ID and does not
-  notarize. A release claims Developer ID signing or notarization only when a
-  real signing and notarization step produced it.
+- The draft release workflow (`.github/workflows/release-macos.yml`) can
+  build an ad-hoc package, but the `v6.7.0` release plan requires the final
+  macOS asset to be Developer ID signed, hardened-runtime enabled, notarized,
+  and stapled before publication. The signed package is built locally with
+  `tools/macos-package/package.sh -s … -r --notarize`; see
+  [`RELEASING.md`](RELEASING.md).
 
 Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
 

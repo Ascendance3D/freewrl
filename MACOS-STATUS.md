@@ -33,7 +33,7 @@ Earlier development targeted macOS 13, but the supported minimum is macOS 14 bec
 | ✅ | Package static verify | PASS (`verify.py --macos 14.0`) |
 | ✅ | Physical Apple Silicon runtime QA | local QA on a physical M1 before merge; latest: PR #47, head `a0807a576`: builds, package verify, smoke 17/17, LaunchServices 7/7, host bounds tests 67/67 |
 | ✅ | Public macOS prereleases | `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization |
-| 🟡 | First desktop release `v6.7.0` | not yet validated or tagged; see [`RELEASING.md`](RELEASING.md) |
+| 🟡 | First desktop release `v6.7.0` | still needs: Developer ID signed, hardened-runtime, notarized and stapled release packaging; release validation; the annotated tag; the draft release; publication. See [`RELEASING.md`](RELEASING.md) |
 
 Texture decoder on macOS: **stb_image** (compiled in; `HAVE_IMLIB2` off). The packaged app links only FreeType, ODE and freealut and uses Apple's `OpenAL.framework`; it needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time. See [Standalone packaging](#standalone-packaging).
 
@@ -176,7 +176,7 @@ The packaging tooling is complete and tested; see [`tools/macos-package/README.m
 - `verify.py` fails if the bundle references Homebrew, `/usr/local`, MacPorts, the source tree or a temp/home path, needs a newer macOS than `--macos`, or embeds a library the build no longer uses (Imlib2, FFmpeg, OpenAL Soft). The unpackaged build fails it as a negative control.
 - The packaged app needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time.
 
-The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization. The draft release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed app only.
+The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization. The draft release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed app only. That ad-hoc output is not the planned macOS release asset: `v6.7.0` ships only a Developer ID signed, hardened-runtime, notarized and stapled app that `package.sh -s … -r --notarize` builds locally from the release tag (see [`RELEASING.md`](RELEASING.md)).
 
 *Historical:* an earlier candidate embedded Homebrew bottles (Imlib2 and its X11/image loaders, and more) and required macOS 27 because those bottles were built for it. That design is obsolete: libraries are now built from source for macOS 14, textures are decoded by stb_image, and the app links only FreeType, ODE and freealut.
 
@@ -199,5 +199,5 @@ The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are publis
 - [ ] GeneratedCubeMapTexture: find why the generated faces sample black
 - [ ] Directional light shadows outside the shadow map (upstream)
 - [x] Publish a public macOS prerelease (`v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`)
-- [ ] Validate, tag and publish the first desktop release `v6.7.0` (see [`RELEASING.md`](RELEASING.md))
+- [ ] Sign, notarize, validate, tag and publish the first desktop release `v6.7.0` (see [`RELEASING.md`](RELEASING.md))
 - [ ] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+ (MovieTexture)
