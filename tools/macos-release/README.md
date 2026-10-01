@@ -9,7 +9,7 @@ never create tags, never create or edit releases, and never push. The full proce
 | `verify-release.sh` | Read-only validation of a release tag: syntax, exists, annotated, peels to the expected SHA, reachable from `origin/master`, agrees with `buildversion.h`, release files present. |
 | `make-release-metadata.sh` | From the exact built archive, write `SHA256SUMS.txt` and `release-manifest.json`. SHA-256 comes from the archive bytes. `--selftest` runs built-in checks. |
 | `check-ci-run.sh` | Pure, fail-closed decision on whether a run is formal-release evidence: success, exact 40-char commit, `workflow_dispatch` event, `master` branch, workflow file `.github/workflows/macos.yml` (the manual macOS Release Validation run). `push` and `pull_request` runs are refused. The release workflow feeds it facts from the Actions run API. |
-| `check-app-version.sh` | Read `CFBundleShortVersionString` from the **built** app and require it to equal the tag version. Blocks a release whose app version does not match its tag. |
+| `check-app-version.sh` | Read `CFBundleShortVersionString` from the **built** app and require it to equal the tag version. Blocks a release whose app version does not match its tag. `--zip` extracts the exact release zip into a clean temporary directory and checks the app inside it. |
 | `test-release.sh` | Focused tests for the scripts above, in throwaway repos and temp dirs. Creates no tags, no releases, touches no remote. |
 
 ## Quick use

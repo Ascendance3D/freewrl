@@ -152,6 +152,23 @@ check "appver-missing-plist-rejected" "'$appver' --app '$tmp/av-noplist/FreeWRL.
 # a prerelease tag derives to its core version
 AV=$(mkapp "$tmp/av-beta" 6.8.0)
 check "appver-prerelease-core-passes" "'$appver' --app '$AV' --tag v6.8.0-beta.1" 0 "PASS app-version"
+# --zip: the gate extracts the exact release archive and checks the app inside it
+mkzip() { # dir version zip -> archive holding FreeWRL.app with that version
+	mkapp "$1" "$2" >/dev/null && ( cd "$1" && zip -qry "$3" FreeWRL.app )
+}
+mkzip "$tmp/az-match" 6.8.0 "$tmp/az-match.zip"
+check "appver-zip-matches-tag-passes" "'$appver' --zip '$tmp/az-match.zip' --tag v6.8.0" 0 "PASS app-version"
+mkzip "$tmp/az-diff" 4.2 "$tmp/az-diff.zip"
+check "appver-zip-stale-version-rejected" "'$appver' --zip '$tmp/az-diff.zip' --tag v6.7.0" 1 "FAIL app-version: built app CFBundleShortVersionString 4.2 != 6.7.0"
+mkzip "$tmp/az-two" 6.8.0 "$tmp/az-two.zip"; mkdir -p "$tmp/az-two/Other.app"
+( cd "$tmp/az-two" && zip -qry "$tmp/az-two.zip" Other.app )
+check "appver-zip-two-apps-rejected" "'$appver' --zip '$tmp/az-two.zip' --tag v6.8.0" 1 "FAIL app-zip"
+mkdir -p "$tmp/az-none" && echo x > "$tmp/az-none/readme.txt" && ( cd "$tmp/az-none" && zip -q "$tmp/az-none.zip" readme.txt )
+check "appver-zip-no-app-rejected" "'$appver' --zip '$tmp/az-none.zip' --tag v6.8.0" 1 "FAIL app-zip"
+echo "not a zip" > "$tmp/az-bad.zip"
+check "appver-zip-corrupt-rejected" "'$appver' --zip '$tmp/az-bad.zip' --tag v6.8.0" 1 "FAIL app-zip"
+check "appver-zip-missing-rejected" "'$appver' --zip '$tmp/az-nope.zip' --tag v6.8.0" 1 "FAIL app-zip"
+check "appver-app-and-zip-usage-error" "'$appver' --app '$AV' --zip '$tmp/az-match.zip' --tag v6.8.0; [ \$? -eq 2 ]" 0 "not both"
 
 echo
 echo "== source version identity (this checkout) =="

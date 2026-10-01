@@ -146,6 +146,10 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "ASSET=$ASSET" >> "$GITHUB_ENV"
 
+      - name: zipped app version matches the tag
+        # Extract the exact zip that is uploaded into a clean temporary directory and check the app in it.
+        run: tools/macos-release/check-app-version.sh --zip "$RUNNER_TEMP/pkg/$ASSET" --tag "$TAG"
+
       - name: generate release metadata (checksums + manifest)
         run: |
           set -euo pipefail
