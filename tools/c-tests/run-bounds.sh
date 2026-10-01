@@ -5,6 +5,9 @@
 #   Compositing_Shaders.c shader PLUG compositing (Plug, AddDefine0, ...)
 #   EAIEventsIn.c        GETNODEPARENTS reply, with outBufferCat (EAIHelpers.c)
 #   io_files.c           fw_temp_file_create, fw_temp_dir_create
+#   RenderFuncs.c        push_ray, pop_ray (the picking pass ray stack), with Vector.c
+#   MainLoop.c           setSensitive, unRegisterSensitiveNode, sendSensorEvents, with
+#   CParseParser.c       gc_broto_instance (pointing-device sensors freed with their world)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
 # Nothing here starts FreeWRL, opens a window, creates a GL context or loads a world.
@@ -45,13 +48,25 @@ x opengl/Compositing_Shaders.c dupRange AddDefine > "$out/shader.inc"
 	x input/EAIEventsIn.c handleGETNODEPARENTS
 } > "$out/eai.inc"
 x io_files.c temp_template fw_temp_dir_create > "$out/tempfile.inc"
+{
+	x scenegraph/Vector.c newVector_ deleteVector_
+	x scenegraph/Vector.c vector_ensureSpace_
+	x scenegraph/Vector.c vector_removeElement
+} > "$out/vector.inc"
+x scenegraph/RenderFuncs.c push_ray pop_ray > "$out/pickray.inc"
+{
+	x main/MainLoop.c setSensitive unRegisterSensitiveNode
+	x main/MainLoop.c sendSensorEvents
+	x vrml_parser/CParseParser.c gc_broto_instance
+} > "$out/sensors.inc"
 
 objs=
-for t in test_bounds_main test_hanim test_texture test_shader_plug test_eai_reply test_tempfile; do
+for t in test_bounds_main test_hanim test_texture test_shader_plug test_eai_reply test_tempfile \
+	test_pick_ray test_sensor_lifetime; do
 	# built like the production sources: no extra warning flags, since each test
 	# includes extracted production code
 	$CC $cflags \
-		-I"$here" -I"$out" -c "$here/$t.c" -o "$out/$t.o"
+		-I"$here" -I"$out" -I"$lib/scenegraph" -c "$here/$t.c" -o "$out/$t.o"
 	objs="$objs $out/$t.o"
 done
 $CC $san -o "$out/test_bounds" $objs -lm

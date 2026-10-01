@@ -60,6 +60,16 @@ renamed or removed, the extraction fails and the run stops. It does not use a
 - `test_tempfile.c`: `fw_temp_file_create` and `fw_temp_dir_create` (`io_files.c`):
   mode 0600 files and 0700 directories, unique names, `$TMPDIR` order, failures that
   leave no file.
+- `test_pick_ray.c`: the picking-pass ray stack, `push_ray` and `pop_ray`
+  (`RenderFuncs.c`), with the real `Vector.c` functions and `Vector.h` stack macros:
+  each pop restores the parent's ray, the outermost pop does not read below the stack,
+  100 levels through reallocation, a pop with nothing pushed.
+- `test_sensor_lifetime.c`: pointing-device sensors freed with their world:
+  `setSensitive`, `unRegisterSensitiveNode` and `sendSensorEvents` (`MainLoop.c`) with
+  `gc_broto_instance` (`CParseParser.c`). A world replaced while its PROTO SphereSensor
+  is hovered and pressed, PROTO declarations, an Inline unload that keeps the other
+  sensors working, one node of several unregistered. The `do_*Sensor` doubles read the
+  sensor node, so a stale call is an AddressSanitizer heap-use-after-free.
 
 ## Sanitizers
 

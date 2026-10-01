@@ -6860,6 +6860,42 @@ void setSensitive(struct X3D_Node *parentNode, struct X3D_Node *datanode) {
 	se->interpptr = (void *)myp;
 	vector_pushBack(struct SensStruct *,p->SensorEvents,se);
 }
+
+/* undo setSensitive, and let go of node in the pointing-device state, before node is freed
+	(gc_broto_instance on world replacement or Inline unload, killNodes). Otherwise the next
+	picking pass sends events through a SensorEvent or a touch's lastOver, lastPressedOver,
+	oldCOS or hypersensitive to the freed node. */
+void unRegisterSensitiveNode(struct X3D_Node *node) {
+	int i;
+	ttglobal tg = gglobal();
+	ppMainloop p = (ppMainloop)tg->Mainloop.prv;
+
+	if (node == NULL || p == NULL) return;
+	if (p->SensorEvents) {
+		for (i=vectorSize(p->SensorEvents)-1; i>=0; i--) {
+			struct SensStruct *se = vector_get(struct SensStruct *,p->SensorEvents,i);
+			if (se->fromnode == node || se->datanode == node) {
+				FREE_IF_NZ(se);
+				vector_remove_elem(struct SensStruct *,p->SensorEvents,i);
+			}
+		}
+	}
+	for (i=0; i<p->ntouch; i++) {
+		struct Touch *touch = &p->touchlist[i];
+		if (touch->CursorOverSensitive == node) touch->CursorOverSensitive = NULL;
+		if (touch->oldCOS == node) touch->oldCOS = NULL;
+		if (touch->lastPressedOver == node) touch->lastPressedOver = NULL;
+		if (touch->lastOver == node) touch->lastOver = NULL;
+		if (touch->hypersensitive == node) {
+			touch->hypersensitive = NULL;
+			touch->hyperhit = 0;
+		}
+	}
+	if (tg->RenderFuncs.hypersensitive == node) {
+		tg->RenderFuncs.hypersensitive = NULL;
+		tg->RenderFuncs.hyperhit = 0;
+	}
+}
 char* lookup_brotoDefname(struct X3D_Proto* ec, struct X3D_Node* node);
 char* getNodeDescription(struct X3D_Node* node) {
 	//not all nodetypes have description field, and those that do not all set, so expect some will return null.

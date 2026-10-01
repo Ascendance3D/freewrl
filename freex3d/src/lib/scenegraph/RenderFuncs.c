@@ -1354,9 +1354,13 @@ void pop_ray(){
 	ppRenderFuncs p = (ppRenderFuncs)tg->RenderFuncs.prv;
 	//upd_ray();
 	//r123 = stack_top(struct point_XYZ3,p->ray_stack);
-	stack_pop(struct point_XYZ3,p->ray_stack);
+	//push_ray() saved the caller's ray on top: restore it, then drop it.
+	//(Popping first restored the ray saved one level further up, and on the outermost
+	//pop read the element before the start of the stack.)
+	if(stack_empty(p->ray_stack))
+		return; //no push to undo; never read below the stack
 	p->t_r123 = stack_top(struct point_XYZ3,p->ray_stack);
-	//stack_pop(struct point_XYZ3,p->ray_stack);
+	stack_pop(struct point_XYZ3,p->ray_stack);
 	//tg->RenderFuncs.t_r1 = r123.p1;
 	//tg->RenderFuncs.t_r2 = r123.p2;
 	//tg->RenderFuncs.t_r3 = r123.p3;
