@@ -157,7 +157,9 @@ libtool ABI version (`-version-info`) and changes only when the library interfac
 `v6.7.1-rc.1` expects `6.7.1`). This inspects the real build artifact, not the source plist. It
 runs `tools/macos-release/check-app-version.sh`. This gate is the final artifact check: if drift in
 the sources or in the build settings gives the app a version that differs from the tag, the release
-stops.
+stops. With `--zip`, the same gate extracts the exact release zip into a clean temporary directory
+and checks the app inside it. The workflow runs it on the zip it uploads, and steps 9a and 10 run it
+on the signed zip. Finder's Version field shows `CFBundleShortVersionString`.
 
 ## Step-by-step release procedure
 
@@ -339,6 +341,7 @@ codesign -dv --verbose=4 "$OUT/FreeWRL.app" 2>&1 | grep -E 'Authority=Developer 
 xcrun stapler validate "$OUT/FreeWRL.app"
 spctl --assess --type execute --verbose=4 "$OUT/FreeWRL.app"     # source=Notarized Developer ID
 tools/macos-package/verify.py --macos 14.0 "$OUT/FreeWRL.app"
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$OUT/FreeWRL.app/Contents/Info.plist"   # 6.7.0
 tools/macos-release/check-app-version.sh --app "$OUT/FreeWRL.app" --tag "$TAG"
 tools/macos-ci/smoke.sh "$OUT/FreeWRL.app" "$OUT/smoke"
 tools/macos-ci/launchservices.sh "$OUT/FreeWRL.app" "$OUT/launchservices"
@@ -350,6 +353,8 @@ existing metadata tool, and replace the workflow's ad-hoc files on the **draft**
 ```sh
 cd "$OUT"
 cp FreeWRL-macos-arm64.zip FreeWRL-6.7.0-macOS-arm64.zip
+# the exact zip to upload: extract it into a clean temporary directory and check the app version
+<mac-worktree>/tools/macos-release/check-app-version.sh --zip "$OUT/FreeWRL-6.7.0-macOS-arm64.zip" --tag "$TAG"
 mkdir meta
 <mac-worktree>/tools/macos-release/make-release-metadata.sh \
     --archive "$OUT/FreeWRL-6.7.0-macOS-arm64.zip" --version 6.7.0 --tag "$TAG" \
@@ -395,6 +400,9 @@ release.
   download it, unzip it into a temporary directory, and run `codesign --verify --deep --strict`,
   `xcrun stapler validate` and `spctl --assess --type execute --verbose=4` on the unzipped app.
   `spctl` must report `source=Notarized Developer ID`. If it does not, do not publish.
+- Confirm the downloaded macOS zip has the release version:
+  `tools/macos-release/check-app-version.sh --zip FreeWRL-VERSION-macOS-arm64.zip --tag "$TAG"`
+  must print `RESULT: PASS`. If it does not, do not publish.
 - Confirm the notes state Developer ID signing, hardened runtime, notarization and stapling only
   because step 9a proved them, and claim no Intel support.
 - Confirm the notes list the supported platforms, state that iOS and Android are not supported,
