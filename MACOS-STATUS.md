@@ -3,7 +3,7 @@
 Fork: https://github.com/Ascendance3D/freewrl. The Apple Silicon port is on the maintained `master` trunk (the single canonical branch; the old `develop` integration line was retired).
 Base: upstream SourceForge `develop` @ `b3254b11e` (2024-04-20, "Version 6.7", FreeWRL 6.7.0).
 Reference: branch `macos-arm64` ([PR #1](https://github.com/DJAscendance/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
-Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation on GitHub's macOS 14 and 15 runners is manual only (see below). Last updated 2026-09-30.
+Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation on GitHub's macOS 14 and 15 runners is manual only (see below). Last updated 2026-10-01.
 
 Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verified · ⛔ unsupported on macOS · ❔ unresolved · ❌ broken
 
@@ -27,7 +27,7 @@ Earlier development targeted macOS 13, but the supported minimum is macOS 14 bec
 | --- | --- | --- |
 | ✅ | Canonical trunk | `master` is the single maintained branch; the Apple Silicon work is merged into it |
 | ✅ | Runtime gate (PR #15) | PASS on the CI runtime gate |
-| ✅ | AddressSanitizer | total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean) |
+| 🟡 | AddressSanitizer | CI gate total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean). The 2026-10-01 physical-Mac release validation of `5b9b2d682` found 4 reports on the picking path, which CI never ran (no pointer): heap-use-after-free in `do_SphereSensor` (sensors kept in `SensorEvents` and the touch state after world replacement freed them) and a heap-buffer-overflow in `pop_ray` (pop before read). Fixed on `fix/macos-asan-picking-lifetime`, pending review; `suite.sh` now drives the pointer (`RELOAD_POINTER`) over `sensor_replace.wrl` |
 | ✅ | macOS 14 runtime | PASS (GitHub Actions arm64 runner) |
 | ✅ | macOS 15 runtime | PASS (GitHub Actions arm64 runner) |
 | ✅ | Package static verify | PASS (`verify.py --macos 14.0`) |

@@ -3,6 +3,8 @@
 # Launch FreeWRL under lldb (stops on malloc_error_break, abort, crashes) for SECONDS, then stop it.
 # RELOAD_PERIOD (frames) and RELOAD_PATHS (colon list): replace the world every RELOAD_PERIOD frames
 # by calling dllFreeWRL_onLoad(fwctx, path), which is what the Load button does.
+# RELOAD_POINTER=X,Y (with RELOAD_PERIOD): hover, press and drag the pointer there each period
+# through dllFreeWRL_onMouse, as FWGLView does, so the picking pass runs (see reloader.py).
 # Prints one result line.
 H=$(cd "$(dirname "$0")" && pwd)
 APP=$1 W=$2 SEC=$3 O=$4
@@ -21,7 +23,9 @@ echo "process handle SIGUSR1 SIGUSR2 SIGPIPE -n false -p true -s false"
 echo "process launch -o $O.out -e $O.err -- \"$W\""
 } > $O.lldb
 start=$(date +%s)
-( for i in $(seq $((SEC*2))); do sleep 0.5; done; pkill -STOP -f "^$EXE" ) &
+# stop it, and repeat: lldb can swallow a SIGSTOP that arrives while it evaluates an expression
+# (reloader.py's world loads and pointer events), and the run would never end
+( for i in $(seq $((SEC*2))); do sleep 0.5; done; while pkill -STOP -f "^$EXE"; do sleep 2; done ) &
 wd=$!
 lldb --batch -s $O.lldb -o "thread backtrace all" -o "process kill" > $O.lldb.log 2>&1
 kill $wd 2>/dev/null; pkill -KILL -f "^$EXE" 2>/dev/null
