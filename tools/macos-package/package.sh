@@ -32,8 +32,8 @@
 #                            (default: ~/.appstoreconnect/private_keys/AuthKey_<key ID>.p8)
 #   NOTARY_ENV_FILE          a shell file setting any of the above, read first
 set -eu
-H=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$H/../.." && pwd)
+H=$(cd "$(dirname "$0")" && pwd -P)
+REPO=$(cd "$H/../.." && pwd -P)
 APP_IN= OUT=macos-package-out IDENTITY=- RUNTIME= ENTITLEMENTS= ZIP= NOTARIZE= TARGET=14.0 DEPS=
 for arg; do
 	shift
@@ -42,12 +42,12 @@ done
 while getopts "t:D:a:o:s:re:zn" opt; do
 	case $opt in
 	t) TARGET=$OPTARG ;;
-	D) DEPS=$(cd "$OPTARG" && pwd) ;;
+	D) DEPS=$(cd "$OPTARG" && pwd -P) ;;
 	a) APP_IN=$OPTARG ;;
 	o) OUT=$OPTARG ;;
 	s) IDENTITY=$OPTARG ;;
 	r) RUNTIME=1 ;;
-	e) ENTITLEMENTS=$(cd "$(dirname "$OPTARG")" && pwd)/$(basename "$OPTARG") ;;
+	e) ENTITLEMENTS=$(cd "$(dirname "$OPTARG")" && pwd -P)/$(basename "$OPTARG") ;;
 	z) ZIP=1 ;;
 	n) NOTARIZE=1 ZIP=1 ;;
 	*) sed -n '2,27p' "$0"; exit 2 ;;
@@ -78,8 +78,10 @@ if [ -n "$NOTARIZE" ]; then
 	# "$@" now holds the notarytool credential arguments
 fi
 
+# physical paths (pwd -P): $TMPDIR is /var/folders/..., which is really /private/var/folders/...,
+# and verify.py compares canonical paths
 mkdir -p "$OUT"
-OUT=$(cd "$OUT" && pwd)
+OUT=$(cd "$OUT" && pwd -P)
 APP=$OUT/FreeWRL.app
 Z=$OUT/FreeWRL-macos-arm64.zip
 ok=

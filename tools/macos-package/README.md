@@ -132,6 +132,12 @@ binary are warnings (`__FILE__` names in FreeWRL's asserts); nothing opens
 them at run time. The unpackaged Release build fails it, which CI checks as a
 negative control.
 
+It compares canonical paths (`realpath`): `$TMPDIR` is `/var/folders/...`,
+which is really `/private/var/folders/...`, and `package.sh` passes physical
+paths (`pwd -P`). A run path or dependency must resolve inside `Contents`
+itself, not to a sibling such as `Contents-x`. `test-verify.sh` builds a small
+test bundle and checks these cases.
+
 ## Hardened runtime
 
 Needs a real signing identity. With an ad-hoc signature there is no Team ID, so
