@@ -71,7 +71,7 @@ jobs:
       # unaffected (they run the app, they do not compile the deps).
       - name: cache the from-source dependency prefix
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/deps
           key: macos-deps-${{ env.MACOS_MIN }}-${{ hashFiles('tools/macos-deps/build.sh') }}
