@@ -82,6 +82,11 @@ def check_licenses(licdir):
     return errors
 
 
+def inside(path, root):
+    """True if `path` is `root` or below it; both must be canonical (realpath)."""
+    return os.path.commonpath([path, root]) == root
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source-root", action="append", default=[],
@@ -89,9 +94,16 @@ def main():
     ap.add_argument("--macos", help="oldest macOS the package must run on, e.g. 14.0")
     ap.add_argument("app")
     a = ap.parse_args()
-    app = os.path.abspath(a.app)
+    # Canonical paths: every run path and dependency below is resolved with realpath, and
+    # $TMPDIR (/var/folders/...) is really /private/var/folders/..., so an abspath root
+    # would put every file of a bundle in a temporary directory "outside" it.
+    app = os.path.realpath(a.app)
     contents = os.path.join(app, "Contents")
-    forbidden = FORBIDDEN + [os.path.abspath(r) + "/" for r in a.source_root]
+    if app != os.path.abspath(a.app):
+        print("app: %s (canonical %s)" % (a.app, app))
+    # forbid a source root under both spellings, as binaries may contain either
+    forbidden = FORBIDDEN + sorted({f(r) + "/" for r in a.source_root
+                                    for f in (os.path.abspath, os.path.realpath)})
     errors, warnings = [], []
 
     with open(os.path.join(contents, "Info.plist"), "rb") as f:
@@ -127,9 +139,12 @@ def main():
         for rp in m.rpaths:
             if bad(rp) or not rp.startswith(("@executable_path", "@loader_path")):
                 errors.append("%s: LC_RPATH %s" % (rel, rp))
-            elif not os.path.realpath(rp.replace("@executable_path", os.path.dirname(exe))
-                                        .replace("@loader_path", os.path.dirname(p))).startswith(contents):
-                errors.append("%s: LC_RPATH %s leaves the bundle" % (rel, rp))
+            else:
+                target = os.path.realpath(rp.replace("@executable_path", os.path.dirname(exe))
+                                          .replace("@loader_path", os.path.dirname(p)))
+                if not inside(target, contents):
+                    errors.append("%s: LC_RPATH %s leaves the bundle: %s (bundle %s)"
+                                  % (rel, rp, target, contents))
         local = []
         for dep in m.deps:
             if is_system(dep):
@@ -141,8 +156,11 @@ def main():
             found = resolve(dep, p, m.rpaths + exe_rpaths, exe)
             if not found:
                 errors.append("%s: %s does not resolve" % (rel, dep))
-            elif not os.path.realpath(found).startswith(contents + "/"):
-                errors.append("%s: %s resolves outside the bundle: %s" % (rel, dep, found))
+            else:
+                real = os.path.realpath(found)
+                if real == contents or not inside(real, contents):
+                    errors.append("%s: %s resolves outside the bundle: %s (canonical %s, bundle %s)"
+                                  % (rel, dep, found, real, contents))
             local.append(os.path.basename(dep))
         print("%-58s %-6s %-6s %-6s %s" % (rel, ",".join(m.archs), m.minos, m.sdk, " ".join(local)))
         strs = subprocess.run(["strings", "-a", p], capture_output=True, text=True).stdout.splitlines()

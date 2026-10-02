@@ -1,0 +1,53 @@
+#VRML V2.0 utf8
+# Pointing-device sensors inside a PROTO, replaced while the pointer is over them.
+# One PROTO instance holds a SphereSensor, a TouchSensor, a PlaneSensor and a CylinderSensor
+# beside a box that fills the view, so the pointer anywhere over the window hovers all four.
+# Hover, press and drag, then replace the world (Load button) with the pointer still over it.
+# tools/macos-ci runs this with RELOAD_POINTER, which does the same through dllFreeWRL_onMouse.
+# Pass: the Script prints SENSOR_TOUCH_OVER, SENSOR_TOUCH_TIME, SENSOR_SPHERE, SENSOR_PLANE and
+# SENSOR_CYLINDER when the box is hovered, pressed and dragged; no crash, and in an
+# AddressSanitizer build no heap-use-after-free in do_SphereSensor (or another do_*Sensor).
+# Before the fix the replaced world's sensors stayed in the picking state after they were
+# freed, and the next picking pass sent them isOver FALSE.
+PROTO SensedPanel [
+	eventOut SFBool over
+	eventOut SFTime touchTime
+	eventOut SFRotation sphere
+	eventOut SFVec3f plane
+	eventOut SFRotation cylinder
+] {
+	Group { children [
+		TouchSensor { isOver IS over touchTime IS touchTime }
+		SphereSensor { rotation_changed IS sphere }
+		PlaneSensor { translation_changed IS plane }
+		CylinderSensor { rotation_changed IS cylinder }
+		Shape {
+			appearance Appearance { material Material { diffuseColor 0.2 0.5 0.8 } }
+			geometry Box { size 200 200 0.1 }
+		}
+	] }
+}
+Viewpoint { position 0 0 10 description "front" }
+NavigationInfo { type "NONE" headlight TRUE }
+DEF P SensedPanel { }
+DEF S Script {
+	eventIn SFBool over
+	eventIn SFTime touchTime
+	eventIn SFRotation sphere
+	eventIn SFVec3f plane
+	eventIn SFRotation cylinder
+	field SFInt32 seen 0
+	url "javascript:
+	function once(bit, msg) { if ((seen & bit) == 0) { seen = seen | bit; print(msg); } }
+	function over(v, t) { if (v) once(1, 'SENSOR_TOUCH_OVER'); }
+	function touchTime(v, t) { once(2, 'SENSOR_TOUCH_TIME'); }
+	function sphere(v, t) { once(4, 'SENSOR_SPHERE rotation_changed'); }
+	function plane(v, t) { once(8, 'SENSOR_PLANE translation_changed'); }
+	function cylinder(v, t) { once(16, 'SENSOR_CYLINDER rotation_changed'); }
+	"
+}
+ROUTE P.over TO S.over
+ROUTE P.touchTime TO S.touchTime
+ROUTE P.sphere TO S.sphere
+ROUTE P.plane TO S.plane
+ROUTE P.cylinder TO S.cylinder

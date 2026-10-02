@@ -20,6 +20,9 @@
 # rewrite install names to @rpath (bundle.py) -> copy license files -> sign inside out ->
 # check the result (verify.py --macos, codesign) [-> notarize, staple, stapler validate,
 # spctl] [-> zip]. Homebrew is not used: its bottles only run on the macOS they were built for.
+# Fails closed: if any step fails, <outdir>/FreeWRL.app and the zip are removed, so a later
+# step (smoke, LaunchServices, suite, release QA) cannot pick up an unverified app by mistake.
+# The last line of a successful run is "PACKAGE PASS: <app>"; nothing else is a package.
 #
 # Notarization credentials, from the environment (never printed):
 #   NOTARY_KEYCHAIN_PROFILE  a profile saved with `xcrun notarytool store-credentials`, or
@@ -29,8 +32,8 @@
 #                            (default: ~/.appstoreconnect/private_keys/AuthKey_<key ID>.p8)
 #   NOTARY_ENV_FILE          a shell file setting any of the above, read first
 set -eu
-H=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$H/../.." && pwd)
+H=$(cd "$(dirname "$0")" && pwd -P)
+REPO=$(cd "$H/../.." && pwd -P)
 APP_IN= OUT=macos-package-out IDENTITY=- RUNTIME= ENTITLEMENTS= ZIP= NOTARIZE= TARGET=14.0 DEPS=
 for arg; do
 	shift
@@ -39,12 +42,12 @@ done
 while getopts "t:D:a:o:s:re:zn" opt; do
 	case $opt in
 	t) TARGET=$OPTARG ;;
-	D) DEPS=$(cd "$OPTARG" && pwd) ;;
+	D) DEPS=$(cd "$OPTARG" && pwd -P) ;;
 	a) APP_IN=$OPTARG ;;
 	o) OUT=$OPTARG ;;
 	s) IDENTITY=$OPTARG ;;
 	r) RUNTIME=1 ;;
-	e) ENTITLEMENTS=$(cd "$(dirname "$OPTARG")" && pwd)/$(basename "$OPTARG") ;;
+	e) ENTITLEMENTS=$(cd "$(dirname "$OPTARG")" && pwd -P)/$(basename "$OPTARG") ;;
 	z) ZIP=1 ;;
 	n) NOTARIZE=1 ZIP=1 ;;
 	*) sed -n '2,27p' "$0"; exit 2 ;;
@@ -75,8 +78,20 @@ if [ -n "$NOTARIZE" ]; then
 	# "$@" now holds the notarytool credential arguments
 fi
 
+# physical paths (pwd -P): $TMPDIR is /var/folders/..., which is really /private/var/folders/...,
+# and verify.py compares canonical paths
 mkdir -p "$OUT"
-OUT=$(cd "$OUT" && pwd)
+OUT=$(cd "$OUT" && pwd -P)
+APP=$OUT/FreeWRL.app
+Z=$OUT/FreeWRL-macos-arm64.zip
+ok=
+fail_closed() {
+	if [ -z "$ok" ]; then
+		rm -rf "$APP" "$Z" "$Z.sha256"
+		echo "PACKAGE FAIL: removed $APP and $(basename "$Z") (if any); nothing in $OUT is a verified package" >&2
+	fi
+}
+trap fail_closed EXIT
 
 if [ -z "$APP_IN" ]; then
 	if [ -z "$DEPS" ]; then
@@ -94,8 +109,6 @@ if [ -z "$APP_IN" ]; then
 fi
 [ -x "$APP_IN/Contents/MacOS/FreeWRL" ] || { echo "not a FreeWRL.app: $APP_IN" >&2; exit 1; }
 
-APP=$OUT/FreeWRL.app
-Z=$OUT/FreeWRL-macos-arm64.zip
 rm -f "$Z" "$Z.sha256"
 echo "== copy $APP_IN"
 rm -rf "$APP"
@@ -182,5 +195,8 @@ fi
 if [ -n "$ZIP" ]; then
 	ditto -c -k --keepParent "$APP" "$Z"
 	(cd "$OUT" && shasum -a 256 "$(basename "$Z")") | tee "$Z.sha256"
+	[ -s "$Z" ] || { echo "zip not created: $Z" >&2; exit 1; }
 fi
+ok=1
 echo "packaged: $APP"
+echo "PACKAGE PASS: $APP${ZIP:+ and $Z}"

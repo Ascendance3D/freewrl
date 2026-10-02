@@ -16,6 +16,7 @@ int main(int argc, char **argv)
 {
 	const ct_suite *suites[] = {
 		&ct_hanim_suite, &ct_texture_suite, &ct_shader_suite, &ct_eai_suite, &ct_tempfile_suite,
+		&ct_pickray_suite, &ct_sensors_suite,
 	};
 	int total = 0, failed = 0, ran = 0;
 

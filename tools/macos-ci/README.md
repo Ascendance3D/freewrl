@@ -3,6 +3,31 @@
 The macOS CI harness that `.github/workflows/macos.yml` runs (each script documents itself in its
 header), and a light local check to run before `git push`.
 
+## World replacement, pointer and sensor proof (run.sh, reloader.py, suite.sh, sensor-proof.sh)
+
+`run.sh APP WORLD SECONDS OUTPREFIX` runs one world under lldb. With `RELOAD_PERIOD=N` and
+`RELOAD_PATHS=a:b:c` it loads the next world every N frames through `dllFreeWRL_onLoad`; with
+`RELOAD_POINTER=X,Y` it also hovers, presses, drags and releases the pointer there through
+`dllFreeWRL_onMouse`, so the picking pass runs without a real cursor; with `TRACE_SENSOR=do_X`
+it counts that sensor handler's calls by event. `reloader.py` does this from a breakpoint on
+`-[FWGLView animationTimer:]`. It reads the app's context pointer from the global `fwctx`
+through the symbol table and calls with casts, so it works on a packaged Release app without
+its dSYM (the bare expression `fwctx` needs debug info and failed silently before 2026-10-01).
+
+The result line reports `reloads=` (loads that succeeded), `reload-failures=`,
+`pointer-events=`, `pointer-failures=`, and `HARNESS:...` when `reloader.py` was not armed, a
+load or pointer call failed, or no pointer event went out. `suite.sh` fails its gate when any
+cycle made no replacement, had a harness fault, or sent no pointer events, and when
+`sensor_replace.wrl`'s sensors never fired under the pointer: a run that replaced nothing
+proves nothing. The lldb log (`OUTPREFIX.lldb.log`) holds `RELOADER armed ...`, one
+`RELOAD n world OK|FAIL: <lldb error>` per load, and `POINTER events=n failed=m stopped=k` per period
+(`stopped`: calls the watchdog's SIGSTOP interrupted at the end of the run; not a fault).
+
+`sensor-proof.sh APP OUTDIR [SECONDS]` is the functional sensor gate, run by hand on the
+packaged app (needs a GUI session): `10.wrl` with a breakpoint on `do_SphereSensor` must show
+hover, press, drag and release calls, and `sensor_replace.wrl` must print its five `SENSOR_*`
+markers. It prints `SENSORPROOF 2/2` on success.
+
 ## Light local pre-push check
 
 ```sh

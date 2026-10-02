@@ -26,6 +26,9 @@ particles_maxparticles.x3d  ParticleSystem maxParticles raised 4 -> 2000 at run 
                        was grown by bytes, not particles: heap overflow); geometryType CHILD, nothing drawn;
                        pass: READBACK max=2000, no ASan report
 x3d_meta.x3d           X3D <meta> tags in <head> (6.7 parser crash, all platforms)
+sensor_replace.wrl     Touch, Sphere, Plane and Cylinder sensors in a PROTO, replaced while hovered and pressed
+                       (6.7 read the freed sensors on the next picking pass, all platforms); pass: SENSOR_* lines,
+                       no ASan report
 duktape_defnames.x3d    Functional smoke test (duktape): a Script uses Browser.currentScene.createNode and
                        updateNamedNode six times, exercising the SAI createNode + updateNamedNode append path;
                        pass: DUK_DEFNAMES_DONE, no ASan report. Not a memory-safety guard (see the file's meta).

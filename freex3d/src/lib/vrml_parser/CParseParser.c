@@ -7336,6 +7336,8 @@ int unRegisterX3DAnyNode(struct X3D_Node *node){
 	delete_first(node);
 	// possibly a KeySensor node? 
 	removeNodeFromKeySensorList(X3D_NODE(node));
+	// a pointing-device sensor or its parent, or picked/pressed by a touch?
+	unRegisterSensitiveNode(node);
 
 	//as with kill_nodes, disable scripts
 	unInitializeScript(node);
@@ -7485,6 +7487,8 @@ int gc_broto_instance(struct X3D_Proto* node){
 			if(crash_challenge) {
 				for(i=0;i<vectorSize(node->__nodes);i++){
 					nx = vector_get(struct X3D_Node*,node->__nodes,i);
+					//live or not, a node can be in the picking state (setSensitive runs at parse)
+					unRegisterSensitiveNode(nx);
 					freeMallocedNodeFields(nx);
 					FREE_IF_NZ(nx);
 				}
@@ -7504,6 +7508,7 @@ int gc_broto_instance(struct X3D_Proto* node){
 				//only the context that declared one (its __parentProto) frees it
 				if(subctx->__parentProto != X3D_NODE(node)) continue;
 				gc_broto_instance(subctx);
+				unRegisterSensitiveNode(X3D_NODE(subctx));
 				freeMallocedNodeFields(X3D_NODE(subctx));
 				FREE_IF_NZ(subctx);
 			}
@@ -7523,6 +7528,7 @@ int gc_broto_instance(struct X3D_Proto* node){
 				subctx = vector_get(struct X3D_Proto*,node->__externProtoDeclares,i);
 				if(subctx->__parentProto != X3D_NODE(node)) continue; //copied into an instance, see above
 				gc_broto_instance(subctx);
+				unRegisterSensitiveNode(X3D_NODE(subctx));
 				freeMallocedNodeFields(X3D_NODE(subctx));
 				FREE_IF_NZ(subctx);
 			}
