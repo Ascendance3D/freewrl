@@ -48,6 +48,22 @@ crashes=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -c 'CRASH:')
 mallocs=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -vc 'malloc=none')
 # any run (cycle or texture) that exited by itself before its window
 early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -cE 'EXIT:exited with status = [0-8] ')
+# every cycle must complete the replacements it requested; only the last may still be in flight
+# when the run stops. reloads= counts load calls that lldb made, not worlds that were replaced:
+# a world is replaced when reset_Browser runs, which prints 'calling kill_javascript()' once per
+# world (once more for the world the cycle starts with). Run 37074268480 had a cycle that
+# requested 14 replacements, completed none, and passed.
+stalled=0
+for f in "$OUT"/cycle-*.lldb.log; do
+	[ -e "$f" ] || continue
+	c=${f%.lldb.log}
+	req=$(grep -c '^RELOAD [0-9]* .* OK$' "$f")
+	got=$(( $(LC_ALL=C grep -ac 'calling kill_javascript()' "$c.out" 2>/dev/null) - 1 ))
+	echo "GATE $(basename "$c") replacements completed=$got requested=$req"
+	[ "$got" -ge $((req - 1)) ] || stalled=$((stalled + 1))
+done
+echo "GATE cycles with stalled replacements: $stalled"
+[ "$stalled" = 0 ] || fail=1
 reloads=$(grep -o 'reloads=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
 # every cycle must have replaced the world (reloads=0 means the harness never drove the app)
 # and must be free of harness faults
