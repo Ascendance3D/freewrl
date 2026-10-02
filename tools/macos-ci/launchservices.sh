@@ -11,10 +11,13 @@
 # deterministic static gate tools/macos-ci/doctypes.sh instead. Run one FreeWRL at a time.
 set -uo pipefail
 APP=${1:?usage: launchservices.sh /path/to/FreeWRL.app [outdir]}
+# physical paths: LaunchServices starts the app and opens documents by their real paths
+# (/private/var/folders/..., no //), which kill_fw, the running check and "file to load:" match
+APP=$(cd "$APP" && pwd -P) || exit 1
 EXE="$APP/Contents/MacOS/FreeWRL"
 SRC=$(cd "$(dirname "$0")/../.." && pwd)
 T="$SRC/freewrl/tests"
-OUT=${2:-$(mktemp -d)}; W="$OUT/worlds"; LOG="$OUT/logs"; mkdir -p "$W" "$LOG"
+OUT=${2:-$(mktemp -d)}; mkdir -p "$OUT" && OUT=$(cd "$OUT" && pwd -P) || exit 1; W="$OUT/worlds"; LOG="$OUT/logs"; mkdir -p "$W" "$LOG"
 CRASH=~/Library/Logs/DiagnosticReports
 LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 SEC=9

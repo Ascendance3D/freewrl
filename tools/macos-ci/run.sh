@@ -11,6 +11,9 @@
 # HARNESS: names a harness fault (reloader.py not armed, a failed load or pointer event).
 H=$(cd "$(dirname "$0")" && pwd)
 APP=$1 W=$2 SEC=$3 O=$4
+# physical path: the watchdog's pkill -f "^$EXE" must match the process command line, which
+# lldb writes normalized ($TMPDIR ends in /, so "$TMPDIR/x" has a // that pkill never finds)
+APP=$(cd "$APP" && pwd -P) || exit 1
 EXE=$APP/Contents/MacOS/FreeWRL
 {
 echo "command script import $H/reloader.py"
