@@ -7650,8 +7650,10 @@ int fwl_draw()
 					tg->threads.MainLoopQuit++; //quiting takes priority over replacing
 				else
 					doReplaceWorldRequest();
-			} else {
+			} else if (tg->threads.MainLoopQuit) {
 				//printf ("fwl_draw, mainLoopQuit %d, workers NOT waiting\n",tg->threads.MainLoopQuit);
+				//a quit does not wait for busy workers; a world replacement (MainLoopQuit 0) waits for
+				//them on the next frame, else a busy worker at startup turned the first load into a quit
 				tg->threads.MainLoopQuit++;
 			}
 		} // end of threads.flushing test
