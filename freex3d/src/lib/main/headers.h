@@ -531,6 +531,8 @@ double BrowserStartTime();
 void setSensitive(struct X3D_Node *parent,struct X3D_Node *me);
 /* before freeing a node: undo setSensitive and clear pointing-device state that names it */
 void unRegisterSensitiveNode(struct X3D_Node *node);
+/* free a container node (scene root, EAI holding Group, library scene) whose children are gone */
+void freeContainerNode(struct X3D_Node *node);
 
 /* bindable nodes */
 extern GLint viewport[]; //true static

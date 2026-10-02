@@ -65,11 +65,13 @@ renamed or removed, the extraction fails and the run stops. It does not use a
   each pop restores the parent's ray, the outermost pop does not read below the stack,
   100 levels through reallocation, a pop with nothing pushed.
 - `test_sensor_lifetime.c`: pointing-device sensors freed with their world:
-  `setSensitive`, `unRegisterSensitiveNode` and `sendSensorEvents` (`MainLoop.c`) with
-  `gc_broto_instance` (`CParseParser.c`). A world replaced while its PROTO SphereSensor
-  is hovered and pressed, PROTO declarations, an Inline unload that keeps the other
-  sensors working, one node of several unregistered. The `do_*Sensor` doubles read the
-  sensor node, so a stale call is an AddressSanitizer heap-use-after-free.
+  `setSensitive`, `unRegisterSensitiveNode`, `freeContainerNode` and `sendSensorEvents`
+  (`MainLoop.c`) with `gc_broto_instance` (`CParseParser.c`). A world replaced while its
+  PROTO SphereSensor is hovered and pressed, PROTO declarations, an Inline unload that
+  keeps the other sensors working, one node of several unregistered, the scene root freed
+  apart from its nodes on world replacement (`ProdCon.c`, and at exit) while a touch holds
+  it, the Group that holds EAI-created nodes freed after they moved. The `do_*Sensor`
+  doubles read the sensor node, so a stale call is an AddressSanitizer heap-use-after-free.
 
 ## Sanitizers
 

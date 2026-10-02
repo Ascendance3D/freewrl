@@ -6,8 +6,11 @@
 #        the pointer, driven by reloader.py, hovers and presses whatever is under it)
 #   TEX  runs of texture_formats.wrl, TSTB runs of texture_formats_stb.wrl, TSEC seconds each;
 #        then one run of particles_maxparticles.x3d (TSEC seconds)
-# Gate: no crash, no allocator abort, no texture "failed to load" or GL/shader error; with asan,
-# no AddressSanitizer report at all. Reports are counted per defect class (PROTO lifetime,
+# Gate: no crash, no allocator abort, no texture "failed to load" or GL/shader error; every
+# cycle made at least one world replacement and sent pointer events (a reloader.py fault --
+# not armed, a failed load or pointer call -- fails the gate: a run that replaced nothing
+# proves nothing); sensor_replace.wrl's sensors fired under the pointer; with asan, no
+# AddressSanitizer report at all. Reports are counted per defect class (PROTO lifetime,
 # Frustum extent stack, Vector, GLCore client attributes, other) so a regression names its class.
 # A standalone texture run that exits cleanly before its window (the known intermittent early
 # exit) is retried once, in a file of its own; only a retry that also exits early fails the gate.
@@ -57,6 +60,11 @@ mallocs=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -vc 'malloc=none')
 early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -v '(retried once)' | grep -cE 'EXIT:exited with status = [0-8] ')
 retried=$(grep -c '(retried once)' "$OUT/textures.txt")
 reloads=$(grep -o 'reloads=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
+# every cycle must have replaced the world (reloads=0 means the harness never drove the app)
+# and must be free of harness faults
+cycidle=$(grep -vcE 'reloads=[1-9]' "$OUT/cycles.txt")
+harness=$(grep -c 'HARNESS:' "$OUT/cycles.txt")
+pointer=$(grep -o 'pointer-events=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
 texbad=$(cat "$OUT"/texture-*.out "$OUT"/texture-*.err "$OUT"/texstb-*.out "$OUT"/texstb-*.err 2>/dev/null | grep -cE "$BAD")
 cycbad=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -cE "$BAD")
 # the particles run must have raised maxParticles (its Script reads the new value back)
@@ -65,9 +73,10 @@ particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err 2>/dev/null | grep
 defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err 2>/dev/null | grep -c "DUK_DEFNAMES_DONE")
 # the pointer must have driven sensor_replace.wrl's SphereSensor in the cycles (picking ran)
 sensors=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -o "SENSOR_SPHERE" | wc -l | tr -d ' ')
-echo "GATE runs: $CYC cycles (${reloads:-0} world replacements), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensors driven by the pointer: $sensors"
+echo "GATE runs: $CYC cycles (${reloads:-0} world replacements, ${pointer:-0} pointer events, cycles without a replacement: $cycidle, harness faults: $harness), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensors driven by the pointer: $sensors"
 echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
-[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] && [ "$sensors" -ge 1 ] || fail=1
+[ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] \
+	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensors" -ge 1 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.

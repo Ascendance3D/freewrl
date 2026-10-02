@@ -829,11 +829,10 @@ bool parser_process_res_VRML_X3D(resource_item_t *res)
 			rn = rootNode(); //save a pointer to old rootnode
 			setRootNode(X3D_NODE(sceneProto)); //set new rootnode
 			if(rn){
-				//old root node cleanup
-				deleteVector(sizeof(void*),rn->_parentVector); //perhaps unlink first
-				freeMallocedNodeFields(rn);
+				//old root node cleanup (its nodes went in unload_broto; the root itself can
+				//still be the parent a touch hovers or presses: freeContainerNode unregisters it)
 				unRegisterX3DNode(rn);
-				FREE_IF_NZ(rn);
+				freeContainerNode(rn);
 			}
 		}
 
@@ -932,11 +931,8 @@ bool parser_process_res_VRML_X3D(resource_item_t *res)
 
 	res->complete = TRUE;
 
-	if(nRnfree){
-		deleteVector(sizeof(void*),nRnfree->_parentVector); //perhaps unlink first
-		freeMallocedNodeFields(nRnfree);
-		FREE_IF_NZ(nRnfree);
-	}
+	//the holding Group was the parent of the nodes it held (add_parent > setSensitive)
+	freeContainerNode(nRnfree);
 
 	/* remove this resource from the stack */
 	if (!fromEAI_SAI){

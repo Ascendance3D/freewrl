@@ -75,6 +75,13 @@ renders. Do not ship a build that has not passed 7/7.
    `spctl --assess`, and only then writes the final zip. Needs `-s` with a
    Developer ID Application identity and `-r`.
 
+The script fails closed. If any step fails (build, embedding, verify.py, codesign,
+notarization, zip), it removes `<outdir>/FreeWRL.app` and the zip before it exits
+1, so a later step (`smoke.sh`, `launchservices.sh`, `suite.sh`, release QA)
+cannot pick up an unverified app by mistake. A successful run ends with
+`PACKAGE PASS: <app>`; treat an output directory without that line as no package.
+Use a fresh `-o` directory for each QA run rather than one left by an earlier run.
+
 See [THIRD-PARTY.md](THIRD-PARTY.md) for the embedded libraries and their licenses.
 
 ## Images

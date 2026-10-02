@@ -6896,6 +6896,20 @@ void unRegisterSensitiveNode(struct X3D_Node *node) {
 		tg->RenderFuncs.hyperhit = 0;
 	}
 }
+
+/* free a container node after its children were moved or garbage-collected: the old scene
+	root on world replacement and at exit (ProdCon.c, finalizeRenderSceneUpdateScene), the
+	Group that holds EAI/SAI-created nodes until they move (ProdCon.c), a PROTO library
+	scene (unload_libraryscenes). add_parent made the container the parent of any sensor
+	placed directly in it, so setSensitive named it in SensorEvents and a picking pass can
+	hold it in a touch (lastOver, lastPressedOver, ...): unregister it before the free. */
+void freeContainerNode(struct X3D_Node *node) {
+	if (node == NULL) return;
+	deleteVector(struct X3D_Node*, node->_parentVector);
+	unRegisterSensitiveNode(node);
+	freeMallocedNodeFields(node);
+	FREE_IF_NZ(node);
+}
 char* lookup_brotoDefname(struct X3D_Proto* ec, struct X3D_Node* node);
 char* getNodeDescription(struct X3D_Node* node) {
 	//not all nodetypes have description field, and those that do not all set, so expect some will return null.
@@ -7495,10 +7509,7 @@ static void finalizeRenderSceneUpdateScene() {
 	killErrantChildren();
 	/* tested on win32 console program July9,2011 seems OK */
 	rn = rootNode();
-	if(rn)
-		deleteVector(struct X3D_Node*,rn->_parentVector); //perhaps unlink first
-	freeMallocedNodeFields(rn);
-	FREE_IF_NZ(rn);
+	freeContainerNode(rn);
 	setRootNode(NULL);
 #ifdef DEBUG_MALLOC
 	end_of_run_tests(); //with glew mx, we get the glew context from tg, so have to do the glIsBuffer, glIsTexture before deleting tg

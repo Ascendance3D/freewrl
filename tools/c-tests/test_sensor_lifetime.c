@@ -1,6 +1,6 @@
 /*
- * Pointing-device sensor lifetime: setSensitive, unRegisterSensitiveNode and
- * sendSensorEvents from freex3d/src/lib/main/MainLoop.c, and gc_broto_instance from
+ * Pointing-device sensor lifetime: setSensitive, unRegisterSensitiveNode, freeContainerNode
+ * and sendSensorEvents from freex3d/src/lib/main/MainLoop.c, and gc_broto_instance from
  * vrml_parser/CParseParser.c, extracted unchanged by run-bounds.sh (sensors.inc), with the
  * Vector functions of test_pick_ray.c. The do_*Sensor handlers are test doubles that read
  * the sensor node, as the real ones do, so a call for a freed node is an AddressSanitizer
@@ -13,6 +13,9 @@
  * picking pass then sends isOver FALSE to touch->lastOver through sendSensorEvents. In
  * FreeWRL 6.7 nothing removed the freed nodes from that state: do_SphereSensor read a freed
  * SphereSensor (AddressSanitizer heap-use-after-free, 10.wrl replaced while hovered).
+ * Container nodes are freed apart from their children (the old scene root in ProdCon.c and at
+ * exit, the Group that holds EAI-created nodes, a PROTO library scene) through
+ * freeContainerNode, which unregisters them too.
  */
 #include "test_support.h"
 #include <stdio.h>
@@ -36,10 +39,10 @@ enum { NODE_Group = 1, NODE_Proto, NODE_TouchSensor, NODE_GeoTouchSensor, NODE_L
 #define MotionNotify 6
 #define MapNotify 19
 
-struct X3D_Node { int _nodeType; struct X3D_Node *_executionContext; float offset[4]; };
+struct X3D_Node { int _nodeType; struct X3D_Node *_executionContext; float offset[4]; struct Vector *_parentVector; };
 struct Multi_Node { int n; struct X3D_Node **p; };
 struct X3D_Proto {
-	int _nodeType; struct X3D_Node *_executionContext; float offset[4];
+	int _nodeType; struct X3D_Node *_executionContext; float offset[4]; struct Vector *_parentVector;
 	struct Multi_Node __children, _sortedChildren;
 	void *__protoDeclares, *__externProtoDeclares, *__nodes, *__subcontexts;
 	int __protoFlags;
@@ -319,10 +322,84 @@ static void unregister_one_node(void)
 	finish();
 }
 
+/* ProdCon.c world replacement (and finalizeRenderSceneUpdateScene at exit): the scene root is
+   the parent of each sensor declared at the top level of the scene, so setSensitive named it
+   and the picking pass held it while the pointer was over the sensor's sibling shapes.
+   unload_broto frees the root's nodes (gc_broto_instance); the root itself is freed apart,
+   through freeContainerNode. In 6.7 the touch kept pointing at the freed root. */
+static void replaced_scene_root(void)
+{
+	struct X3D_Proto *root;
+	struct X3D_Node *touch, *keep;
+	struct Touch *t = &the_mainloop.touchlist[1];
+
+	start();
+	root = context();
+	root->_parentVector = newVector(struct X3D_Node *, 1);
+	touch = node(NODE_TouchSensor, 5);
+	own(root, touch);
+	setSensitive(X3D_NODE(root), touch);
+	keep = node(NODE_Group, 0); /* a parent in the next world, untouched by the free */
+	the_mainloop.touchlist[2].lastOver = keep;
+
+	sendSensorEvents(X3D_NODE(root), MapNotify, 0, TRUE);
+	CHECK(calls == 1 && last_sensor == touch && last_offset == 5);
+	hover_and_press(t, X3D_NODE(root));
+
+	gc_broto_instance(root); /* unload_broto: the TouchSensor and its SensorEvents entry go */
+	CHECK(sensor_events() == 0);
+	CHECK(t->lastOver == X3D_NODE(root) && t->lastPressedOver == X3D_NODE(root)); /* still held */
+
+	freeContainerNode(X3D_NODE(root)); /* the old root, after the new one is set */
+	CHECK(t->lastOver == NULL && t->CursorOverSensitive == NULL);
+	CHECK(t->oldCOS == NULL && t->lastPressedOver == NULL);
+	CHECK(t->hypersensitive == NULL && t->hyperhit == 0);
+	CHECK(the_global.RenderFuncs.hypersensitive == NULL && the_global.RenderFuncs.hyperhit == 0);
+	CHECK(the_mainloop.touchlist[2].lastOver == keep);
+	calls = 0;
+	next_picking_pass(t); /* in 6.7: a read of the freed root's SensorEvents match */
+	CHECK(calls == 0);
+	freeContainerNode(NULL); /* no root (nothing loaded yet) */
+	free(keep);
+	finish();
+}
+
+/* ProdCon.c, EAI/SAI createVrmlFromString: the nodes are parsed into a holding Group, whose
+   add_parent made it the parent of a sensor among them (setSensitive); AddRemoveChildren
+   moves them to their destination, which becomes their parent, and the Group is freed. Only
+   the Group's entry goes; the sensor keeps working under its destination. */
+static void eai_holding_group(void)
+{
+	struct X3D_Node *holder, *dest, *plane;
+
+	start();
+	holder = node(NODE_Group, 0);
+	holder->_parentVector = newVector(struct X3D_Node *, 1);
+	dest = node(NODE_Group, 0);
+	plane = node(NODE_PlaneSensor, 6);
+	setSensitive(holder, plane); /* parsed into the holder */
+	setSensitive(dest, plane);   /* moved to the destination */
+	CHECK(sensor_events() == 2);
+
+	freeContainerNode(holder);
+	CHECK(sensor_events() == 1);
+	sendSensorEvents(dest, ButtonPress, 1, TRUE);
+	CHECK(calls == 1 && last_sensor == plane && last_offset == 6);
+	CHECK(the_global.RenderFuncs.hypersensitive == dest);
+	sendSensorEvents(dest, ButtonRelease, 0, TRUE);
+	CHECK(calls == 2);
+
+	free(dest);
+	free(plane);
+	finish();
+}
+
 static const ct_case cases[] = {
 	{ "world replaced while a PROTO SphereSensor is hovered and pressed", replaced_proto_sphere_sensor },
 	{ "PROTO declaration sensors leave SensorEvents when freed", replaced_proto_declaration },
 	{ "Inline unload: its sensors go, the others keep working", unloaded_inline_keeps_others },
 	{ "unregistering one node keeps every other sensor and touch", unregister_one_node },
+	{ "scene root freed apart from its nodes on world replacement", replaced_scene_root },
+	{ "EAI holding Group freed after its nodes moved", eai_holding_group },
 };
 const ct_suite ct_sensors_suite = { "sensors", cases, CT_COUNT(cases) };

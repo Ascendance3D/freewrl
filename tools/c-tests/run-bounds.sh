@@ -6,7 +6,8 @@
 #   EAIEventsIn.c        GETNODEPARENTS reply, with outBufferCat (EAIHelpers.c)
 #   io_files.c           fw_temp_file_create, fw_temp_dir_create
 #   RenderFuncs.c        push_ray, pop_ray (the picking pass ray stack), with Vector.c
-#   MainLoop.c           setSensitive, unRegisterSensitiveNode, sendSensorEvents, with
+#   MainLoop.c           setSensitive, unRegisterSensitiveNode, freeContainerNode,
+#                        sendSensorEvents, with
 #   CParseParser.c       gc_broto_instance (pointing-device sensors freed with their world)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
@@ -55,7 +56,7 @@ x io_files.c temp_template fw_temp_dir_create > "$out/tempfile.inc"
 } > "$out/vector.inc"
 x scenegraph/RenderFuncs.c push_ray pop_ray > "$out/pickray.inc"
 {
-	x main/MainLoop.c setSensitive unRegisterSensitiveNode
+	x main/MainLoop.c setSensitive freeContainerNode
 	x main/MainLoop.c sendSensorEvents
 	x vrml_parser/CParseParser.c gc_broto_instance
 } > "$out/sensors.inc"
