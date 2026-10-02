@@ -10,9 +10,11 @@ APP=$1 OUT=$2; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'
 # launch noise that must not come back (suite.sh and prepush-light.sh read this line): a nib
-# customClass that does not exist, window state restoration, a wrong architecture line. Each was
-# logged on every launch until PR #55.
-NOISE='\[Nib Loading\] Unknown class|\[StateRestoration\]|processor architecture x(64|86)'
+# customClass that does not exist, a restored window with no restoration class, a wrong
+# architecture line. FreeWRL logged each until PR #55. Not included: macOS 14's own
+# '[StateRestoration] _NSPersistentUIDeleteItemAtFileURL Failed to stat item ...restorecount.plist',
+# which AppKit logs on most launches whatever the app does (macOS 15 does not).
+NOISE='\[Nib Loading\] Unknown class|restoreWindowWithIdentifier.*Unable to find className|processor architecture x(64|86)'
 fails=0
 run() { # name world must-appear(or -) [expected-failures]
 	local name=$1 world=$2 want=$3 expect_fail=$4 f=$OUT/smoke-$1 res bad miss note="" nfail
