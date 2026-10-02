@@ -9,6 +9,10 @@ H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'
+# launch noise that must not come back (suite.sh and prepush-light.sh read this line): a nib
+# customClass that does not exist, window state restoration, a wrong architecture line. Each was
+# logged on every launch until PR #55.
+NOISE='\[Nib Loading\] Unknown class|\[StateRestoration\]|processor architecture x(64|86)'
 fails=0
 run() { # name world must-appear(or -) [expected-failures]
 	local name=$1 world=$2 want=$3 expect_fail=$4 f=$OUT/smoke-$1 res bad miss note="" nfail
@@ -27,6 +31,7 @@ run() { # name world must-appear(or -) [expected-failures]
 	else
 		bad=$(grep -hE "$BAD" "$f.out" "$f.err" | head -1)
 	fi
+	[ -z "$bad" ] && bad=$(grep -hE "$NOISE" "$f.out" "$f.err" | head -1)
 	verdict=PASS
 	echo "$res" | grep -qE 'CRASH:|malloc=[^n]' && verdict=FAIL
 	[ -n "$miss$bad" ] && verdict=FAIL

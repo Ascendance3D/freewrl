@@ -102,5 +102,10 @@ if [ "$KIND" = asan ]; then
 	echo "GATE asan PROTO=$proto Frustum=$frustum Vector=$vector GLCore=$glcore DUKdef=$dukdef Other=$other Total=$total_asan"
 	[ "$total_asan" = 0 ] || fail=1
 fi
+# launch noise (smoke.sh NOISE: unknown nib class, state restoration, wrong architecture) in any run
+NOISE=$(sed -n "s/^NOISE='\(.*\)'\$/\1/p" "$H/smoke.sh" | head -1)
+noise=$(cat "$OUT"/*.out "$OUT"/*.err 2>/dev/null | grep -cE "${NOISE:?no NOISE line in smoke.sh}")
+echo "GATE launch-noise=$noise"
+[ "$noise" = 0 ] || fail=1
 [ $fail = 0 ] && echo "GATE PASS" || echo "GATE FAIL"
 exit $fail
