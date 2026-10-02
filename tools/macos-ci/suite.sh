@@ -77,10 +77,19 @@ defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err 2>/dev/null | grep -c
 sensors=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -o "SENSOR_SPHERE" | wc -l | tr -d ' ')
 # and sensor_replace.wrl must have been loaded (0 here names a reload-order fault, not picking)
 sensorloads=$(cat "$OUT"/cycle-*.lldb.log 2>/dev/null | grep -c '^RELOAD [0-9]* sensor_replace.wrl OK$')
+# and in every cycle: each cycle starts RELOAD_PATHS again, so its first replacement is
+# sensor_replace.wrl. A total over the cycles let one cycle with no sensor at all pass (run 37074268480)
+sensoridle=0
+for f in "$OUT"/cycle-*.lldb.log; do
+	[ -e "$f" ] || continue
+	c=${f%.lldb.log}
+	cat "$c.out" "$c.err" 2>/dev/null | grep -q "SENSOR_SPHERE" || sensoridle=$((sensoridle + 1))
+done
+echo "GATE cycles without a pointer-driven sensor: $sensoridle"
 echo "GATE runs: $CYC cycles (${reloads:-0} world replacements, ${pointer:-0} pointer events, cycles without a replacement: $cycidle, harness faults: $harness), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensor_replace.wrl loads: $sensorloads, sensors driven by the pointer: $sensors"
 echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
 [ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] \
-	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensorloads" -ge 1 ] && [ "$sensors" -ge 1 ] || fail=1
+	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensorloads" -ge 1 ] && [ "$sensors" -ge 1 ] && [ "$sensoridle" = 0 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.
