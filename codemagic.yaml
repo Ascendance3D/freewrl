@@ -5,7 +5,7 @@ workflows:
     max_build_duration: 30
 
     environment:
-      xcode: 16.0
+      xcode: 16.4
 
     scripts:
       - name: Machine info
@@ -64,9 +64,9 @@ workflows:
     max_build_duration: 60
 
     environment:
-      xcode: 16.0
+      xcode: 16.4
       vars:
-        MACOS_MIN: "14.0"
+        MACOS_MIN: "15.0"
 
     cache:
       cache_paths:
@@ -87,10 +87,14 @@ workflows:
       - name: Dependencies from source (cached)
         script: |
           set -euo pipefail
-          if [ ! -x "$CM_BUILD_DIR/deps/bin/freetype-config" ] && [ ! -d "$CM_BUILD_DIR/deps/lib" ]; then
+          # the cache is not keyed by target: rebuild when the cached libraries were built for another minimum
+          m=$(otool -l "$CM_BUILD_DIR/deps/lib/libfreetype.6.dylib" 2>/dev/null | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}' || true)
+          if [ "$m" != "$MACOS_MIN" ]; then
+            echo "cached deps minos '${m:-none}' != $MACOS_MIN: building"
+            rm -rf "$CM_BUILD_DIR/deps" "$CM_BUILD_DIR/deps-src"
             tools/macos-deps/build.sh -t "$MACOS_MIN" -p "$CM_BUILD_DIR/deps" -c "$CM_BUILD_DIR/deps-src"
           else
-            echo "reusing cached deps in $CM_BUILD_DIR/deps"
+            echo "reusing cached deps in $CM_BUILD_DIR/deps (minos $m)"
           fi
 
       - name: Release build and package

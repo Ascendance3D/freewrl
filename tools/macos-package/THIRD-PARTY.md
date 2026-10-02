@@ -14,7 +14,7 @@ In the app:
 
 ## Embedded libraries
 
-Built from source by `tools/macos-deps/build.sh` for macOS 14.0 (arm64), from
+Built from source by `tools/macos-deps/build.sh` for macOS 15.0 (arm64), from
 the archives Homebrew's formulae use, each checked against a pinned SHA-256.
 Copied into the app unmodified apart from install names and signatures.
 

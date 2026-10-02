@@ -9,17 +9,17 @@ Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verifie
 
 ## Support policy
 
-**Supported: macOS 14 Sonoma and newer on Apple Silicon.**
+**Supported: macOS 15 Sequoia and newer on Apple Silicon.**
 
 | | |
 | --- | --- |
-| supported | macOS 14 Sonoma, macOS 15, and newer macOS versions once release validation has run on them |
+| supported | macOS 15 Sequoia, and newer macOS versions once release validation has run on them |
 | architecture | arm64 only |
-| not a release target | Intel (x86_64) Macs; macOS 13 Ventura and older |
+| not a release target | Intel (x86_64) Macs; macOS 14 Sonoma and older |
 | local QA | pull requests that can affect macOS, on a physical Apple Silicon Mac, before merge |
-| release validation | [`.github/workflows/macos.yml`](.github/workflows/macos.yml) (Node-24 Actions), manual `workflow_dispatch` only, started by Ryan from `master` for one exact SHA: the packaged app on GitHub's macOS 14 and macOS 15 arm64 runners. Pushes and pull requests do not start it. See [`RELEASING.md`](RELEASING.md) |
+| release validation | [`.github/workflows/macos.yml`](.github/workflows/macos.yml) (Node-24 Actions), manual `workflow_dispatch` only, started by Ryan from `master` for one exact SHA: the packaged app on GitHub's macOS 15 arm64 runners. Pushes and pull requests do not start it. See [`RELEASING.md`](RELEASING.md) |
 
-Earlier development targeted macOS 13, but the supported minimum is macOS 14 because Sonoma is the oldest Apple Silicon environment in the release-validation test matrix (the `macos-14` runner). Everything is built with `MACOSX_DEPLOYMENT_TARGET=14.0`; no binary is patched to claim an older macOS.
+Earlier development targeted macOS 13, then macOS 14. On 2026-10-02 the owner raised the minimum to macOS 15 Sequoia; release validation runs on the `macos-15` runner. Everything is built with `MACOSX_DEPLOYMENT_TARGET=15.0`; no binary is patched to claim an older macOS.
 
 ## Current status (2026-09-30)
 
@@ -28,9 +28,9 @@ Earlier development targeted macOS 13, but the supported minimum is macOS 14 bec
 | ✅ | Canonical trunk | `master` is the single maintained branch; the Apple Silicon work is merged into it |
 | ✅ | Runtime gate (PR #15) | PASS on the CI runtime gate |
 | 🟡 | AddressSanitizer | CI gate total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean). The 2026-10-01 physical-Mac release validation of `5b9b2d682` found 4 reports on the picking path, which CI never ran (no pointer): heap-use-after-free in `do_SphereSensor` (sensors kept in `SensorEvents` and the touch state after world replacement freed them) and a heap-buffer-overflow in `pop_ray` (pop before read). Fixed on `fix/macos-asan-picking-lifetime`, pending review: every node free path unregisters the node from the picking state (`unRegisterSensitiveNode`; container nodes such as the old scene root through `freeContainerNode`); `suite.sh` drives the pointer (`RELOAD_POINTER`) over `sensor_replace.wrl` and fails when a cycle replaced nothing or the harness faulted; `sensor-proof.sh` proves the SphereSensor handler path on `10.wrl` |
-| ✅ | macOS 14 runtime | PASS (GitHub Actions arm64 runner) |
+| — | macOS 14 runtime | no longer supported (minimum raised to macOS 15 on 2026-10-02); last PASS on the GitHub Actions arm64 runner |
 | ✅ | macOS 15 runtime | PASS (GitHub Actions arm64 runner) |
-| ✅ | Package static verify | PASS (`verify.py --macos 14.0`) |
+| 🟡 | Package static verify | `verify.py --macos 15.0`, pending the first macOS 15-minimum validation run |
 | ✅ | Physical Apple Silicon runtime QA | local QA on a physical M1 before merge; latest: PR #47, head `a0807a576`: builds, package verify, smoke 17/17, LaunchServices 7/7, host bounds tests 67/67 |
 | ✅ | Public macOS prereleases | `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization |
 | 🟡 | First desktop release `v6.7.0` | still needs: Developer ID signed, hardened-runtime, notarized and stapled release packaging; release validation; the annotated tag; the draft release; publication. See [`RELEASING.md`](RELEASING.md) |
@@ -76,8 +76,8 @@ Every emulated call, what it replaces and what happens when it can't be done. Ev
 | ✅ | Release arm64, clean | `xcodebuild -project OSX_gui/FreeWRL-Desktop/FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- -derivedDataPath <dir> clean build` → exit 0 |
 | ✅ | Debug arm64, clean | same with `-configuration Debug` → exit 0 |
 | ✅ | Linked libraries | FreeType, ODE, freealut (from `FW_DEPS`: a `tools/macos-deps` prefix, or Homebrew for local development) and Apple frameworks; Imlib2 replaced by stb_image, openal-soft by `OpenAL.framework` |
-| ✅ | Deployment target | 14.0 in every `FreeWRL.xcodeproj` configuration; built with `MACOSX_DEPLOYMENT_TARGET=14.0` |
-| ✅ | Self-contained app | `tools/macos-package/package.sh`: macOS 14+, no Homebrew at run time. See [Standalone packaging](#standalone-packaging) |
+| ✅ | Deployment target | 15.0 in every `FreeWRL.xcodeproj` configuration; built with `MACOSX_DEPLOYMENT_TARGET=15.0` |
+| ✅ | Self-contained app | `tools/macos-package/package.sh`: macOS 15+, no Homebrew at run time. See [Standalone packaging](#standalone-packaging) |
 | ✅ | ffmpeg no longer linked | it was linked but no symbol was imported (`MOVIETEXTURE_FFMPEG` is off); removed |
 
 *Historical:* an earlier candidate linked Homebrew dylibs (ode, ffmpeg, openal-soft, freealut, imlib2, freetype) built for macOS 27 while the app targeted 13.0 (10 `ld` warnings), and was not distributable. That blocker is resolved: libraries are built from source for macOS 14 by `tools/macos-deps/build.sh` and embedded.
@@ -171,8 +171,8 @@ Two REGRESSION rows remain on purpose: they are real differences from the refere
 
 The packaging tooling is complete and tested; see [`tools/macos-package/README.md`](tools/macos-package/README.md) and [`THIRD-PARTY.md`](tools/macos-package/THIRD-PARTY.md).
 
-- `tools/macos-deps/build.sh` builds FreeType 2.14.3, ODE 0.16.6 (double precision, internal libccd) and freealut 1.1.0 from pinned source archives (each SHA-256 checked) for `MACOSX_DEPLOYMENT_TARGET=14.0`. freealut links Apple's `OpenAL.framework`.
-- `tools/macos-package/package.sh` builds the Release arm64 app against those libraries, embeds the three non-Apple dylibs, rewrites install names, copies license payloads, signs (ad-hoc, or Developer ID with `-r` for the hardened runtime), runs `verify.py --macos 14.0`, and can notarize, staple and produce a zip with its SHA-256.
+- `tools/macos-deps/build.sh` builds FreeType 2.14.3, ODE 0.16.6 (double precision, internal libccd) and freealut 1.1.0 from pinned source archives (each SHA-256 checked) for `MACOSX_DEPLOYMENT_TARGET=15.0`. freealut links Apple's `OpenAL.framework`.
+- `tools/macos-package/package.sh` builds the Release arm64 app against those libraries, embeds the three non-Apple dylibs, rewrites install names, copies license payloads, signs (ad-hoc, or Developer ID with `-r` for the hardened runtime), runs `verify.py --macos 15.0`, and can notarize, staple and produce a zip with its SHA-256.
 - `verify.py` fails if the bundle references Homebrew, `/usr/local`, MacPorts, the source tree or a temp/home path, needs a newer macOS than `--macos`, or embeds a library the build no longer uses (Imlib2, FFmpeg, OpenAL Soft). The unpackaged build fails it as a negative control.
 - The packaged app needs no Homebrew, Imlib2, FFmpeg or OpenAL Soft at run time.
 
@@ -195,7 +195,7 @@ The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are publis
 ## Next up
 
 - [x] Verify `q`, picking, navigation, HUD clicks and tests 8/10 on Retina (targeted QA on `32caaa36a`, token `FREEWRL_6_7_MACOS_ARM64_GL41_KEYBOARD_AND_INTERACTION_QA_PASS`)
-- [x] Standalone package for macOS 14+ with libraries built from source; see [Standalone packaging](#standalone-packaging)
+- [x] Standalone package for macOS 15+ with libraries built from source; see [Standalone packaging](#standalone-packaging)
 - [ ] GeneratedCubeMapTexture: find why the generated faces sample black
 - [ ] Directional light shadows outside the shadow map (upstream)
 - [x] Publish a public macOS prerelease (`v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`)
