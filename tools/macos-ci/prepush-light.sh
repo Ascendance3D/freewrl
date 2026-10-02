@@ -175,6 +175,14 @@ else
 	fi
 fi
 
+# 6a. every GitHub Action the workflows use runs on Node 24 (reads each action.yml through gh)
+"$here/actions-runtime.sh" > "$tmp/actions" 2>&1
+case $? in
+0) report PASS actions-runtime "tools/macos-ci/actions-runtime.sh: $(grep -c '^PASS' "$tmp/actions") action(s) on node24" ;;
+1) report FAIL actions-runtime "tools/macos-ci/actions-runtime.sh:"; grep '^FAIL' "$tmp/actions" | sed 's/^/    /' ;;
+*) report SKIP actions-runtime "$(tail -1 "$tmp/actions")" ;;
+esac
+
 # 7. document-type gate (CI runs it on the built app; without --app, on the source Info.plist,
 #    which the build copies with only $(VARIABLES) expanded)
 plist=$root/OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist
