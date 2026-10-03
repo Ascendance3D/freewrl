@@ -1,19 +1,19 @@
 # macOS standalone packaging
 
-Builds a `FreeWRL.app` for Apple Silicon that runs on macOS 14 Sonoma and newer
+Builds a `FreeWRL.app` for Apple Silicon that runs on macOS 15 Sequoia and newer
 without Homebrew: the three non-Apple libraries it links are built from source
-for macOS 14 and embedded.
+for macOS 15 and embedded.
 
 ```sh
 tools/macos-package/package.sh                   # libraries, Release build, package, ad-hoc sign, verify
 tools/macos-package/package.sh -z                # ... and zip it (prints the SHA-256)
 tools/macos-package/package.sh -s "Developer ID Application" -r -z   # Developer ID, hardened runtime
 tools/macos-package/package.sh -s "Developer ID Application" -r --notarize  # ... notarized, stapled, zipped
-tools/macos-package/verify.py --macos 14.0 FreeWRL.app   # the portability gate on its own
+tools/macos-package/verify.py --macos 15.0 FreeWRL.app   # the portability gate on its own
 ```
 
 Output goes to `./macos-package-out` (`-o` to change). `-t` sets the oldest
-macOS (default and supported floor: 14.0). `-D <prefix>` reuses libraries
+macOS (default and supported floor: 15.0). `-D <prefix>` reuses libraries
 already built by `tools/macos-deps/build.sh` for that macOS; `-a <app>`
 packages an existing Release build instead of building one. The signing
 identity is any `codesign -s` value; the default `-` is ad-hoc.
@@ -44,13 +44,13 @@ renders. Do not ship a build that has not passed 7/7.
 
 ## What it does
 
-1. `tools/macos-deps/build.sh -t 14.0`: downloads FreeType 2.14.3, ODE 0.16.6
+1. `tools/macos-deps/build.sh -t 15.0`: downloads FreeType 2.14.3, ODE 0.16.6
    and freealut 1.1.0, checks each archive's SHA-256, and builds them with
-   `-mmacosx-version-min=14.0` into a private prefix (ODE: double precision,
+   `-mmacosx-version-min=15.0` into a private prefix (ODE: double precision,
    its internal libccd; freealut: against Apple's `OpenAL.framework`). Writes
    `share/freewrl-deps/packages.tsv` (package, version, libraries, source URL,
    SHA-256) and each package's license files.
-2. `xcodebuild` Release, arm64, `MACOSX_DEPLOYMENT_TARGET=14.0`,
+2. `xcodebuild` Release, arm64, `MACOSX_DEPLOYMENT_TARGET=15.0`,
    `FW_DEPS=<prefix>` (skipped with `-a`).
 3. `bundle.py`: walks the executable's dependencies, copies every library
    outside `/usr/lib` and `/System/Library` into `Contents/Frameworks`
@@ -68,7 +68,7 @@ renders. Do not ship a build that has not passed 7/7.
 4. License texts of code compiled into FreeWRL (FreeWRL, Duktape, libtess,
    stb_image), copied verbatim from the source tree.
 5. Signs inside out: each dylib, then the app.
-6. `verify.py --macos 14.0` and `codesign --verify --deep --strict`.
+6. `verify.py --macos 15.0` and `codesign --verify --deep --strict`.
 7. With `--notarize` (`-n`): submits a zip of the app with `notarytool --wait`,
    fails unless Apple answers `Accepted` (the log is saved as
    `notary-log.json`), staples the ticket, runs `stapler validate` and

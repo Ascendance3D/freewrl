@@ -73,8 +73,8 @@ reviewed and merged into the 6.7 integration line through
 FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
 [pull request #7](https://github.com/DJAscendance/freewrl/pull/7).
 
-- Supported target: **macOS 14 Sonoma and newer on Apple Silicon (arm64).**
-  Intel and macOS 13 or older are not release targets.
+- Supported target: **macOS 15 Sequoia and newer on Apple Silicon (arm64).**
+  Intel and macOS 14 or older are not release targets.
 - Release and Debug arm64 builds pass with Xcode. The only non-Apple libraries
   linked are FreeType, ODE and freealut (audio uses Apple's `OpenAL.framework`);
   textures are decoded by the bundled stb_image, not Imlib2.
@@ -87,7 +87,7 @@ FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
 - The packaging tooling (`tools/macos-deps/build.sh`,
   `tools/macos-package/package.sh`) is complete and tested: it builds a
   self-contained, Developer ID-signed, hardened-runtime, notarizable
-  `FreeWRL.app` that runs on macOS 14+ with no Homebrew, Imlib2, FFmpeg or
+  `FreeWRL.app` that runs on macOS 15+ with no Homebrew, Imlib2, FFmpeg or
   OpenAL Soft at run time.
 - Two macOS prereleases are published on GitHub Releases:
   `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`. Their release notes state
@@ -144,14 +144,14 @@ Linux configuration status (checked on Ubuntu 24.04):
 
 ### macOS (Apple Silicon)
 
-Supported: macOS 14 Sonoma and newer on Apple Silicon (arm64). Build from the
+Supported: macOS 15 Sequoia and newer on Apple Silicon (arm64). Build from the
 maintained `master` branch. The Xcode project links only FreeType, ODE and
 freealut (Apple's `OpenAL.framework` for audio); `FW_DEPS` tells Xcode where to
 find them:
 
 ```sh
 git checkout master
-tools/macos-deps/build.sh -p ~/freewrl-deps   # FreeType, ODE, freealut from pinned sources, for macOS 14
+tools/macos-deps/build.sh -p ~/freewrl-deps   # FreeType, ODE, freealut from pinned sources, for macOS 15
 cd OSX_gui/FreeWRL-Desktop
 xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL \
   -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- FW_DEPS=$HOME/freewrl-deps build

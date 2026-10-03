@@ -1,7 +1,7 @@
 #!/bin/bash
 # test-verify.sh
 # Focused tests for verify.py path handling. Builds a minimal FreeWRL-shaped bundle (arm64,
-# macOS 14.0, three @rpath dylibs) in $TMPDIR and checks that verify.py
+# macOS 15.0, three @rpath dylibs) in $TMPDIR and checks that verify.py
 #   - passes it under the /var/folders spelling of $TMPDIR (really /private/var/folders), the
 #     path package.sh used before it switched to pwd -P, and under the canonical spelling;
 #   - still fails a run path that leaves Contents, one that only shares its name prefix
@@ -18,7 +18,7 @@ no() { echo "FAIL $1${2:+: $2}"; fail=$((fail + 1)); }
 # check NAME APP expect(0|1) [must-contain]
 check() {
 	local name=$1 app=$2 want=$3 needle=${4:-} out rc
-	out=$(python3 "$verify" --macos 14.0 "$app" 2>&1); rc=$?
+	out=$(python3 "$verify" --macos 15.0 "$app" 2>&1); rc=$?
 	if [ "$want" = 0 ] && [ "$rc" -ne 0 ]; then no "$name" "expected success, got exit $rc"; printf '%s\n' "$out" | grep ERROR; return; fi
 	if [ "$want" = 1 ] && [ "$rc" -eq 0 ]; then no "$name" "expected failure, got success"; return; fi
 	if [ -n "$needle" ] && ! printf '%s' "$out" | grep -q -- "$needle"; then
@@ -29,7 +29,7 @@ check() {
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/fw-verify-tests.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
-cc() { clang -arch arm64 -mmacosx-version-min=14.0 "$@"; }
+cc() { clang -arch arm64 -mmacosx-version-min=15.0 "$@"; }
 
 # mkapp DIR [extra exe linker flags...]: a bundle verify.py accepts unless the flags break it
 mkapp() {
@@ -41,7 +41,7 @@ mkapp() {
 	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 	<plist version="1.0"><dict>
 	<key>CFBundleExecutable</key><string>FreeWRL</string>
-	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSMinimumSystemVersion</key><string>15.0</string>
 	</dict></plist>
 	EOF
 	echo 'int fw_lib(void) { return 0; }' > "$tmp/lib.c"

@@ -42,13 +42,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MACOS_MIN: '14.0'
+  MACOS_MIN: '15.0'
   TAG: ${{ github.event.inputs.tag }}
   EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
   CI_RUN_ID: ${{ github.event.inputs.ci_run_id }}
 
 jobs:
-  # The standard macos-15 runner builds the package with MACOS_MIN=14.0.
+  # The standard macos-15 runner builds the package with MACOS_MIN=15.0.
   # The earlier validation run proved the runtime on a real macOS 14 runner.
   release:
     runs-on: macos-15
