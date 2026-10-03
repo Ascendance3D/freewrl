@@ -17,7 +17,7 @@ name: macOS Release Validation
 #   build:    host-only container tests (tools/c-tests, no app launch), FreeType, ODE and freealut
 #             from their pinned source archives into an empty prefix, Release and Debug builds, the
 #             standalone package (ad-hoc signed), verify.py, doctypes
-#   runtime:  the same package on macOS 14: smoke fixtures, then (only when smoke passed)
+#   runtime:  the same package on macOS 15: smoke fixtures, then (only when smoke passed)
 #             world-replacement cycles and texture stress. One FreeWRL at a time.
 #   asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
 #             fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
