@@ -62,6 +62,10 @@ jobs:
       - uses: actions/checkout@v5
       - name: environment
         run: sw_vers; xcodebuild -version; uname -m
+      # every action used here must run on Node 24 (no "Node.js 20 is deprecated" annotation)
+      - name: GitHub Actions runtimes
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: tools/macos-ci/actions-runtime.sh
       - name: host-only container tests (Vector.c, list.c; no app launch)
         run: tools/c-tests/run-containers.sh
       # Cache the from-source dependency prefix (FreeType, ODE, freealut). The key is the deps
@@ -71,7 +75,7 @@ jobs:
       # unaffected (they run the app, they do not compile the deps).
       - name: cache the from-source dependency prefix
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/deps
           key: macos-deps-${{ env.MACOS_MIN }}-${{ hashFiles('tools/macos-deps/build.sh') }}
