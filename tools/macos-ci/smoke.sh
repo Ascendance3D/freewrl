@@ -3,20 +3,23 @@
 # one PASS/FAIL line per fixture. Exit 1 if any fixture fails.
 # A fixture fails on a crash, an allocator abort, a GL/shader/script error, a texture that fails
 # to load (except in texture_unsupported_mac.wrl, where failing is the expected result), or a
-# missing expected log line. A clean exit before the 25 s is the known intermittent early exit:
-# the fixture is run once more and the retry is reported.
+# missing expected log line, or a clean exit before the 25 s (an early exit is not retried: its
+# cause, a world load turned into a quit, was fixed in MainLoop.c fwl_draw, PR #53).
 H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'
+# launch noise that must not come back (suite.sh and prepush-light.sh read this line): a nib
+# customClass that does not exist, a restored window with no restoration class, a wrong
+# architecture line. FreeWRL logged each until PR #55. Not included: macOS 14's own
+# '[StateRestoration] _NSPersistentUIDeleteItemAtFileURL Failed to stat item ...restorecount.plist',
+# which AppKit logs on most launches whatever the app does (macOS 15 does not).
+NOISE='\[Nib Loading\] Unknown class|restoreWindowWithIdentifier.*Unable to find className|processor architecture x(64|86)'
 fails=0
 run() { # name world must-appear(or -) [expected-failures]
 	local name=$1 world=$2 want=$3 expect_fail=$4 f=$OUT/smoke-$1 res bad miss note="" nfail
 	res=$("$H/run.sh" "$APP" "$world" 25 "$f")
-	if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] '; then
-		note=" early-exit(retried)"
-		res=$("$H/run.sh" "$APP" "$world" 25 "$f")
-	fi
+	echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && note=" EARLY-EXIT"
 	screencapture -x "$f.png" 2>/dev/null || true
 	miss="" bad=""
 	[ "$want" != - ] && ! grep -qE "$want" "$f.out" "$f.err" && miss=" MISSING:'$want'"
@@ -27,9 +30,10 @@ run() { # name world must-appear(or -) [expected-failures]
 	else
 		bad=$(grep -hE "$BAD" "$f.out" "$f.err" | head -1)
 	fi
+	[ -z "$bad" ] && bad=$(grep -hE "$NOISE" "$f.out" "$f.err" | head -1)
 	verdict=PASS
 	echo "$res" | grep -qE 'CRASH:|malloc=[^n]' && verdict=FAIL
-	[ -n "$miss$bad" ] && verdict=FAIL
+	[ -n "$miss$bad$note" ] && verdict=FAIL
 	[ $verdict = FAIL ] && fails=$((fails + 1))
 	echo "$verdict $name: $res$note$miss${bad:+ BAD:'$bad'}"
 	echo "     renderer: $(grep -hm1 GL_RENDERER "$f.out" "$f.err")"

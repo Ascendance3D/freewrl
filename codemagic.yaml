@@ -55,9 +55,9 @@ workflows:
 
   # Supplemental full build: builds, packages, verifies and smoke-tests FreeWRL on Apple Silicon,
   # reusing the same scripts as the GitHub macOS CI. GitHub Actions stays the FINAL gate; this is a
-  # faster supplemental signal. The deterministic steps (deps, package, verify, doctypes) fail the
-  # build; smoke is reported but does not fail the build, because the app has a known intermittent
-  # early-exit flake that only the GitHub runtime GATE is authoritative about.
+  # faster supplemental signal. The deps, package, verify, doctypes and smoke steps fail the build
+  # (smoke was report-only while the app had an intermittent early exit, fixed in MainLoop.c
+  # fwl_draw, PR #53).
   freewrl-macos:
     name: FreeWRL macOS build + package (supplemental)
     instance_type: mac_mini_m2
@@ -111,13 +111,11 @@ workflows:
           python3 tools/macos-package/verify.py --source-root "$CM_BUILD_DIR" --macos "$MACOS_MIN" "$APP"
           tools/macos-ci/doctypes.sh "$APP"
 
-      - name: Smoke (reported, non-gating)
+      - name: Smoke
         script: |
           set -euo pipefail
           OUT="$CM_BUILD_DIR/out"; mkdir -p "$OUT"
-          # smoke may hit the known intermittent early-exit flake; report it but do not fail the build
-          tools/macos-ci/smoke.sh "$CM_BUILD_DIR/pkg/FreeWRL.app" "$OUT" | tee "$OUT/smoke.txt" || \
-            echo "smoke reported issues (see artifacts); GitHub runtime GATE is authoritative"
+          tools/macos-ci/smoke.sh "$CM_BUILD_DIR/pkg/FreeWRL.app" "$OUT" | tee "$OUT/smoke.txt"
 
     artifacts:
       - $CM_BUILD_DIR/pkg/FreeWRL-macos-arm64.zip

@@ -175,6 +175,14 @@ else
 	fi
 fi
 
+# 6a. every GitHub Action the workflows use runs on Node 24 (reads each action.yml through gh)
+"$here/actions-runtime.sh" > "$tmp/actions" 2>&1
+case $? in
+0) report PASS actions-runtime "tools/macos-ci/actions-runtime.sh: $(grep -c '^PASS' "$tmp/actions") action(s) on node24" ;;
+1) report FAIL actions-runtime "tools/macos-ci/actions-runtime.sh:"; grep '^FAIL' "$tmp/actions" | sed 's/^/    /' ;;
+*) report SKIP actions-runtime "$(tail -1 "$tmp/actions")" ;;
+esac
+
 # 7. document-type gate (CI runs it on the built app; without --app, on the source Info.plist,
 #    which the build copies with only $(VARIABLES) expanded)
 plist=$root/OSX_gui/FreeWRL-Desktop/FreeWRL/FreeWRL-Info.plist
@@ -199,6 +207,16 @@ else
 	fi
 fi
 
+# 7a. Interface Builder files: ibtool compiles them cleanly, every customClass exists, no unbuilt .xib
+if ! command -v ibtool >/dev/null 2>&1; then
+	report SKIP xib "ibtool not found (Xcode, macOS only)"
+elif "$here/xib-check.sh" > "$tmp/xib" 2>&1; then
+	report PASS xib "tools/macos-ci/xib-check.sh: $(grep -c '^PASS' "$tmp/xib") check(s)"
+else
+	report FAIL xib "tools/macos-ci/xib-check.sh:"
+	grep -vE '^(PASS|XIBCHECK)' "$tmp/xib" | sed 's/^/    /'
+fi
+
 # 8. optional: start FreeWRL on the named fixtures, one at a time, with smoke.sh's checks
 runtime_check() {
 	local out bad bad_line f i name o asan res why markers kind value nfail want_fail nasan problems=() summary=()
@@ -213,6 +231,7 @@ runtime_check() {
 	out=$(mktemp -d "$tmpdir/freewrl-prepush-runtime.XXXXXX")
 	bad=$(sed -n "s/^BAD='\(.*\)'\$/\1/p" "$here/smoke.sh" | head -1)
 	bad=${bad:-'failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'}
+	noise=$(sed -n "s/^NOISE='\(.*\)'\$/\1/p" "$here/smoke.sh" | head -1)
 	i=0
 	for f in "${fixtures[@]}"; do
 		i=$((i + 1)); name=$(basename "$f"); name=${name%.*}; o=$out/$i-$name
@@ -220,11 +239,9 @@ runtime_check() {
 		python3 "$here/fixtures.py" expect "$f" > "$o.expect" 2>&1 || why=" CI-markers-unreadable:'$(tail -1 "$o.expect")'"
 		asan=halt_on_error=0:abort_on_error=0:log_path=$o.asan   # as suite.sh; unused by a non-ASan build
 		res=$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o")
-		if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] '; then   # the known early exit, as smoke.sh
-			res="$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o") early-exit(retried)"
-		fi
 		echo "  $res"
 		echo "$res" | grep -qE 'CRASH:|malloc=[^n]' && why="$why crash-or-allocator-abort"
+		echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && why="$why early-exit"   # not retried, as smoke.sh
 		while IFS=$'\t' read -r kind value; do
 			[ "$kind" = marker ] || continue
 			markers="$markers '$value'"
@@ -238,6 +255,7 @@ runtime_check() {
 		else
 			bad_line=$(cat "$o.out" "$o.err" 2>/dev/null | grep -E "$bad" | head -1)
 		fi
+		[ -z "$bad_line" ] && [ -n "$noise" ] && bad_line=$(cat "$o.out" "$o.err" 2>/dev/null | grep -E "$noise" | head -1)
 		[ -n "$bad_line" ] && why="$why BAD:'$bad_line'"
 		nasan=$(ls "$o".asan.* 2>/dev/null | wc -l | tr -d ' ')
 		[ "$nasan" = 0 ] || why="$why AddressSanitizer-reports:$nasan"

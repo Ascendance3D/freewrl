@@ -349,8 +349,13 @@ void frontend_dequeue_get_enqueue(void *tg){
 					downloadAsync(item); //res already has res->tg with global context
 				}
 			}
-		}
-		if(fwl_resitem_getStatus(res) == ress_downloaded){
+		}else{
+			//already downloaded: FILE2BLOB here. When it was not, the item now belongs to the
+			//download thread (or the backend queue), and must not be touched again: checking
+			//its status after downloadAsync raced with thread_download_async, which finishes a
+			//local file at once and also calls file2blob_task(item). Both enqueued the same
+			//list node, the resource queue became circular, and the parser thread spun in
+			//ml_dequeue (a world load then quit, or with fwl_draw waiting, stalled).
 			file2blob_task(item);
 		}
 	}
