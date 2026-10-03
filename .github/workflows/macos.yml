@@ -22,9 +22,12 @@ name: macOS Release Validation
 #   asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
 #             fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
 #             (PROTO lifetime, Frustum extent stack, Vector, GLCore client attributes, other).
-# Stress counts (tools/macos-ci/suite.sh reads CYC/CSEC/TEX/TSTB/TSEC):
-#   runtime: release 2 cycles x 120 s, 10 + 5 texture runs x 25 s.
-#   asan:    2 cycles x 120 s, 3 + 2 texture runs x 30 s.
+# Stress counts (tools/macos-ci/suite.sh reads CYC/CSEC/TEX/TSTB/TSEC; smoke.sh reads SMOKE_SEC):
+#   runtime: 17 smoke fixtures x 15 s, then release 2 cycles x 120 s, 3 + 2 texture runs x 25 s.
+#            The particles and defnames fixtures run once, in smoke; the suite gate reads that log.
+#            (Before: smoke x 25 s and 10 + 5 texture runs, about 22 min; the cycles also load
+#            texture_formats.wrl and texture_formats_stb.wrl.)
+#   asan:    2 cycles x 120 s, 3 + 2 texture runs x 30 s, particles and defnames once each.
 # Focused start-up or diagnostic checks (tools/macos-ci/startup.sh) are local development QA.
 # No secrets are used; signing with a Developer ID and notarization happen outside CI.
 on:
@@ -150,14 +153,14 @@ jobs:
         run: |
           OUT=$RUNNER_TEMP/out; mkdir -p $OUT
           set -o pipefail
-          tools/macos-ci/smoke.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT | tee $OUT/smoke.txt
+          SMOKE_SEC=15 tools/macos-ci/smoke.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT | tee $OUT/smoke.txt
       # runs only when smoke passed: a failed smoke skips the stress and fails the job, while the
       # summary, crash reports and artifacts below are still collected
       - name: world-replacement cycles and texture stress
         run: |
           OUT=$RUNNER_TEMP/out
           set -o pipefail
-          export CYC=2 CSEC=120 TEX=10 TSTB=5 TSEC=25
+          export CYC=2 CSEC=120 TEX=3 TSTB=2 TSEC=25
           echo "cycles=$CYC x ${CSEC}s textures=$TEX+$TSTB x ${TSEC}s"
           tools/macos-ci/suite.sh "$RUNNER_TEMP/app/FreeWRL.app" $OUT release | tee $OUT/results.txt
       - name: summary

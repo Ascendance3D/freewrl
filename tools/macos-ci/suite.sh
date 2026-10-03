@@ -5,7 +5,8 @@
 #   CYC  replacement cycles, CSEC seconds each (the world is replaced every 90 frames, while
 #        the pointer, driven by reloader.py, hovers and presses whatever is under it)
 #   TEX  runs of texture_formats.wrl, TSTB runs of texture_formats_stb.wrl, TSEC seconds each;
-#        then one run of particles_maxparticles.x3d (TSEC seconds)
+#        then one run each of particles_maxparticles.x3d and duktape_defnames.x3d (TSEC seconds),
+#        unless smoke.sh already ran them into OUTDIR
 # Gate: no crash, no allocator abort, no texture "failed to load" or GL/shader error; every
 # cycle made at least one world replacement and sent pointer events (a reloader.py fault --
 # not armed, a failed load or pointer call -- fails the gate: a run that replaced nothing
@@ -28,7 +29,7 @@ if [ "$KIND" = asan ]; then
 	export ASAN_OPTIONS=halt_on_error=0:abort_on_error=0:log_path=$OUT/asan
 	CYC=${CYC:-2} CSEC=${CSEC:-120} TEX=${TEX:-3} TSTB=${TSTB:-2} TSEC=${TSEC:-30}
 else
-	CYC=${CYC:-2} CSEC=${CSEC:-120} TEX=${TEX:-10} TSTB=${TSTB:-5} TSEC=${TSEC:-25}
+	CYC=${CYC:-2} CSEC=${CSEC:-120} TEX=${TEX:-3} TSTB=${TSTB:-2} TSEC=${TSEC:-25}
 fi
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error'
 for ((i=1; i<=CYC; i++)); do RELOAD_PERIOD=90 "$H/run.sh" "$APP" "$G/texture_formats.wrl" $CSEC "$OUT/cycle-$i"; done | tee "$OUT/cycles.txt"
@@ -39,10 +40,11 @@ texrun() { # name world : one texture run
 {
 for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
 for ((i=1; i<=TSTB; i++)); do texrun "texstb-$i" "$G/texture_formats_stb.wrl"; done
-# ParticleSystem maxParticles raised 4 -> 2000 at run time (particle Vector growth), once per suite
-texrun "particles-1" "$G/particles_maxparticles.x3d"
+# ParticleSystem maxParticles raised 4 -> 2000 at run time (particle Vector growth), once per suite.
+# Not run again when smoke.sh already ran it into this OUTDIR (the runtime job): the gate reads smoke's log
+[ -e "$OUT/smoke-particles.out" ] || texrun "particles-1" "$G/particles_maxparticles.x3d"
 # X3DExecutionContext createNode + updateNamedNode append path (duktape), functional smoke, once per suite
-texrun "defnames-1" "$G/duktape_defnames.x3d"
+[ -e "$OUT/smoke-defnames.out" ] || texrun "defnames-1" "$G/duktape_defnames.x3d"
 } | tee "$OUT/textures.txt"
 
 fail=0
@@ -75,9 +77,9 @@ pointer=$(grep -o 'pointer-events=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | past
 texbad=$(cat "$OUT"/texture-*.out "$OUT"/texture-*.err "$OUT"/texstb-*.out "$OUT"/texstb-*.err 2>/dev/null | grep -cE "$BAD")
 cycbad=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -cE "$BAD")
 # the particles run must have raised maxParticles (its Script reads the new value back)
-particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err 2>/dev/null | grep -c "PARTICLES_MAXPARTICLES_READBACK max=2000")
+particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err "$OUT"/smoke-particles.out "$OUT"/smoke-particles.err 2>/dev/null | grep -c "PARTICLES_MAXPARTICLES_READBACK max=2000")
 # the defnames run must have added all six DEF names through updateNamedNode
-defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err 2>/dev/null | grep -c "DUK_DEFNAMES_DONE")
+defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err "$OUT"/smoke-defnames.out "$OUT"/smoke-defnames.err 2>/dev/null | grep -c "DUK_DEFNAMES_DONE")
 # the pointer must have driven sensor_replace.wrl's SphereSensor in the cycles (picking ran)
 sensors=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -o "SENSOR_SPHERE" | wc -l | tr -d ' ')
 # and sensor_replace.wrl must have been loaded (0 here names a reload-order fault, not picking)

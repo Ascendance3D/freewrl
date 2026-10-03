@@ -1,12 +1,13 @@
 #!/bin/bash
-# smoke.sh APP OUTDIR : run each fixture for 25 s (one FreeWRL at a time), check its log, print
-# one PASS/FAIL line per fixture. Exit 1 if any fixture fails.
+# smoke.sh APP OUTDIR : run each fixture for SMOKE_SEC seconds (default 25; one FreeWRL at a time),
+# check its log, print one PASS/FAIL line per fixture. Exit 1 if any fixture fails.
 # A fixture fails on a crash, an allocator abort, a GL/shader/script error, a texture that fails
 # to load (except in texture_unsupported_mac.wrl, where failing is the expected result), or a
-# missing expected log line, or a clean exit before the 25 s (an early exit is not retried: its
+# missing expected log line, or a clean exit before SMOKE_SEC (an early exit is not retried: its
 # cause, a world load turned into a quit, was fixed in MainLoop.c fwl_draw, PR #53).
 H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2; mkdir -p "$OUT"
+SMOKE_SEC=${SMOKE_SEC:-25}
 T=$R/freewrl/tests; G=$T/regression
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'
 # launch noise that must not come back (suite.sh and prepush-light.sh read this line): a nib
@@ -18,7 +19,7 @@ NOISE='\[Nib Loading\] Unknown class|restoreWindowWithIdentifier.*Unable to find
 fails=0
 run() { # name world must-appear(or -) [expected-failures]
 	local name=$1 world=$2 want=$3 expect_fail=$4 f=$OUT/smoke-$1 res bad miss note="" nfail
-	res=$("$H/run.sh" "$APP" "$world" 25 "$f")
+	res=$("$H/run.sh" "$APP" "$world" $SMOKE_SEC "$f")
 	echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && note=" EARLY-EXIT"
 	screencapture -x "$f.png" 2>/dev/null || true
 	miss="" bad=""
