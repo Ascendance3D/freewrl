@@ -2,8 +2,8 @@
 
 Fork: https://github.com/Ascendance3D/freewrl. The Apple Silicon port is on the maintained `master` trunk (the single canonical branch; the old `develop` integration line was retired).
 Base: upstream SourceForge `develop` @ `b3254b11e` (2024-04-20, "Version 6.7", FreeWRL 6.7.0).
-Reference: branch `macos-arm64` ([PR #1](https://github.com/DJAscendance/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
-Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation on GitHub's macOS 14 and 15 runners is manual only (see below). Last updated 2026-10-01.
+Reference: branch `macos-arm64` ([PR #1](https://github.com/Ascendance3D/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
+Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation runs on the GitHub `macos-15` runner only and is manual only (see below). Last updated 2026-10-03.
 
 Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verified · ⛔ unsupported on macOS · ❔ unresolved · ❌ broken
 
@@ -80,7 +80,7 @@ Every emulated call, what it replaces and what happens when it can't be done. Ev
 | ✅ | Self-contained app | `tools/macos-package/package.sh`: macOS 15+, no Homebrew at run time. See [Standalone packaging](#standalone-packaging) |
 | ✅ | ffmpeg no longer linked | it was linked but no symbol was imported (`MOVIETEXTURE_FFMPEG` is off); removed |
 
-*Historical:* an earlier candidate linked Homebrew dylibs (ode, ffmpeg, openal-soft, freealut, imlib2, freetype) built for macOS 27 while the app targeted 13.0 (10 `ld` warnings), and was not distributable. That blocker is resolved: libraries are built from source for macOS 14 by `tools/macos-deps/build.sh` and embedded.
+*Historical:* an earlier candidate linked Homebrew dylibs (ode, ffmpeg, openal-soft, freealut, imlib2, freetype) built for macOS 27 while the app targeted 13.0 (10 `ld` warnings), and was not distributable. That blocker is resolved: libraries are now built from source for `MACOSX_DEPLOYMENT_TARGET=15.0` by `tools/macos-deps/build.sh` and embedded.
 
 ### Warnings (clean Release build)
 
@@ -178,7 +178,7 @@ The packaging tooling is complete and tested; see [`tools/macos-package/README.m
 
 The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are published; their notes state Developer ID signing and Apple notarization. The draft release workflow (`.github/workflows/release-macos.yml`) builds an ad-hoc signed app only. That ad-hoc output is not the planned macOS release asset: `v6.7.0` ships only a Developer ID signed, hardened-runtime, notarized and stapled app that `package.sh -s … -r --notarize` builds locally from the release tag (see [`RELEASING.md`](RELEASING.md)).
 
-*Historical:* an earlier candidate embedded Homebrew bottles (Imlib2 and its X11/image loaders, and more) and required macOS 27 because those bottles were built for it. That design is obsolete: libraries are now built from source for macOS 14, textures are decoded by stb_image, and the app links only FreeType, ODE and freealut.
+*Historical:* an earlier candidate embedded Homebrew bottles (Imlib2 and its X11/image loaders, and more) and required macOS 27 because those bottles were built for it. That design is obsolete: libraries are now built from source for `MACOSX_DEPLOYMENT_TARGET=15.0`, textures are decoded by stb_image, and the app links only FreeType, ODE and freealut.
 
 ## Fixed on this branch (upstream bugs, all platforms)
 

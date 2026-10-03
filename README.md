@@ -41,7 +41,7 @@ this fork belong on this repository.
 | --- | --- |
 | `master` | The single canonical maintained trunk: the Ascendance Open Worlds FreeWRL 6.7 modernization line, including native Apple Silicon macOS support and this fork's merged work. All new work branches from `master` and merges back to `master`. It is the branch GitHub visitors see first. Before the 2026-09 promotion, `master` was an exact mirror of upstream `master` at `e99ab4a00` (2020-02-21); that commit remains the historical baseline. |
 | `develop` | Retired. It was the integration branch (based on upstream SourceForge `develop` at `b3254b11e`, "Version 6.7", 2024-04-20) whose tested state was promoted to `master` in 2026-09; it is no longer part of the workflow. |
-| `macos-arm64-develop-port` | The Apple Silicon port of FreeWRL 6.7, merged into `develop` through [pull request #2](https://github.com/DJAscendance/freewrl/pull/2). |
+| `macos-arm64-develop-port` | The Apple Silicon port of FreeWRL 6.7, merged into `develop` through [pull request #2](https://github.com/Ascendance3D/freewrl/pull/2). |
 | `macos-arm64` | An earlier Mac port of the 2020 `master` line, kept for reference. |
 
 ## Version
@@ -69,9 +69,9 @@ This fork's maintained `master` trunk is based on FreeWRL 6.7:
 **Native Apple Silicon macOS source support is available on this fork's
 maintained `master` trunk.** It was
 reviewed and merged into the 6.7 integration line through
-[pull request #2](https://github.com/DJAscendance/freewrl/pull/2) (the original
+[pull request #2](https://github.com/Ascendance3D/freewrl/pull/2) (the original
 FreeWRL 6.7 Apple Silicon integration) and promoted to `master` through
-[pull request #7](https://github.com/DJAscendance/freewrl/pull/7).
+[pull request #7](https://github.com/Ascendance3D/freewrl/pull/7).
 
 - Supported target: **macOS 15 Sequoia and newer on Apple Silicon (arm64).**
   Intel and macOS 14 or older are not release targets.
@@ -103,7 +103,7 @@ the release procedure and its validation gates. The manual interaction
 checks are recorded in
 [`docs/MANUAL-INTERACTION-CHECKLIST.md`](docs/MANUAL-INTERACTION-CHECKLIST.md).
 The Apple Silicon port review history is on
-[pull request #2](https://github.com/DJAscendance/freewrl/pull/2).
+[pull request #2](https://github.com/Ascendance3D/freewrl/pull/2).
 
 Detailed engineering status, per-feature evidence, and the OpenGL
 compatibility layer are in [`MACOS-STATUS.md`](MACOS-STATUS.md).

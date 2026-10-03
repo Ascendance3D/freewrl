@@ -13,7 +13,7 @@ The first maintained desktop release is **`v6.7.0`**, with the release title **`
 | macOS 15 Sequoia or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle: Developer ID signed, hardened runtime, notarized, stapled) |
 | Ubuntu 24.04 x86_64 desktop (X11 or Motif, Duktape JavaScript) | `freewrl-VERSION.tar.gz` (source tarball from `make dist`) |
 
-Not release targets: iOS, Android, Intel (x86_64) Macs, and macOS 13 or older. The historical
+Not release targets: iOS, Android, Intel (x86_64) Macs, and macOS 14 or older. The historical
 iOS and Android source trees stay in the repository; they do not block a release and are not built.
 
 ## macOS signing requirement
