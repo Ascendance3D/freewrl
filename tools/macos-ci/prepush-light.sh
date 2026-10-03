@@ -239,11 +239,9 @@ runtime_check() {
 		python3 "$here/fixtures.py" expect "$f" > "$o.expect" 2>&1 || why=" CI-markers-unreadable:'$(tail -1 "$o.expect")'"
 		asan=halt_on_error=0:abort_on_error=0:log_path=$o.asan   # as suite.sh; unused by a non-ASan build
 		res=$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o")
-		if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] '; then   # the known early exit, as smoke.sh
-			res="$(ASAN_OPTIONS=$asan "$here/run.sh" "$app" "$f" "$seconds" "$o") early-exit(retried)"
-		fi
 		echo "  $res"
 		echo "$res" | grep -qE 'CRASH:|malloc=[^n]' && why="$why crash-or-allocator-abort"
+		echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && why="$why early-exit"   # not retried, as smoke.sh
 		while IFS=$'\t' read -r kind value; do
 			[ "$kind" = marker ] || continue
 			markers="$markers '$value'"

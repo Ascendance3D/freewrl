@@ -12,10 +12,9 @@
 # proves nothing); sensor_replace.wrl's sensors fired under the pointer; with asan, no
 # AddressSanitizer report at all. Reports are counted per defect class (PROTO lifetime,
 # Frustum extent stack, Vector, GLCore client attributes, other) so a regression names its class.
-# A standalone texture run that exits cleanly before its window (the known intermittent early
-# exit) is retried once, in a file of its own; only a retry that also exits early fails the gate.
-# Nothing else is retried: a crash, an allocator abort, an AddressSanitizer report or a
-# texture/shader error in the first attempt fails the gate as it always did.
+# Nothing is retried: a run that exits cleanly before its window fails the gate like a crash, an
+# allocator abort, an AddressSanitizer report or a texture/shader error (the early exit was a
+# world load turned into a quit, fixed in MainLoop.c fwl_draw, PR #53).
 H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2 KIND=$3; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
@@ -34,17 +33,8 @@ fi
 BAD='failed to load|problem with (VERTEX|FRAGMENT) shader|GL error'
 for ((i=1; i<=CYC; i++)); do RELOAD_PERIOD=90 "$H/run.sh" "$APP" "$G/texture_formats.wrl" $CSEC "$OUT/cycle-$i"; done | tee "$OUT/cycles.txt"
 unset RELOAD_PATHS RELOAD_POINTER
-texrun() { # name world : one texture run, retried once (as name-retry) after a clean early exit
-	local name=$1 world=$2 res asan0 asan1
-	asan0=$(ls "$OUT"/asan.* 2>/dev/null | wc -l)
-	res=$("$H/run.sh" "$APP" "$world" $TSEC "$OUT/$name")
-	asan1=$(ls "$OUT"/asan.* 2>/dev/null | wc -l)
-	if echo "$res" | grep -qE 'EXIT:exited with status = [0-8] ' && [ "$asan0" = "$asan1" ] \
-		&& ! grep -qE "$BAD" "$OUT/$name.out" "$OUT/$name.err"; then
-		echo "$res early-clean-exit(retried once)"
-		res="$("$H/run.sh" "$APP" "$world" $TSEC "$OUT/$name-retry") retry"
-	fi
-	echo "$res"
+texrun() { # name world : one texture run
+	"$H/run.sh" "$APP" "$2" $TSEC "$OUT/$1"
 }
 {
 for ((i=1; i<=TEX; i++)); do texrun "texture-$i" "$G/texture_formats.wrl"; done
@@ -58,9 +48,24 @@ texrun "defnames-1" "$G/duktape_defnames.x3d"
 fail=0
 crashes=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -c 'CRASH:')
 mallocs=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -vc 'malloc=none')
-# a first attempt that was retried is not counted; its retry (or a cycle) exiting early is
-early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -v '(retried once)' | grep -cE 'EXIT:exited with status = [0-8] ')
-retried=$(grep -c '(retried once)' "$OUT/textures.txt")
+# any run (cycle or texture) that exited by itself before its window
+early=$(cat "$OUT/cycles.txt" "$OUT/textures.txt" | grep -cE 'EXIT:exited with status = [0-8] ')
+# every cycle must complete the replacements it requested; only the last may still be in flight
+# when the run stops. reloads= counts load calls that lldb made, not worlds that were replaced:
+# a world is replaced when reset_Browser runs, which prints 'calling kill_javascript()' once per
+# world (once more for the world the cycle starts with). Run 37074268480 had a cycle that
+# requested 14 replacements, completed none, and passed.
+stalled=0
+for f in "$OUT"/cycle-*.lldb.log; do
+	[ -e "$f" ] || continue
+	c=${f%.lldb.log}
+	req=$(grep -c '^RELOAD [0-9]* .* OK$' "$f")
+	got=$(( $(LC_ALL=C grep -ac 'calling kill_javascript()' "$c.out" 2>/dev/null) - 1 ))
+	echo "GATE $(basename "$c") replacements completed=$got requested=$req"
+	[ "$got" -ge $((req - 1)) ] || stalled=$((stalled + 1))
+done
+echo "GATE cycles with stalled replacements: $stalled"
+[ "$stalled" = 0 ] || fail=1
 reloads=$(grep -o 'reloads=[0-9]*' "$OUT/cycles.txt" | cut -d= -f2 | paste -sd+ - | bc)
 # every cycle must have replaced the world (reloads=0 means the harness never drove the app)
 # and must be free of harness faults
@@ -87,7 +92,7 @@ for f in "$OUT"/cycle-*.lldb.log; do
 done
 echo "GATE cycles without a pointer-driven sensor: $sensoridle"
 echo "GATE runs: $CYC cycles (${reloads:-0} world replacements, ${pointer:-0} pointer events, cycles without a replacement: $cycidle, harness faults: $harness), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensor_replace.wrl loads: $sensorloads, sensors driven by the pointer: $sensors"
-echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early (texture runs retried once: $retried)"
+echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early"
 [ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] \
 	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensorloads" -ge 1 ] && [ "$sensors" -ge 1 ] && [ "$sensoridle" = 0 ] || fail=1
 if [ "$KIND" = asan ]; then
