@@ -7,18 +7,17 @@ name: macOS Release Validation
 # It is the evidence run that .github/workflows/release-macos.yml accepts (tools/macos-release/
 # check-ci-run.sh: workflow_dispatch, master, exact SHA, this file's path, conclusion success).
 # There is one fixed test contract. There is no profile selector.
-# Supported: macOS 14 Sonoma and newer on Apple Silicon. Everything here targets
-# MACOSX_DEPLOYMENT_TARGET=14.0 (MACOS_MIN stays 14.0).
+# Supported: macOS 15 Sequoia and newer on Apple Silicon. Everything here targets
+# MACOSX_DEPLOYMENT_TARGET=15.0 (MACOS_MIN stays 15.0).
 # Runners:
-#   build, asan:  standard macos-15 runner. The macOS 15 image does not change the
-#                 product minimum: the package still targets 14.0 and every package minos
-#                 check still requires 14.0.
-#   runtime:      standard macos-14. This is the real minimum-supported-OS runtime proof.
+#   build, asan, runtime:  standard macos-15 runner. macOS 15 is the product minimum, so the
+#                 runtime job is the real minimum-supported-OS runtime proof; every package
+#                 minos check requires 15.0.
 # Jobs:
 #   build:    host-only container tests (tools/c-tests, no app launch), FreeType, ODE and freealut
 #             from their pinned source archives into an empty prefix, Release and Debug builds, the
 #             standalone package (ad-hoc signed), verify.py, doctypes
-#   runtime:  the same package on macOS 14: smoke fixtures, then (only when smoke passed)
+#   runtime:  the same package on macOS 15: smoke fixtures, then (only when smoke passed)
 #             world-replacement cycles and texture stress. One FreeWRL at a time.
 #   asan:     Debug + AddressSanitizer: world replacement with PROTO worlds and the texture
 #             fixtures. Every AddressSanitizer report fails the gate; suite.sh classifies them
@@ -41,7 +40,7 @@ concurrency:
   group: macos-release-validation-${{ github.event.inputs.expected_sha }}
   cancel-in-progress: false
 env:
-  MACOS_MIN: '14.0'
+  MACOS_MIN: '15.0'
   EXPECTED_SHA: ${{ github.event.inputs.expected_sha }}
 jobs:
   build:
@@ -135,7 +134,7 @@ jobs:
 
   runtime:
     needs: build
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -165,7 +164,7 @@ jobs:
         if: always()
         run: |
           OUT=$RUNNER_TEMP/out
-          { echo "### package on macos-14 ($(sw_vers -productVersion), $(uname -m)), expected_sha $EXPECTED_SHA"; echo '```'
+          { echo "### package on macos-15 ($(sw_vers -productVersion), $(uname -m)), expected_sha $EXPECTED_SHA"; echo '```'
             grep -hm1 GL_RENDERER $OUT/*.err $OUT/*.out 2>/dev/null | head -1
             cat $OUT/smoke.txt 2>/dev/null
             grep '^GATE' $OUT/results.txt 2>/dev/null || echo "stress not run (smoke failed)"; echo '```'; } >> $GITHUB_STEP_SUMMARY
@@ -174,7 +173,7 @@ jobs:
         run: mkdir -p $RUNNER_TEMP/out/crash; cp ~/Library/Logs/DiagnosticReports/FreeWRL* $RUNNER_TEMP/out/crash/ 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         if: always()
-        with: {name: runtime-macos-14, path: "${{ runner.temp }}/out"}
+        with: {name: runtime-macos-15, path: "${{ runner.temp }}/out"}
 
   asan:
     needs: build

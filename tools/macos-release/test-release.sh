@@ -188,7 +188,7 @@ app=$tmp/src/FreeWRL.app/Contents; mkdir -p "$app"
 cat > "$app/Info.plist" <<'PL'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>LSMinimumSystemVersion</key><string>14.0</string></dict></plist>
+<plist version="1.0"><dict><key>LSMinimumSystemVersion</key><string>15.0</string></dict></plist>
 PL
 A=$tmp/FreeWRL-6.8.0-macOS-arm64.zip
 ( cd "$tmp/src" && zip -qr "$A" FreeWRL.app )
@@ -202,7 +202,7 @@ check "metadata-checksum-matches-bytes" "grep -q '$SUM  FreeWRL-6.8.0-macOS-arm6
 if command -v shasum >/dev/null 2>&1; then
 	check "metadata-shasum-c-verifies" "cd '$O' && cp '$A' . && shasum -a 256 -c SHA256SUMS.txt" 0 "OK"
 fi
-check "metadata-manifest-matches-checksum" "python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); sys.exit(0 if m[\"sha256\"]==sys.argv[2] and m[\"minimum_macos\"]==\"14.0\" and m[\"commit\"]==\"cafe\" else 1)' '$O/release-manifest.json' '$SUM'" 0
+check "metadata-manifest-matches-checksum" "python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); sys.exit(0 if m[\"sha256\"]==sys.argv[2] and m[\"minimum_macos\"]==\"15.0\" and m[\"commit\"]==\"cafe\" else 1)' '$O/release-manifest.json' '$SUM'" 0
 check "metadata-wrong-name-rejected" "'$meta' --archive '$A' --version 1.2.3 --tag v1.2.3 --commit x --out '$tmp/o-wrong'" 1 "asset contract"
 check "metadata-missing-archive-rejected" "'$meta' --archive '$tmp/nope.zip' --version 6.8.0 --tag v6.8.0 --commit x --out '$tmp/o-missing'" 1
 check "metadata-overwrite-refused" "'$meta' --archive '$A' --version 6.8.0 --tag v6.8.0 --commit x --out '$O'" 1 "refusing to overwrite"

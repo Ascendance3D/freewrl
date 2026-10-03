@@ -10,7 +10,7 @@ The first maintained desktop release is **`v6.7.0`**, with the release title **`
 
 | Platform | Release artifact |
 | --- | --- |
-| macOS 14 Sonoma or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle: Developer ID signed, hardened runtime, notarized, stapled) |
+| macOS 15 Sequoia or newer, Apple Silicon (arm64) | `FreeWRL-VERSION-macOS-arm64.zip` (app bundle: Developer ID signed, hardened runtime, notarized, stapled) |
 | Ubuntu 24.04 x86_64 desktop (X11 or Motif, Duktape JavaScript) | `freewrl-VERSION.tar.gz` (source tarball from `make dist`) |
 
 Not release targets: iOS, Android, Intel (x86_64) Macs, and macOS 13 or older. The historical
@@ -46,11 +46,10 @@ GitHub Actions is a release-validation system, not a development test system.
 - Release validation runs from `master` for **one exact expected SHA** (`expected_sha`, 40 hex
   characters). The run fails at once if it is not on `master` or if `github.sha` differs from
   `expected_sha`.
-- The build and ASan jobs use a standard `macos-15` runner (Apple
-  Silicon).
-- The minimum-OS runtime gate runs on the standard `macos-14` runner. This is the real proof that
-  the app runs on the minimum supported macOS.
-- `MACOS_MIN` remains `14.0`. The macOS 15 build runner does not change the product minimum.
+- The build, runtime and ASan jobs use a standard `macos-15` runner (Apple Silicon).
+- macOS 15 is the minimum supported macOS, so the runtime job on `macos-15` is the real proof that
+  the app runs on it.
+- `MACOS_MIN` is `15.0`.
 - The draft release workflow accepts only the successful manual validation run for the same SHA.
 
 Codemagic is separate and supplemental. It never publishes releases.
@@ -167,7 +166,7 @@ on the signed zip. Finder's Version field shows `CFBundleShortVersionString`.
 
 - Development and PR QA are done locally. Nothing on GitHub Actions is used for this.
 - You chose the version. Do not assume the next number; pick it deliberately.
-- You are on macOS 14 (Sonoma) or newer on Apple Silicon for any local macOS checks, and on
+- You are on macOS 15 (Sequoia) or newer on Apple Silicon for any local macOS checks, and on
   Ubuntu 24.04 x86_64 for the Linux checks.
 
 ### 2. Merge the approved candidate to master
@@ -194,8 +193,8 @@ The workflow fails at the start unless `expected_sha` is 40 hex characters, the 
 and `github.sha` equals `expected_sha`. It has one fixed test contract and no profile selector:
 
 - `build` on `macos-15`: host container tests, dependency build, Release build, package,
-  package verify (every `minos` is `14.0`), doctypes, Debug build;
-- `runtime` on `macos-14`: smoke fixtures, world-replacement cycles, texture stress, runtime GATE,
+  package verify (every `minos` is `15.0`), doctypes, Debug build;
+- `runtime` on `macos-15`: smoke fixtures, world-replacement cycles, texture stress, runtime GATE,
   crash count, allocator-abort count;
 - `asan` on `macos-15`: Debug AddressSanitizer build, world replacement, texture lifetime, ASan
   classification, Total = 0.
@@ -290,8 +289,8 @@ Run the **macOS Release (draft)** workflow (`.github/workflows/release-macos.yml
 - `ci_run_id` — the run ID of the successful manual validation run from step 6
 - `prerelease` — `true` for a beta/rc, otherwise `false`
 
-The release job runs on `macos-15` (macOS 15) with `MACOS_MIN=14.0`. It does not repeat the
-macOS 14 runtime tests; the validation run in step 4 already proved them.
+The release job runs on `macos-15` (macOS 15) with `MACOS_MIN=15.0`. It does not repeat the
+runtime tests; the validation run in step 4 already proved them.
 
 The workflow re-proves everything in step 8, verifies the validation run against the contract in
 step 6, builds from the exact tag, packages, runs package verification and the document-type gate,
@@ -340,7 +339,7 @@ codesign --verify --deep --strict --verbose=2 "$OUT/FreeWRL.app"
 codesign -dv --verbose=4 "$OUT/FreeWRL.app" 2>&1 | grep -E 'Authority=Developer ID Application|flags=.*runtime|Timestamp='
 xcrun stapler validate "$OUT/FreeWRL.app"
 spctl --assess --type execute --verbose=4 "$OUT/FreeWRL.app"     # source=Notarized Developer ID
-tools/macos-package/verify.py --macos 14.0 "$OUT/FreeWRL.app"
+tools/macos-package/verify.py --macos 15.0 "$OUT/FreeWRL.app"
 /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$OUT/FreeWRL.app/Contents/Info.plist"   # 6.7.0
 tools/macos-release/check-app-version.sh --app "$OUT/FreeWRL.app" --tag "$TAG"
 tools/macos-ci/smoke.sh "$OUT/FreeWRL.app" "$OUT/smoke"

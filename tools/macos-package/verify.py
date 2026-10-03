@@ -91,7 +91,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source-root", action="append", default=[],
                     help="also forbid paths under this directory (repeatable)")
-    ap.add_argument("--macos", help="oldest macOS the package must run on, e.g. 14.0")
+    ap.add_argument("--macos", help="oldest macOS the package must run on, e.g. 15.0")
     ap.add_argument("app")
     a = ap.parse_args()
     # Canonical paths: every run path and dependency below is resolved with realpath, and

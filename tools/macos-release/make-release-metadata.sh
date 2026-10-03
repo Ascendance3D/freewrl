@@ -123,7 +123,7 @@ selftest() {
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>LSMinimumSystemVersion</key><string>15.0</string>
 </dict></plist>
 PL
 	arch=$t/FreeWRL-9.9.9-macOS-arm64.zip
@@ -140,7 +140,7 @@ PL
 
 	# 3. manifest sha256 equals the SHA256SUMS value, and min_macos was read from the app
 	mjson=$(python3 -c 'import json,sys;m=json.load(open(sys.argv[1]));print(m["sha256"],m["minimum_macos"],m["asset"])' "$out/release-manifest.json" 2>/dev/null)
-	tick "manifest-matches-checksum" "[ '$mjson' = '$sum 14.0 FreeWRL-9.9.9-macOS-arm64.zip' ]"
+	tick "manifest-matches-checksum" "[ '$mjson' = '$sum 15.0 FreeWRL-9.9.9-macOS-arm64.zip' ]"
 
 	# 4. malformed input: a missing archive fails
 	tick "missing-archive-fails" "! '$0' --archive '$t/nope.zip' --version 9.9.9 --tag v9.9.9 --commit x --out '$t/o4' >/dev/null 2>&1"
