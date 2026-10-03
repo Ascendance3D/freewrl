@@ -65,7 +65,7 @@ jobs:
             || { echo "ci_run_id must be numeric"; exit 1; }
 
       # exact tag; full history and the annotated tag object so peel/reachability can be proven
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag }}
           fetch-depth: 0
@@ -216,7 +216,7 @@ jobs:
             echo "- state: DRAFT only — not published"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: release-metadata
