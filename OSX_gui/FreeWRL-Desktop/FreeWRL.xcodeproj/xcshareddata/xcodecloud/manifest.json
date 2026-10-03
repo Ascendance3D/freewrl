@@ -1,0 +1,9 @@
+{
+  "id" : "b81602c1-ebc8-4d29-ae28-6d07ad948756",
+  "targets" : [
+    {
+      "id" : "eb344a5d-48ec-4fab-9621-c3ded0197139",
+      "name" : "FreeWRL"
+    }
+  ]
+}
