@@ -7,7 +7,7 @@ FreeWRL project; see the [fork notice](README.md#fork-notice).
 
 This fork maintains these targets on `master`:
 
-- macOS 14 Sonoma and newer on Apple Silicon (arm64), built with Xcode.
+- macOS 15.0 and newer on Apple Silicon (arm64), built with Xcode.
 - Linux, built with autotools (`freex3d/`).
 
 The Android, iOS and Windows build files come from upstream FreeWRL. This fork does not build,
