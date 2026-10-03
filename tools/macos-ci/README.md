@@ -18,8 +18,10 @@ The result line reports `reloads=` (loads that succeeded), `reload-failures=`,
 `pointer-events=`, `pointer-failures=`, and `HARNESS:...` when `reloader.py` was not armed, a
 load or pointer call failed, or no pointer event went out. `suite.sh` fails its gate when any
 cycle made no replacement, had a harness fault, or sent no pointer events, and when
-`sensor_replace.wrl`'s sensors never fired under the pointer: a run that replaced nothing
-proves nothing. The lldb log (`OUTPREFIX.lldb.log`) holds `RELOADER armed ...`, one
+`sensor_replace.wrl` was never loaded or its sensors never fired under the pointer: a run that
+replaced nothing proves nothing. `sensor_replace.wrl` is first in `RELOAD_PATHS` because each
+cycle starts the list again and a hosted GitHub runner makes only 6 to 8 replacements in a
+120 s cycle. The lldb log (`OUTPREFIX.lldb.log`) holds `RELOADER armed ...`, one
 `RELOAD n world OK|FAIL: <lldb error>` per load, and `POINTER events=n failed=m stopped=k` per period
 (`stopped`: calls the watchdog's SIGSTOP interrupted at the end of the run; not a fault).
 
