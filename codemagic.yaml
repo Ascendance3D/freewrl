@@ -100,7 +100,8 @@ workflows:
       - name: Release build and package
         script: |
           set -euo pipefail
-          tools/macos-package/package.sh -t "$MACOS_MIN" -D "$CM_BUILD_DIR/deps" -z -o "$CM_BUILD_DIR/pkg"
+          mkdir -p "$CM_BUILD_DIR/pkg"
+          tools/macos-package/package.sh -t "$MACOS_MIN" -D "$CM_BUILD_DIR/deps" -z -o "$CM_BUILD_DIR/pkg" 2>&1 | tee "$CM_BUILD_DIR/pkg/package.log"
 
       - name: Package verification and document-type gate
         script: |
@@ -115,10 +116,17 @@ workflows:
         script: |
           set -euo pipefail
           OUT="$CM_BUILD_DIR/out"; mkdir -p "$OUT"
-          tools/macos-ci/smoke.sh "$CM_BUILD_DIR/pkg/FreeWRL.app" "$OUT" | tee "$OUT/smoke.txt"
+          # the GitHub runtime job's smoke window; the release and ASan suites run only on GitHub
+          SMOKE_SEC=15 tools/macos-ci/smoke.sh "$CM_BUILD_DIR/pkg/FreeWRL.app" "$OUT" | tee "$OUT/smoke.txt"
+
+      - name: Interface Builder files
+        script: |
+          set -euo pipefail
+          tools/macos-ci/xib-check.sh
 
     artifacts:
       - $CM_BUILD_DIR/pkg/FreeWRL-macos-arm64.zip
       - $CM_BUILD_DIR/pkg/FreeWRL-macos-arm64.zip.sha256
       - $CM_BUILD_DIR/pkg/package.log
+      - $CM_BUILD_DIR/pkg/build.log
       - $CM_BUILD_DIR/out/*
