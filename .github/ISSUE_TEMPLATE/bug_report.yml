@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a defect in this FreeWRL fork.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report a security vulnerability here. Follow [SECURITY.md](https://github.com/Ascendance3D/freewrl/blob/master/SECURITY.md) instead.
+
+        Bugs that also exist in the original FreeWRL can go to the [upstream FreeWRL project](https://sourceforge.net/projects/freewrl/).
+  - type: input
+    id: version
+    attributes:
+      label: FreeWRL version
+      description: The release (for example 6.7.0-rc.1) or the commit SHA you built.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Name and version, for example macOS 15.0 or Ubuntu 24.04.
+    validations:
+      required: true
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      options:
+        - arm64 (Apple Silicon or other ARM 64-bit)
+        - x86_64
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: master
+    attributes:
+      label: Does the problem occur on current master?
+      options:
+        - "Yes"
+        - "No"
+        - Not tested
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: scene
+    attributes:
+      label: Scene or file
+      description: Attach or link a minimal VRML or X3D file, only if it is safe and legal to share.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Console output, crash log or sanitizer output. Remove private paths and data first.
+      render: text

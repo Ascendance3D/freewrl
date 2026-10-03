@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Ascendance3D/freewrl/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue.
+  - name: Ask a question
+    url: https://github.com/Ascendance3D/freewrl/discussions/categories/q-a
+    about: Questions about building or using this fork.
+  - name: Original FreeWRL project (SourceForge)
+    url: https://sourceforge.net/projects/freewrl/
+    about: Questions and bugs about FreeWRL itself, outside this fork.
