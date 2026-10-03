@@ -71,6 +71,7 @@ The header says when the tree is dirty.
 | `host-c-tests` | `tools/c-tests/run-containers.sh`, the host-only C tests of the CI build job. SKIP if `clang` (or `$CC`) cannot run. |
 | `actions-runtime` | `tools/macos-ci/actions-runtime.sh` (CI build job runs it too): every `uses:` action in `.github/workflows` declares `runs.using: node24` (or composite/docker) in its `action.yml` at the pinned ref, read through `gh api`. A Node 20 action is a FAIL: GitHub would run it with a deprecation warning. SKIP without `gh`, offline or not logged in. |
 | `doctypes` | `tools/macos-ci/doctypes.sh` on the source `FreeWRL-Info.plist`. CI runs it on the built app; give `--app path/to/FreeWRL.app` to do the same. SKIP without `plutil` (not macOS) or `python3`. |
+| `xib` | `tools/macos-ci/xib-check.sh` (CI runs it too): every `.xib` that `FreeWRL.xcodeproj` builds compiles with `ibtool` with no error, warning or notice (a deprecated appearance is a warning); every `customClass` is an AppKit class or an `@interface` in `OSX_gui/FreeWRL-Desktop/FreeWRL` (a missing class is only logged at run time, as `[Nib Loading] Unknown class`); and no `.xib` under `OSX_gui/FreeWRL-Desktop` is left unbuilt. SKIP without `ibtool`. |
 
 The three `fixture-*` checks cover every regression fixture instead of only the changed ones
 when you give `--all`, when a file they all read changed (the regression `README`,

@@ -107,6 +107,8 @@ jobs:
           # The live LaunchServices open needs a GUI session (tools/macos-ci/launchservices.sh,
           # a mandatory release-QA step); here we run the deterministic static half.
           tools/macos-ci/doctypes.sh "$APP"
+          # Interface Builder files: no ibtool warning, every customClass exists, no unbuilt .xib
+          tools/macos-ci/xib-check.sh
           # negative control: the unpackaged build links the prefix and must fail the gate
           if python3 tools/macos-package/verify.py --macos "$MACOS_MIN" "$RUNNER_TEMP/pkg/DerivedData/Build/Products/Release/FreeWRL.app" > negative.txt; then
             cat negative.txt; echo "verify.py passed an unpackaged build"; exit 1

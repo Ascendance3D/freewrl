@@ -560,7 +560,13 @@ bool initialize_rdr_caps()
 #endif
 	p->rdr_caps.runtime_max_texture_size = (int) tmp;
 	ConsoleMessage("runtime/freewrl: %d\n",tmp);
+#if defined(__aarch64__) || defined(_M_ARM64)
+	ConsoleMessage("processor architecture arm64\n");
+#elif defined(__arm__) || defined(_M_ARM)
+	ConsoleMessage("processor architecture arm\n");
+#else
 	ConsoleMessage("processor architecture %s\n",sizeof(void*)>4?"x64":"x86");
+#endif
 	// GL_MAX_TEXTURE_UNITS is for fixed function, and should be deprecated.
 	// use GL_MAX_TEXTURE_IMAGE_UNITS now, according to the OpenGL.org wiki
 
@@ -572,7 +578,7 @@ bool initialize_rdr_caps()
 	#endif
 
 	p->rdr_caps.texture_units = (int) tmp;
-	ConsoleMessage("maxiumum image texture units %d \n",p->rdr_caps.texture_units);
+	ConsoleMessage("maximum image texture units %d \n",p->rdr_caps.texture_units);
 
 	/* max supported texturing anisotropicDegree- can be changed in TextureProperties */
 #ifdef GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT

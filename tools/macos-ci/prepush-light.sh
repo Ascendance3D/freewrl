@@ -207,6 +207,16 @@ else
 	fi
 fi
 
+# 7a. Interface Builder files: ibtool compiles them cleanly, every customClass exists, no unbuilt .xib
+if ! command -v ibtool >/dev/null 2>&1; then
+	report SKIP xib "ibtool not found (Xcode, macOS only)"
+elif "$here/xib-check.sh" > "$tmp/xib" 2>&1; then
+	report PASS xib "tools/macos-ci/xib-check.sh: $(grep -c '^PASS' "$tmp/xib") check(s)"
+else
+	report FAIL xib "tools/macos-ci/xib-check.sh:"
+	grep -vE '^(PASS|XIBCHECK)' "$tmp/xib" | sed 's/^/    /'
+fi
+
 # 8. optional: start FreeWRL on the named fixtures, one at a time, with smoke.sh's checks
 runtime_check() {
 	local out bad bad_line f i name o asan res why markers kind value nfail want_fail nasan problems=() summary=()
@@ -221,6 +231,7 @@ runtime_check() {
 	out=$(mktemp -d "$tmpdir/freewrl-prepush-runtime.XXXXXX")
 	bad=$(sed -n "s/^BAD='\(.*\)'\$/\1/p" "$here/smoke.sh" | head -1)
 	bad=${bad:-'failed to load|problem with (VERTEX|FRAGMENT) shader|GL error|Script error'}
+	noise=$(sed -n "s/^NOISE='\(.*\)'\$/\1/p" "$here/smoke.sh" | head -1)
 	i=0
 	for f in "${fixtures[@]}"; do
 		i=$((i + 1)); name=$(basename "$f"); name=${name%.*}; o=$out/$i-$name
@@ -246,6 +257,7 @@ runtime_check() {
 		else
 			bad_line=$(cat "$o.out" "$o.err" 2>/dev/null | grep -E "$bad" | head -1)
 		fi
+		[ -z "$bad_line" ] && [ -n "$noise" ] && bad_line=$(cat "$o.out" "$o.err" 2>/dev/null | grep -E "$noise" | head -1)
 		[ -n "$bad_line" ] && why="$why BAD:'$bad_line'"
 		nasan=$(ls "$o".asan.* 2>/dev/null | wc -l | tr -d ' ')
 		[ "$nasan" = 0 ] || why="$why AddressSanitizer-reports:$nasan"
