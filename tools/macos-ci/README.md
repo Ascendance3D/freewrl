@@ -18,8 +18,10 @@ The result line reports `reloads=` (loads that succeeded), `reload-failures=`,
 `pointer-events=`, `pointer-failures=`, and `HARNESS:...` when `reloader.py` was not armed, a
 load or pointer call failed, or no pointer event went out. `suite.sh` fails its gate when any
 cycle made no replacement, had a harness fault, or sent no pointer events, and when
-`sensor_replace.wrl`'s sensors never fired under the pointer: a run that replaced nothing
-proves nothing. The lldb log (`OUTPREFIX.lldb.log`) holds `RELOADER armed ...`, one
+`sensor_replace.wrl` was never loaded or its sensors never fired under the pointer: a run that
+replaced nothing proves nothing. `sensor_replace.wrl` is first in `RELOAD_PATHS` because each
+cycle starts the list again and a hosted GitHub runner makes only 6 to 8 replacements in a
+120 s cycle. The lldb log (`OUTPREFIX.lldb.log`) holds `RELOADER armed ...`, one
 `RELOAD n world OK|FAIL: <lldb error>` per load, and `POINTER events=n failed=m stopped=k` per period
 (`stopped`: calls the watchdog's SIGSTOP interrupted at the end of the run; not a fault).
 
@@ -67,7 +69,9 @@ The header says when the tree is dirty.
 | `fixture-script` | For each changed regression fixture: every `Browser.<name>` in a Script exists on the duktape `Browser` object (`jsVRMLBrowser_duk.c`); every success marker (a string such as `X_DONE`, `X_OK` or `X_PASS`) is checked by a CI script, and is printed only where a result guard (an `if`/`else`/`switch`/`catch`, `?:`, `&&` or `\|\|`) decides that it prints. Being inside an event handler is not enough: a handler runs whenever its event is delivered, whatever the value, so a marker it prints unconditionally proves only that the event arrived, not that the result was right. |
 | `marker-contract` | For every fixture that `smoke.sh` (`run NAME WORLD MARKER`) or `suite.sh` (`texrun NAME-i WORLD` with `grep -c "MARKER"`) runs: the fixture exists; it prints the marker (or the engine source prints it, for example `Skinning Method: CPU`); it does not print that marker unconditionally at load time; if it prints a success marker, the script checks that exact marker; its Pass clause quotes the text that the script greps for. A log line that the engine prints (not the fixture) must be in the engine source instead; the Pass clause need not quote it. Every repository path that the scripts build from `$H`, `$R`, `$SRC`, `$T` or `$G` exists. This check always covers every entry, changed or not. |
 | `host-c-tests` | `tools/c-tests/run-containers.sh`, the host-only C tests of the CI build job. SKIP if `clang` (or `$CC`) cannot run. |
+| `actions-runtime` | `tools/macos-ci/actions-runtime.sh` (CI build job runs it too): every `uses:` action in `.github/workflows` declares `runs.using: node24` (or composite/docker) in its `action.yml` at the pinned ref, read through `gh api`. A Node 20 action is a FAIL: GitHub would run it with a deprecation warning. SKIP without `gh`, offline or not logged in. |
 | `doctypes` | `tools/macos-ci/doctypes.sh` on the source `FreeWRL-Info.plist`. CI runs it on the built app; give `--app path/to/FreeWRL.app` to do the same. SKIP without `plutil` (not macOS) or `python3`. |
+| `xib` | `tools/macos-ci/xib-check.sh` (CI runs it too): every `.xib` that `FreeWRL.xcodeproj` builds compiles with `ibtool` with no error, warning or notice (a deprecated appearance is a warning); every `customClass` is an AppKit class or an `@interface` in `OSX_gui/FreeWRL-Desktop/FreeWRL` (a missing class is only logged at run time, as `[Nib Loading] Unknown class`); and no `.xib` under `OSX_gui/FreeWRL-Desktop` is left unbuilt. SKIP without `ibtool`. |
 
 The three `fixture-*` checks cover every regression fixture instead of only the changed ones
 when you give `--all`, when a file they all read changed (the regression `README`,

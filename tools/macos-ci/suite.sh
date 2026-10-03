@@ -19,8 +19,10 @@ H=$(cd "$(dirname "$0")" && pwd); R=$(cd "$H/../.." && pwd)
 APP=$1 OUT=$2 KIND=$3; mkdir -p "$OUT"
 T=$R/freewrl/tests; G=$T/regression
 # replaced in turn; 8.wrl, 10.wrl, proto_replace.wrl, gzip_proto.wrl and sensor_replace.wrl
-# declare PROTOs (no audio); sensor_replace.wrl puts pointing-device sensors under the pointer
-export RELOAD_PATHS="$T/8.wrl:$G/texture_formats.wrl:$T/10.wrl:$G/proto_replace.wrl:$T/1.wrl:$T/16.wrl:$G/text_fonts.wrl:$G/route_dotted.wrl:$G/hanim_skin.x3d:$G/gzip_proto.wrl:$G/sensor_replace.wrl:$G/texture_formats_stb.wrl:$G/glcore_stale_attribs.wrl"
+# declare PROTOs (no audio); sensor_replace.wrl puts pointing-device sensors under the pointer.
+# sensor_replace.wrl is first: each cycle starts the list again, and a hosted GitHub runner makes
+# only 6-8 replacements in a 120 s cycle (run 37001161967), so a later place is never reached
+export RELOAD_PATHS="$G/sensor_replace.wrl:$T/8.wrl:$G/texture_formats.wrl:$T/10.wrl:$G/proto_replace.wrl:$T/1.wrl:$T/16.wrl:$G/text_fonts.wrl:$G/route_dotted.wrl:$G/hanim_skin.x3d:$G/gzip_proto.wrl:$G/texture_formats_stb.wrl:$G/glcore_stale_attribs.wrl"
 export RELOAD_POINTER=300,300
 if [ "$KIND" = asan ]; then
 	export ASAN_OPTIONS=halt_on_error=0:abort_on_error=0:log_path=$OUT/asan
@@ -78,10 +80,21 @@ particles=$(cat "$OUT"/particles-*.out "$OUT"/particles-*.err 2>/dev/null | grep
 defnames=$(cat "$OUT"/defnames-*.out "$OUT"/defnames-*.err 2>/dev/null | grep -c "DUK_DEFNAMES_DONE")
 # the pointer must have driven sensor_replace.wrl's SphereSensor in the cycles (picking ran)
 sensors=$(cat "$OUT"/cycle-*.out "$OUT"/cycle-*.err 2>/dev/null | grep -o "SENSOR_SPHERE" | wc -l | tr -d ' ')
-echo "GATE runs: $CYC cycles (${reloads:-0} world replacements, ${pointer:-0} pointer events, cycles without a replacement: $cycidle, harness faults: $harness), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensors driven by the pointer: $sensors"
+# and sensor_replace.wrl must have been loaded (0 here names a reload-order fault, not picking)
+sensorloads=$(cat "$OUT"/cycle-*.lldb.log 2>/dev/null | grep -c '^RELOAD [0-9]* sensor_replace.wrl OK$')
+# and in every cycle: each cycle starts RELOAD_PATHS again, so its first replacement is
+# sensor_replace.wrl. A total over the cycles let one cycle with no sensor at all pass (run 37074268480)
+sensoridle=0
+for f in "$OUT"/cycle-*.lldb.log; do
+	[ -e "$f" ] || continue
+	c=${f%.lldb.log}
+	cat "$c.out" "$c.err" 2>/dev/null | grep -q "SENSOR_SPHERE" || sensoridle=$((sensoridle + 1))
+done
+echo "GATE cycles without a pointer-driven sensor: $sensoridle"
+echo "GATE runs: $CYC cycles (${reloads:-0} world replacements, ${pointer:-0} pointer events, cycles without a replacement: $cycidle, harness faults: $harness), $TEX texture_formats + $TSTB texture_formats_stb runs, 1 particles run (maxParticles raised: $particles), 1 defnames run (updateNamedNode: $defnames), sensor_replace.wrl loads: $sensorloads, sensors driven by the pointer: $sensors"
 echo "GATE crashes=$crashes allocator-aborts=$mallocs texture-errors=$texbad cycle-errors=$cycbad early-clean-exits=$early"
 [ "$crashes" = 0 ] && [ "$mallocs" = 0 ] && [ "$texbad" = 0 ] && [ "$cycbad" = 0 ] && [ "$early" = 0 ] && [ "$particles" -ge 1 ] && [ "$defnames" -ge 1 ] \
-	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensors" -ge 1 ] || fail=1
+	&& [ "${reloads:-0}" -ge 1 ] && [ "$cycidle" = 0 ] && [ "$harness" = 0 ] && [ "${pointer:-0}" -ge 1 ] && [ "$sensorloads" -ge 1 ] && [ "$sensors" -ge 1 ] && [ "$sensoridle" = 0 ] || fail=1
 if [ "$KIND" = asan ]; then
 	# Each report is classified by its first FreeWRL frame (the SUMMARY line names only the
 	# faulting frame, which for a memcpy is the sanitizer itself). One line per report.
@@ -107,5 +120,10 @@ if [ "$KIND" = asan ]; then
 	echo "GATE asan PROTO=$proto Frustum=$frustum Vector=$vector GLCore=$glcore DUKdef=$dukdef Other=$other Total=$total_asan"
 	[ "$total_asan" = 0 ] || fail=1
 fi
+# launch noise (smoke.sh NOISE: unknown nib class, unrestorable window, wrong architecture) in any run
+NOISE=$(sed -n "s/^NOISE='\(.*\)'\$/\1/p" "$H/smoke.sh" | head -1)
+noise=$(cat "$OUT"/*.out "$OUT"/*.err 2>/dev/null | grep -cE "${NOISE:?no NOISE line in smoke.sh}")
+echo "GATE launch-noise=$noise"
+[ "$noise" = 0 ] || fail=1
 [ $fail = 0 ] && echo "GATE PASS" || echo "GATE FAIL"
 exit $fail
