@@ -36,7 +36,7 @@ There is no unit test suite. Test manually by loading a world: `freewrl ../freew
 
 ## Build (macOS / Xcode, Apple Silicon)
 
-Supported: macOS 15 Sequoia and newer on Apple Silicon (arm64). `MACOSX_DEPLOYMENT_TARGET` is 15.0 in `FreeWRL.xcodeproj`, `tools/macos-deps/build.sh` and `tools/macos-package/package.sh`. Don't claim macOS 13 or Intel support.
+Supported: macOS 15 Sequoia and newer on Apple Silicon (arm64). `MACOSX_DEPLOYMENT_TARGET` is 15.0 in `FreeWRL.xcodeproj`, `tools/macos-deps/build.sh` and `tools/macos-package/package.sh`. Don't claim macOS 14 or older, or Intel support.
 
 The only non-Apple libraries linked are FreeType, ODE and freealut (Apple's `OpenAL.framework` for audio). `FW_DEPS` (default `/opt/homebrew`) is where Xcode finds them; for anything distributed use a prefix from `tools/macos-deps/build.sh`, since Homebrew bottles only run on the macOS they were built for.
 

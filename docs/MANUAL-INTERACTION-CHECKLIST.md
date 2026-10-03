@@ -8,7 +8,7 @@ permission. Manual QA then found a Cocoa keyboard-event defect, fixed in
 `32caaa36a`, and a targeted QA pass completed the checklist on that head.
 
 Candidate: `macos-arm64-develop-port` @ `32caaa36a845fc668c9fd36cd2cfd8b047c46733`
-(merged into `develop` by [pull request #2](https://github.com/DJAscendance/freewrl/pull/2)).
+(merged into `develop` by [pull request #2](https://github.com/Ascendance3D/freewrl/pull/2)).
 
 - [x] 1. Launch the Release build.
 - [x] 2. Press `q`; confirm a clean exit.
