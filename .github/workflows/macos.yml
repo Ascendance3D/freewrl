@@ -61,7 +61,7 @@ jobs:
             || { echo "release validation runs from master only, not '$GITHUB_REF_NAME'"; exit 1; }
           test "$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')" = "$(printf '%s' "$EXPECTED_SHA" | tr 'A-F' 'a-f')" \
             || { echo "github.sha $GITHUB_SHA does not equal expected_sha $EXPECTED_SHA"; exit 1; }
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: environment
         run: sw_vers; xcodebuild -version; uname -m
       # every action used here must run on Node 24 (no "Node.js 20 is deprecated" annotation)
@@ -125,14 +125,14 @@ jobs:
           vtool -show-build "$E" | grep -q "minos $MACOS_MIN"
       - name: keep the dependency prefix for the ASan job
         run: tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/deps.tgz" deps
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: package
           path: |
             ${{ runner.temp }}/pkg/FreeWRL-macos-arm64.zip
             ${{ runner.temp }}/pkg/FreeWRL-macos-arm64.zip.sha256
             ${{ runner.temp }}/pkg/package.log
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with: {name: deps, path: "${{ runner.temp }}/deps.tgz"}
 
   runtime:
@@ -140,8 +140,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: {name: package, path: pkg}
       - name: unpack
         run: |
@@ -174,7 +174,7 @@ jobs:
       - name: collect crash reports
         if: always()
         run: mkdir -p $RUNNER_TEMP/out/crash; cp ~/Library/Logs/DiagnosticReports/FreeWRL* $RUNNER_TEMP/out/crash/ 2>/dev/null || true
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with: {name: runtime-macos-15, path: "${{ runner.temp }}/out"}
 
@@ -183,8 +183,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: {name: deps, path: depsart}
       - name: build (Debug, AddressSanitizer)
         run: |
@@ -206,6 +206,6 @@ jobs:
         run: |
           OUT=$RUNNER_TEMP/out
           { echo "### ASan ($(sw_vers -productVersion)), expected_sha $EXPECTED_SHA"; echo '```'; cat $OUT/results.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with: {name: asan, path: "${{ runner.temp }}/out"}
