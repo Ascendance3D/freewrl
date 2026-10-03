@@ -246,6 +246,11 @@ Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
 5. Fixes to FreeWRL itself are welcome upstream too, on the SourceForge
    project.
 
+The full guide is in [`CONTRIBUTING.md`](CONTRIBUTING.md). Report
+vulnerabilities privately as [`SECURITY.md`](SECURITY.md) describes, not in a
+public issue. For help, see [`SUPPORT.md`](SUPPORT.md). Everyone who takes part
+follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License and attribution
 
 FreeWRL was written by its original authors and the FreeWRL/FreeX3D
@@ -254,7 +259,8 @@ notice "Copyright 2009 CRC Canada"; some files name other copyright holders.
 
 The source headers license FreeWRL under the GNU Lesser General Public
 License, version 3 or (at your option) any later version. The repository
-ships the LGPL v3 text in `freex3d/COPYING.LESSER` and the GNU GPL v3 text,
+ships the LGPL v3 text in `freex3d/COPYING.LESSER` (with an identical copy
+in the root [`LICENSE`](LICENSE)) and the GNU GPL v3 text,
 which the LGPL builds on, in `freex3d/COPYING`. The header boilerplate also
 refers to the GPL in its warranty and "copy of the license" lines. Bundled
 third-party code (for example SpiderMonkey in `freewrl/JS/`, duktape, libtess,

@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # GitHub Actions is the only ecosystem in this repository that Dependabot can update.
+  # Vendored C libraries and the pinned macOS dependency sources are maintained by hand.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
