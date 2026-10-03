@@ -9,6 +9,8 @@ workflow uses the shared scheme `FreeWRL` (`FreeWRL.xcodeproj/xcshareddata/xcsch
   Xcode Cloud cannot pass build settings on the command line.
 - `ci_post_xcodebuild.sh` checks the built `FreeWRL.app`: arm64 only, `minos` and
   `LSMinimumSystemVersion` equal to the deployment target, and the static document-type gate.
+  It fails when a successful build action left no `FreeWRL.app` (or more than one) where
+  Xcode Cloud puts it.
 
 Xcode Cloud does not start FreeWRL. Smoke, runtime and ASan proof stay in
 `.github/workflows/macos.yml`, and GitHub Actions stays the final gate.
