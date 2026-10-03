@@ -1244,7 +1244,7 @@ int lexer_EXTERNPROTO_mfstringValue(struct VRMLLexer* me, struct Multi_String* r
                         else
                                 strcat (fw_outline, "(EOF)");
                         strcat (fw_outline,"\" ");
-                        ConsoleMessage(fw_outline);
+                        ConsoleMessage("%s", fw_outline); /* holds world text: data, not a format */
                         fprintf (stderr,"%s\n",fw_outline);
                         break;
                 }

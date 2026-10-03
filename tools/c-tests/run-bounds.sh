@@ -9,6 +9,8 @@
 #   MainLoop.c           setSensitive, unRegisterSensitiveNode, freeContainerNode,
 #                        sendSensorEvents, with
 #   CParseParser.c       gc_broto_instance (pointing-device sensors freed with their world)
+#   CParseParser.c       cParseErrorCurID, cParseErrorFieldString, with
+#   ConsoleMessage.c     fwvsnprintf, ConsoleMessage0, ConsoleMessage (world text is not a format)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
 # Nothing here starts FreeWRL, opens a window, creates a GL context or loads a world.
@@ -60,10 +62,12 @@ x scenegraph/RenderFuncs.c push_ray pop_ray > "$out/pickray.inc"
 	x main/MainLoop.c sendSensorEvents
 	x vrml_parser/CParseParser.c gc_broto_instance
 } > "$out/sensors.inc"
+x main/ConsoleMessage.c fwvsnprintf ConsoleMessage > "$out/consolemsg.inc"
+x vrml_parser/CParseParser.c cParseErrorCurID cParseErrorFieldString > "$out/parseerror.inc"
 
 objs=
 for t in test_bounds_main test_hanim test_texture test_shader_plug test_eai_reply test_tempfile \
-	test_pick_ray test_sensor_lifetime; do
+	test_pick_ray test_sensor_lifetime test_parse_error; do
 	# built like the production sources: no extra warning flags, since each test
 	# includes extracted production code
 	$CC $cflags \

@@ -1,0 +1,14 @@
+#VRML V2.0 utf8
+# Regression (CodeQL G01): text from a world file in a parse error message is data, not a
+# printf format. The DEF below names a node type that does not exist and holds %x and %d;
+# the text after it holds %5d, %c and %%. FreeWRL 6.7 gave the whole message to
+# ConsoleMessage as the format, so the log showed numbers and memory addresses in place of
+# these characters. The classic VRML parser stops at the error, so it comes after the scene.
+# Pass: FreeWRL does not crash, logs the parse error with the percent text from this file unchanged, and renders the green box.
+Viewpoint { position 0 0 6 description "front" }
+Shape {
+	appearance Appearance { material Material { diffuseColor 0 1 0 } }
+	geometry Box { }
+}
+DEF G01 Mark%xMark%dEnd { }
+%5d%c%% end
