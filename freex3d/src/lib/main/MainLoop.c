@@ -213,7 +213,7 @@ int overlapviewports(ivec4 vp1, ivec4 vp2){
 		inside = vp2.X >= vp1.X && (vp2.X+vp2.W) <= (vp1.X+vp1.W) ? -1 : 0;
 	}
 	if(!inside){
-		inside = vp1.X > (vp2.X+vp2.W) || vp1.X > (vp1.X+vp1.W) || vp1.Y > (vp2.Y+vp2.H) || vp2.Y > (vp1.Y+vp1.H) ? 0 : 2;
+		inside = vp1.X > (vp2.X+vp2.W) || vp2.X > (vp1.X+vp1.W) || vp1.Y > (vp2.Y+vp2.H) || vp2.Y > (vp1.Y+vp1.H) ? 0 : 2;
 	}
 	return inside;
 }
