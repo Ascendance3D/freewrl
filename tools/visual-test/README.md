@@ -64,3 +64,17 @@ Known limits:
 
 Worlds are served over HTTP rather than loaded as files, so absolute URLs like
 Cybertown's `/externprotos/...` resolve against the served root.
+
+## CodeQL and `winid.swift`
+
+`winid.swift` is the repository's only Swift file. It is a local test helper:
+it is not shipped, not in the Xcode project, and `shoot_freewrl.sh` compiles it
+with `swiftc`. CodeQL default setup does not analyze Swift, and the project
+accepts that gap for now (decided 2026-10-03):
+
+- A Swift-only advanced CodeQL workflow can't run alongside default setup,
+  which disables advanced CodeQL workflows and rejects their uploads.
+- Adding Swift to default setup is unlikely to cover this file: default setup
+  autobuilds an Xcode or Swift package target, and this helper is in neither.
+
+Changing this needs a separate approved decision to change the CodeQL setup.
