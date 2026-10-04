@@ -1223,6 +1223,11 @@ void convert_strips_to_polyrep(struct Vector * strips,struct X3D_NurbsTrimmedSur
 
 }
 
+/* world-file counts are int: reject a/b products that do not fit the limit.
+   Computed in 64 bit so the check itself cannot overflow. (CodeQL cpp/integer-multiplication-cast-to-long) */
+static int nurbs_grid_fits(int a, int b, long long limit){
+	return a >= 0 && b >= 0 && (long long)a * (long long)b <= limit;
+}
 void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node *trim){
 	MARK_NODE_COMPILED
 
@@ -1343,6 +1348,12 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 			//nk = 0;
 		}
 
+		if(n && nku && nkv && !nurbs_grid_fits(nu,nv,(long long)n)){
+			//uDimension * vDimension must not exceed the number of control points (also keeps nu*nv*size below int overflow)
+			ConsoleMessage("NurbsSurface: uDimension %d x vDimension %d exceeds %d control points, skipping",nu,nv,n);
+			FREE_IF_NZ(xyzw);
+			nku = nkv = 0;
+		}
 		if(n && nku && nkv){
 			static GLUnurbsObj *theNurb = NULL;
 			int ntessu, ntessv, mtessu, mtessv;
@@ -1475,7 +1486,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 							int jj,j,k;
 							struct X3D_TextureCoordinate *texCoord = createNewX3DNode0(NODE_TextureCoordinate);
 							texcoordnodeIsGenerated = TRUE;
-							texCoord->point.p = MALLOC(struct SFVec2f*,nu * nv * sizeof(struct SFVec2f));
+							texCoord->point.p = MALLOC(struct SFVec2f*,(size_t)nu * (size_t)nv * sizeof(struct SFVec2f));
 							du = 1.0f / (float)max(1,(nu -1));
 							dv = 1.0f / (float)max(1,(nv -1));
 							vv = 0.0f;
@@ -1551,7 +1562,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 							struct X3D_TextureCoordinate *texCoord = createNewX3DNode0(NODE_TextureCoordinate);
 							texcoordnodeIsGenerated = TRUE;
 							FREE_IF_NZ(texCoord->point.p);
-							texCoord->point.p = MALLOC(struct SFVec2f*,nu * nv * sizeof(struct SFVec2f));
+							texCoord->point.p = MALLOC(struct SFVec2f*,(size_t)nu * (size_t)nv * sizeof(struct SFVec2f));
 							du = 1.0f / (float)max(1,(nu -1));
 							dv = 1.0f / (float)max(1,(nv -1));
 							vv = 0.0f;
@@ -2321,9 +2332,13 @@ void compile_NurbsSwungSurface(struct X3D_NurbsSwungSurface *node){
 
 	nt = trajectoryxz->controlPoint.n;
 	np = profileyz->controlPoint.n;
+	if(!nurbs_grid_fits(nt,np,(long long)(0x7fffffff / 3))){
+		ConsoleMessage("NurbsSwungSurface: %d x %d control points too many, skipping",nt,np);
+		return;
+	}
 	xyzp = (double*)profileyz->controlPoint.p;
 	xyzt = (double*)trajectoryxz->controlPoint.p;
-	xyz = MALLOC(float*,nt * np * 3 * sizeof(float));
+	xyz = MALLOC(float*,(size_t)nt * (size_t)np * 3 * sizeof(float));
 	controlPoint->point.p = (struct SFVec3f*)xyz;
 	controlPoint->point.n = nt * np;
 	ic = 0;
@@ -2796,6 +2811,11 @@ void compile_NurbsSweptSurface(struct X3D_NurbsSweptSurface *node){
 		mtessu = (int)((float)mtessu * xsection->_tscale);
 		mtessv = compute_tessellation(trajectory->tessellation,trajectory->order,nt);
 		mtessv = (int)((float)mtessv * trajectory->_tscale);
+		//(mtessu+1)*(mtessv+1) tessellation grid: bound it before the allocations below
+		if(mtessu < 0 || mtessv < 0 || mtessu >= 0x7fffffff || mtessv >= 0x7fffffff || !nurbs_grid_fits(mtessu + 1,mtessv + 1,(long long)1 << 22)){
+			ConsoleMessage("NurbsSweptSurface: tessellation %d x %d too large, skipping",mtessu,mtessv);
+			return;
+		}
 		compute_knotvector(xsection->order,np,xsection->knot.n,xsection->knot.p,&nku,&knotsu,urange);
 		compute_knotvector(trajectory->order,nt,trajectory->knot.n,trajectory->knot.p,&nkv,&knotsv,vrange);
 		compute_weightedcontrol(xyzt,3,nt, trajectory->weight.n, trajectory->weight.p, &xyzwv);
@@ -2896,9 +2916,9 @@ void compile_NurbsSweptSurface(struct X3D_NurbsSweptSurface *node){
 		// 3. for each trajectory tesselation point:
 		//		a) insert up- and tangent- oriented xsection points
 		//		b) skin: join current xsection points with last with triangles
-		pts = MALLOC(float*,mtessu1 * mtessv1 * 3 * sizeof(float));
-		normals = MALLOC(float*,mtessu1 * mtessv1 * 3 * sizeof(float));
-		idx = MALLOC(int *, mtessu * mtessv * 2 * 3 * sizeof(int));
+		pts = MALLOC(float*,(size_t)mtessu1 * (size_t)mtessv1 * 3 * sizeof(float));
+		normals = MALLOC(float*,(size_t)mtessu1 * (size_t)mtessv1 * 3 * sizeof(float));
+		idx = MALLOC(int *, (size_t)mtessu * (size_t)mtessv * 2 * 3 * sizeof(int));
 		ic = 0;
 		it = 0;
 		for(i=0;i<mtessv1;i++){
