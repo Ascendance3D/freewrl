@@ -362,7 +362,9 @@ public class FreeWRLBrowser implements ExternalBrowser, BrowserInterface
 
 		((FreeWRLScene) scene).setCurrent(false);
 		scene = (FreeWRLScene) passedscene;
-		((FreeWRLScene) passedscene).setCurrent(true);
+		if (passedscene != null) {
+			((FreeWRLScene) passedscene).setCurrent(true);
+		}
 
 		browserEvent(BrowserEvent.INITIALIZED);
 	}

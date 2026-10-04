@@ -85,7 +85,7 @@ public class FWMFRotation extends FreeWRLMField implements MFRotation {
 		if (value.length < ROWS) {
 			throw new ArrayIndexOutOfBoundsException("MFRotation get1Value passed array of insufficient size");
 		}
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFRotation get1Value passed index out of bounds");
 		}
 	

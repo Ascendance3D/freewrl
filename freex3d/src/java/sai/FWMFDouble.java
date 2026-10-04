@@ -57,7 +57,7 @@ public class FWMFDouble extends FreeWRLMField implements MFDouble {
 		
 		rval = new double[lines];
 
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFDouble get1Value passed index out of bounds");
 		}
 

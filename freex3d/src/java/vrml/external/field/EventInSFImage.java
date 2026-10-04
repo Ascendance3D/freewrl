@@ -16,7 +16,7 @@ public class EventInSFImage extends EventIn {
 	byte xx[];
 
 
-	if (pixels.length != (width*height*components)) {
+	if (((pixels == null) ? 0 : pixels.length) != (width*height*components)) {
 		throw new IllegalArgumentException();
 	}
 

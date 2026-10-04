@@ -85,7 +85,7 @@ public class FWMFColorRGBA extends FreeWRLMField implements MFColorRGBA {
 		if (value.length < ROWS) {
 			throw new ArrayIndexOutOfBoundsException("MFColorRGBA get1Value passed array of insufficient size");
 		}
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFColorRGBA get1Value passed index out of bounds");
 		}
 	

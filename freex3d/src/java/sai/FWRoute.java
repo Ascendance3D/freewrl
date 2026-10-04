@@ -24,6 +24,11 @@ public class FWRoute implements X3DRoute {
                 return (o != null) && (o instanceof FWRoute) && (sourceNode.equals(((FWRoute)o).sourceNode)) && (destNode.equals(((FWRoute)o).destNode)) && (sourceField.equals(((FWRoute)o).sourceField)) && (destField.equals(((FWRoute)o).destField));
         }
 
+	@Override
+	public int hashCode() {
+		return ((sourceNode.hashCode() * 31 + sourceField.hashCode()) * 31 + destNode.hashCode()) * 31 + destField.hashCode();
+	}
+
 	public X3DNode getSourceNode() throws InvalidRouteException {
 		return sourceNode;
 	}
