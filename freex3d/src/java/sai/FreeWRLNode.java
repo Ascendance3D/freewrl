@@ -23,13 +23,13 @@ public class FreeWRLNode implements X3DNode {
 	}
 
 	public boolean equals(Object o) {
-		return (o != null) && (o instanceof FreeWRLNode) && (ptr== ((FreeWRLNode)o).getPointer()); 
+		return (o != null) && (o instanceof FreeWRLNode) && Objects.equals(ptr, ((FreeWRLNode)o).getPointer());
 	}
 
-	// equals compares ptr by reference, so hash the reference.
+	// equals compares the ptr text, so hash the ptr text.
 	@Override
 	public int hashCode() {
-		return System.identityHashCode(ptr);
+		return Objects.hashCode(ptr);
 	}
 
 	public String getNodeName() throws InvalidNodeException, ConnectionException  {
