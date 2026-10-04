@@ -2508,6 +2508,7 @@ static void __reallyloadImageTexture(textureTableIndexStruct_s* this_tex, char *
 
 #endif // ANDROIDNDK
 
+/* Touched so CodeQL re-extracts stb_image.h after the alert #43 header-only fix. */
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 int textureIsDDS(textureTableIndexStruct_s* this_tex, char *filename); 
