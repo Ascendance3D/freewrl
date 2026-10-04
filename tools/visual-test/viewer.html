@@ -8,27 +8,47 @@
 <style>html,body{margin:0;background:#000;overflow:hidden}x3d-canvas{display:block}</style>
 <script>
 const q = new URLSearchParams(location.search);
-const XITE = q.get('xite') || 'https://cdn.jsdelivr.net/npm/x_ite@16.4.1/dist';
-document.write('<link rel="stylesheet" href="' + XITE + '/x_ite.css">');
-document.write('<script src="' + XITE + '/x_ite.min.js"><\/script>');
+// Only http(s) URLs are accepted for xite; world must be a path on this origin.
+function safeUrl(v, base, sameOrigin) {
+  try {
+    const u = new URL(v, base);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    if (sameOrigin && u.origin !== location.origin) return null;
+    return u.href;
+  } catch (e) { return null; }
+}
+const XITE = safeUrl((q.get('xite') || 'https://cdn.jsdelivr.net/npm/x_ite@16.4.1/dist').replace(/\/+$/, ''), location.href, false);
+if (!XITE) throw new Error('viewer: bad xite URL');
+const css = document.createElement('link');
+css.rel = 'stylesheet';
+css.href = XITE + '/x_ite.css';
+document.head.appendChild(css);
 </script>
 </head><body>
 <script>
-const c = document.createElement('x3d-canvas');
-c.setAttribute('splashScreen', 'false');
-c.setAttribute('notifications', 'false');
-c.setAttribute('contextMenu', 'false');
-c.setAttribute('timings', 'false');
-c.setAttribute('preserveDrawingBuffer', 'true');
-c.style.width = (q.get('w') || 672) + 'px';
-c.style.height = (q.get('h') || 438) + 'px';
-c.setAttribute('src', q.get('world'));
-document.body.appendChild(c);
-if (q.get('hold')) {
-  const img = document.createElement('img');
-  img.src = '/__hold?ms=' + q.get('hold');
-  img.style.display = 'none';
-  document.body.appendChild(img);
+const WORLD = q.get('world') === null ? null : safeUrl(q.get('world'), location.href, true);
+function start() {
+  const c = document.createElement('x3d-canvas');
+  c.setAttribute('splashScreen', 'false');
+  c.setAttribute('notifications', 'false');
+  c.setAttribute('contextMenu', 'false');
+  c.setAttribute('timings', 'false');
+  c.setAttribute('preserveDrawingBuffer', 'true');
+  c.style.width = (parseInt(q.get('w'), 10) || 672) + 'px';
+  c.style.height = (parseInt(q.get('h'), 10) || 438) + 'px';
+  if (WORLD) c.setAttribute('src', WORLD);
+  document.body.appendChild(c);
+  const hold = parseInt(q.get('hold'), 10);
+  if (hold > 0) {
+    const img = document.createElement('img');
+    img.src = '/__hold?ms=' + hold;
+    img.style.display = 'none';
+    document.body.appendChild(img);
+  }
 }
+const js = document.createElement('script');
+js.src = XITE + '/x_ite.min.js';
+js.onload = start;
+document.body.appendChild(js);
 </script>
 </body></html>
