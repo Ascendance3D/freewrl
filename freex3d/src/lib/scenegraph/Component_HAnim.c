@@ -2582,11 +2582,11 @@ void update_jointMatrixFromMotion(struct X3D_Node* HMnode, char* jname, double* 
 // MotionDataFile - allows reading popular mocap/MotionCapture file formats .bvh, .c3d ...
 void map_mocap_to_hanim_loa( struct joint_frame_motion *chan, int mjoint, int loa);
 void bvh_set_mapping(char** mapping, int n);
-void read_bvh_blob(char *blob, int ignorePosition, int yUp, int teePose, 
+int read_bvh_blob(char *blob, int ignorePosition, int yUp, int teePose, 
 	int flipZ, float armAngle, float legAngle, float scale,  
 	struct joint_frame_motion **chan, int *njoint, int *channel_count, float **values, 
 	float *bvh_frame_time, int *bvh_frame_count);
-void read_bvh_blob_to_node(struct X3D_HAnimMotionDataFile * node, char *blob, int len){
+int read_bvh_blob_to_node(struct X3D_HAnimMotionDataFile * node, char *blob, int len){
 	//Stack *bvh_nodes = NULL;
 	float bvh_frame_time;
 	int bvh_frame_count;
@@ -2604,9 +2604,10 @@ void read_bvh_blob_to_node(struct X3D_HAnimMotionDataFile * node, char *blob, in
 	else {
 		bvh_set_mapping(NULL, 0); //will use internal mapping
 	}
-	read_bvh_blob(blob, node->ignorePosition, node->yUp, node->teePose, 
+	if(!read_bvh_blob(blob, node->ignorePosition, node->yUp, node->teePose, 
 		node->flipZ, node->armAngle, node->legAngle, node->scale,
-		&chan, &njoint, &channel_count, &fvalues, &bvh_frame_time,&bvh_frame_count);
+		&chan, &njoint, &channel_count, &fvalues, &bvh_frame_time,&bvh_frame_count))
+		return FALSE; //malformed .bvh: leave the node empty
 	map_mocap_to_hanim_loa(chan,njoint,node->loa);
 	node->frameCount = bvh_frame_count;
 	MARK_EVENT(X3D_NODE(node), offsetof(struct X3D_HAnimMotionDataFile, frameCount));
@@ -2615,6 +2616,7 @@ void read_bvh_blob_to_node(struct X3D_HAnimMotionDataFile * node, char *blob, in
 	node->_channels = chan;
 	node->_channelcount = channel_count;
 	node->_fvalues = fvalues;
+	return TRUE;
 }
 void process_mocap(resource_item_t *res){
 	//a chance to do a bit of out-of-render-thread processing.
@@ -2631,9 +2633,9 @@ void process_mocap(resource_item_t *res){
 	struct X3D_HAnimMotionDataFile * node = (struct X3D_HAnimMotionDataFile *) res->whereToPlaceData;
 
 	printf("process mocap\n");
-	read_bvh_blob_to_node(node,blob,len);
+	int ok = read_bvh_blob_to_node(node,blob,len);
 	res->complete = TRUE;
-	res->status = ress_parsed;
+	res->status = ok ? ress_parsed : ress_failed;
 }
 void compile_HAnimMotionData(struct X3D_HAnimMotionData *node){
 	//motion data

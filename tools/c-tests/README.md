@@ -82,6 +82,15 @@ renamed or removed, the extraction fails and the run stops. It does not use a
   argument at and over the 4095-byte formatter length, an 8000 width, a literal longer
   than the buffer and a lone trailing `%` stay inside the formatter's buffers.
 
+- `test_bvh.c`: the `.bvh` motion-capture parser `read_bvh_blob` (`BVHreader.c`, CodeQL
+  G09), included whole: a small valid file, blank lines and CRLF, 100 joints with 600
+  channels, the checked `size_t` multiply, frame and channel counts whose `int` product
+  overflows, a product over the 2^26-value limit, negative, zero and missing frame counts,
+  more than 6 channels on a joint, more than 100 joints, missing tokens (where `strtok`
+  returns NULL), truncated and non-numeric frame data, long joint names, an unknown channel
+  name, and a `teePose` shoulder with no X rotation. A rejected file leaves every output
+  empty and frees what was allocated.
+
 ## Sanitizers
 
 The test binaries (and, for `run-containers.sh`, the two production objects) are built with
