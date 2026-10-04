@@ -505,7 +505,7 @@ void __iglobal_destructor(ttglobal tg)
 	free(tg);
 #endif
 	//remove_iglobal_from_table(tg);
-	fwl_clearCurrentHandle(__FILE__,__LINE__);
+	fwl_clearCurrentHandle();
 
 }
 
@@ -523,10 +523,10 @@ int fwl_setCurrentHandle(void *handle, char *fi, int li)
 	pthread_setspecific(threadSpecificKey,handle);
 	return 1; /* let caller know its not in the table yet */
 }
-void fwl_clearCurrentHandle(char *fi, int li)
+void fwl_clearCurrentHandle(void)
 {
 	void *currentHandle = NULL;
-    //printf ("fwl_clearCurrentHandle at %s:%d\n",fi,li);
+    //printf ("fwl_clearCurrentHandle\n");
 	pthread_setspecific(threadSpecificKey,currentHandle);
 
 }
