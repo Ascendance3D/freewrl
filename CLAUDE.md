@@ -1,111 +1,46 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+FreeWRL: X3D/VRML97 browser in C (some C++); standalone app or embeddable `libFreeWRL`.
 
-## Overview
+## Layout
+- `freex3d/` — core source + autotools build. Nearly all work happens here.
+- `OSX_gui/FreeWRL-Desktop/` — Xcode project compiling `freex3d/src/lib`.
+- `freex3d/projectfiles_2022/` — MSVC build (upstream's reference build).
+- `freewrl/tests/` — sample worlds; `tools/` — mac deps, packaging, CI harness, visual tests.
+- Supported: macOS Apple Silicon and Ubuntu/Linux. `Android/` and iPhone files are historical: never build, test, fix, or treat as blockers.
 
-FreeWRL is an X3D / VRML97 browser written in C (with some C++), usable as a standalone app, a browser plugin, or an embeddable library (`libFreeWRL`). The repo is a multi-platform tree:
+## Linux build
+`cd freex3d && ./autogen.sh && ./configure --with-target=x11|motif --with-javascript=duk|stub && make`
+- List every source file in `Makefile.am`/`Makefile.sources` (target-independent ones in `Makefile.sources`, not under `WINDOW_USE_*`). `check_sources.sh` finds unlisted files.
+- Don't commit autotools outputs (`configure`, `Makefile.in`, `aclocal.m4`, `config/`, `doc/doxyfile`...). Exception: hand-written `src/libnurbs/Makefile.in`, `src/libtess/Makefile.in`.
+- `sm` (SpiderMonkey) and `--enable-plugin` are legacy.
 
-- `freex3d/` — the core source and the autotools build (Linux/Cygwin). Nearly all engine work happens here.
-- `OSX_gui/` — Xcode projects (`FreeWRL-Desktop`, iPhone) that compile `freex3d/src/lib` directly; see `OSX_gui/NOTES_mac.txt` for MacPorts deps and the `config.h` defines used on mac. The mac desktop build is via Xcode, not `configure`.
-- `freex3d/projectfiles_2022/freeWrl.sln` (and older `projectfiles_vc7`) — Windows builds. On `develop` this is the build upstream actually uses (MSVC); other platforms' build files lag behind it.
-- `Android/` — NDK build (`android-buildnotes.txt`).
-- `linux_appimage/` — scripts to bundle an installed `/usr/local/bin/freewrl` into an AppImage.
-- `freewrl/tests/` — numbered `.wrl`/`.x3d` sample worlds (descriptions in `freewrl/tests/README`); `freewrl/JS/` holds bundled SpiderMonkey sources.
-- `SoundEngine/` — separate sound engine.
-
-Supported platforms: macOS Apple Silicon and Ubuntu/Linux desktop. This project does not develop or support iOS or Android. The `Android/` tree and the iPhone Xcode files are historical source: do not build, test or repair them, and do not treat them as release blockers.
-
-## Build (Linux / autotools)
-
+## macOS build (arm64, macOS 15+ only — never claim 14 or Intel)
 ```sh
-cd freex3d
-./autogen.sh [-d debug] [-e no-eai] [-p no-plugin] [-m no-motif] [-c libcurl] -- <extra configure args>
-./configure --help            # autogen does not run configure; check current options
-./configure --with-target=x11|motif --with-javascript=duk|sm|stub ...
-make && sudo make install
+tools/macos-deps/build.sh -p ~/freewrl-deps
+cd OSX_gui/FreeWRL-Desktop && xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- FW_DEPS=$HOME/freewrl-deps build
+tools/macos-package/package.sh -D ~/freewrl-deps -z
 ```
+- Deps: FreeType, ODE, freealut only. Distributed builds use `tools/macos-deps` prefix, not Homebrew.
+- Feature flags: `OSX_gui/FreeWRL-Desktop/FreeWRL/config.h`. Duktape JS; no FFmpeg; stb_image textures (no TIFF/WebP).
+- GL is a 4.1 core profile (`opengl/GLCoreCompat.c`); new GL code must work there. HAnim is CPU-skinned.
+- New `.c` files must be added to `FreeWRL.xcodeproj` (compare `projectfiles_2022/lib/libFreeWRL.vcxproj`).
+- clang errors on MSVC-only code (implicit declarations etc.): add the prototype/include, never suppress the error.
+- Version source of truth: `freex3d/src/buildversion.h`; keep `versions/*` and `AC_INIT` equal (see `RELEASING.md`).
+- Status checklist: `MACOS-STATUS.md` — keep current.
 
-Key configure options: `--with-target` (x11, motif, aqua, win32), `--with-javascript` (`sm` = SpiderMonkey, `duk`/`no` = bundled duktape, `stub` = Script nodes parsed but not run), `--enable-libeai`, `--enable-plugin`, `--enable-debug`, `--with-OpenCL`, `--with-DIS`.
+## Testing
+No unit tests. Load worlds (`freewrl freewrl/tests/1.wrl`). Mac harness: `tools/macos-ci/`; visual diff vs X_ITE: `tools/visual-test/compare.sh`.
+GitHub Actions: QA is local. Never start, dispatch or rerun a workflow; only Ryan triggers `.github/workflows/macos.yml` for release.
 
-Every source file must be listed in the relevant `Makefile.am` / `Makefile.sources`. Put target-independent sources in `Makefile.sources`, not under a `WINDOW_USE_*` conditional (a file listed only for X11 breaks the Motif link); `check_sources.sh` (run from a build dir like `src/lib`) reports source files not referenced. When adding a `.c` file, also add it to the Xcode and VS project files if those platforms need it.
+## Code generation
+Node structs/tables are generated: edit `freex3d/codegen/VRMLNodes.pm` (nodes), `VRMLFields.pm`, `VRMLRend.pm`, then `cd freex3d/codegen && perl VRMLC.pm`. Never hand-edit `GeneratedCode.c`, `Structs.h`, `NodeFields.h`. Implement node functions in `src/lib/scenegraph/Component_<Name>.c`. `_change` vs `_ichange` marks a node for recompile.
 
-Generated-file policy: git tracks only Autotools inputs (`configure.ac`, `Makefile.am`, `Makefile.globals`, `m4/`, `*.in` templates such as `doc/doxyfile.in`). `autogen.sh` (`autoreconf --force --install`) writes `configure`, `config.h.in`, `aclocal.m4`, `config/`, `INSTALL` and every automake `Makefile.in`; `configure` writes `doc/doxyfile`. Do not commit these; `make dist` puts them in the archive. Exception: `src/libnurbs/Makefile.in` and `src/libtess/Makefile.in` are hand-written (no `Makefile.am`) and stay tracked. Linux optional paths: Motif and `stub` build; `sm` (SpiderMonkey ≤ 24 API) and `--enable-plugin` (NPAPI) are legacy and have no dependency on current distributions (see `README.md`).
+## Architecture (`freex3d/src/lib`)
+`main/` (MainLoop frame loop, ProdCon loader thread) · `vrml_parser/` (classic parser, `CRoutes.c` events) · `x3d_parser/` (XML, `Bindable.c`) · `scenegraph/` (per-component nodes, RenderFuncs, Polyrep) · `opengl/` (shaders, textures) · `world_script/` (Script; `*_duk.c`) · `input/` (EAI/SAI; see `freex3d/xAI-DESIGN.README`) · `ui/` (windowing, HUD).
 
-There is no unit test suite. Test manually by loading a world: `freewrl ../freewrl/tests/1.wrl` (or any URL). On macOS, `tools/visual-test/compare.sh` renders worlds in FreeWRL and X_ITE and scores the difference (see its README). Mac port status and the verified/unverified checklist live in `MACOS-STATUS.md`; keep it current.
+No C globals for module state (multi-instance): use the `pp<File>` private struct / `ttglobal` via `gglobal()`, initialized in `<File>_init()` (see `iglobal.h`). Keep all `#ifdef` platform paths compiling.
 
-## Build (macOS / Xcode, Apple Silicon)
-
-Supported: macOS 15 Sequoia and newer on Apple Silicon (arm64). `MACOSX_DEPLOYMENT_TARGET` is 15.0 in `FreeWRL.xcodeproj`, `tools/macos-deps/build.sh` and `tools/macos-package/package.sh`. Don't claim macOS 14 or older, or Intel support.
-
-The only non-Apple libraries linked are FreeType, ODE and freealut (Apple's `OpenAL.framework` for audio). `FW_DEPS` (default `/opt/homebrew`) is where Xcode finds them; for anything distributed use a prefix from `tools/macos-deps/build.sh`, since Homebrew bottles only run on the macOS they were built for.
-
-```sh
-tools/macos-deps/build.sh -p ~/freewrl-deps          # FreeType, ODE, freealut from pinned sources, for 15.0
-cd OSX_gui/FreeWRL-Desktop
-xcodebuild -project FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- FW_DEPS=$HOME/freewrl-deps build
-tools/macos-package/package.sh -D ~/freewrl-deps -z  # standalone app (see tools/macos-package/README.md)
-```
-
-- Textures on macOS are decoded by stb_image (`HAVE_IMLIB2` off): JPEG, PNG, GIF (first frame), BMP, TGA, PSD, HDR, PNM; not TIFF or WebP.
-- The test harness is `tools/macos-ci/` (lldb runner, smoke fixtures, reload cycles, texture stress, ASan gate).
-- GitHub Actions policy: development and PR QA are local. Pushes and PRs do not start GitHub Actions. Only Ryan explicitly starts formal release validation (`.github/workflows/macos.yml`, manual `workflow_dispatch` from `master` with the exact `expected_sha`). It uses a standard `macos-15` runner for build, ASan and the minimum-OS runtime proof (macOS 15 is the minimum). Do not start, dispatch or rerun a workflow as QA. See `RELEASING.md`.
-- Mac feature flags live in `OSX_gui/FreeWRL-Desktop/FreeWRL/config.h` (not `configure`). JavaScript uses bundled duktape (`JAVASCRIPT_SM` off). `MOVIETEXTURE_FFMPEG` is off and FFmpeg is not linked: `MPEG_Utils_ffmpeg.c` uses ffmpeg-4 APIs removed in ffmpeg 5+.
-- `freex3d/src_aqua/fwVersion.c` is committed and takes its version from `freex3d/src/buildversion.h` (`FW_BUILD_VERSION_STR`), which is also what `libFreeWRL_get_version` in `ui/common.c` returns on AQUA. Linux autotools reads `freex3d/versions/FREEWRL`, `versions/LIBFREEWRL` and `AC_INIT` in `configure.ac` instead; keep them equal to `buildversion.h` (see `RELEASING.md`).
-- New `.c` files added upstream must also be added to `FreeWRL.xcodeproj`, or linking fails with undefined symbols. Compare against `projectfiles_2022/lib/libFreeWRL.vcxproj`, which upstream keeps current.
-- Upstream builds only with MSVC, so clang rejects some `develop` code: implicit function declarations (hard errors in modern clang), taking the address of a cast. Add the missing prototype or include rather than turning the error off: an implicit declaration truncates pointer returns on arm64.
-- macOS runs a 4.1 core profile (`FW_GL_CORE_PROFILE`, `opengl/GLCoreCompat.c`): client arrays streamed to VBOs, a default VAO, sampler units kept apart per type, legacy texture formats swizzled, GL 4.3/4.5 calls emulated. HAnim uses CPU skinning (no shader storage buffers). New GL code must work on a 4.1 core context; see `MACOS-STATUS.md`.
-
-## Code generation (important)
-
-Node structs, field tables, and per-node dispatch tables are generated by Perl from `freex3d/codegen/`:
-
-- `VRMLNodes.pm` — X3D node definitions (fields, types, defaults, component/chapter).
-- `VRMLFields.pm` — field types; `VRMLRend.pm` — which nodes get render/compile/child/etc. functions.
-- `VRMLC.pm` — the generator. Run it from inside `codegen/`: `cd freex3d/codegen && perl VRMLC.pm`.
-
-It writes (do not hand-edit these):
-- `src/lib/scenegraph/GeneratedCode.c`
-- `src/lib/vrml_parser/Structs.h`
-- `src/lib/vrml_parser/NodeFields.h`
-- `src/libeai/GeneratedCode.c`
-
-To add/change a node or field: edit the `.pm` files, regenerate, then implement the node's `render_*`, `compile_*`, `child_*`, `prep_*`, etc. functions in the appropriate `src/lib/scenegraph/Component_<Name>.c` (one file per X3D component). Generated structs are `struct X3D_<NodeName>` with common internal fields (`_nodeType`, `_change`/`_ichange`, `_intern` polyrep, `_extent`, ...); `_change` vs. `_ichange` is how nodes signal their compiled/internal representation must be rebuilt.
-
-## Architecture (freex3d/src)
-
-- `lib/` → `libFreeWRL`, the engine. `bin/` is the thin standalone executable (`main.c`, `options.c` CLI parsing). `dllFreeWRL/` wraps the lib as a Windows DLL / embeddable API (`libFreeWRL.h` is the public header).
-- `lib/main/` — `MainLoop.c` drives each frame (events, sensors, routes, scripts, render passes, EAI polling). `ProdCon.c` is the producer/consumer that loads and parses resources off the render thread and hands scene fragments to it.
-- `lib/vrml_parser/` — Classic VRML parser (`CParseLexer`, `CParseParser`) and `CRoutes.c` (ROUTE propagation / event cascade). `lib/x3d_parser/` — XML X3D parser plus `Bindable.c` (Viewpoint/Background/NavigationInfo/Fog bind stacks). `non_web3d_formats/` — Collada; `input/convertSTL.c` — STL.
-- `lib/scenegraph/` — node behavior per X3D component, plus `RenderFuncs.c` (traversal/render passes), `Polyrep.c`/`GenPolyRep.c` (geometry tessellation to vertex arrays), `Collision.c`, `LinearAlgebra.c`, `quaternion.c`.
-- `lib/opengl/` — GL state, shaders (`Compositing_Shaders.c` builds shaders from feature flags), textures (`Textures.c`, `LoadTextures.c`, `RenderTextures.c`), materials, frustum culling.
-- `lib/world_script/` — Script node support. Engine-neutral `CScripts.c`, `fieldGet.c`, `fieldSet.c`; engine backends selected by `JAVASCRIPT_SM` (`*_sm.cpp`), `JAVASCRIPT_DUK` (`*_duk.c`, bundled `duktape/`), or `JAVASCRIPT_STUB`. See `world_script_options.txt`.
-- `lib/input/` — EAI/SAI server (`EAIServ.c`, `EAIEventsIn/Out.c`), sensor/interpolator helpers. The EAI protocol and sync/async reply semantics are documented in `freex3d/xAI-DESIGN.README`. `libeai/` is the client-side C EAI library; `java/` the Java SAI.
-- `lib/ui/` — per-platform windowing (`fwCommonX11.c`, `fwMotifWindow.c`, `fwBareWindow.c`, `fwWindow32.c`, `fwWindowAqua.c`) and the on-screen HUD status bar (`statusbarHud.c`).
-- `libtess/`, `libnurbs/`, `libminizip/` — vendored third-party libs.
-
-### Per-instance globals
-
-The library supports multiple browser instances, so module state is not kept in C globals. Each module has a private struct (`pp<FileName>`) and/or public sub-struct in `ttglobal` (`lib/iglobal.h`), initialized in `<FileName>_init()` and accessed via `gglobal()` (thread-keyed):
-
-```c
-ppFileName p = (ppFileName)gglobal()->FileName.prv;   // private
-gglobal()->FileName.variable = ...;                   // public
-```
-
-Follow this pattern for new module-level state; see the comment at the top of `iglobal.h`/`iglobal.c`.
-
-### Platform feature defines
-
-Code is heavily `#ifdef`-ed by platform and feature (`_MSC_VER`, `AQUA`, `_ANDROID`, `IPHONE`, `GLES2`, `FRONTEND_GETS_FILES`, `HAVE_JAVASCRIPT`, `NO_JAVASCRIPT`, `DISABLER`, `MOVIETEXTURE_FFMPEG`, `WITH_RBP`, `NURBS_LIB`, ...). On autotools these come from `config.h` via `configure.ac`; on Xcode/VS they are set in the project files or a hand-maintained `config.h`. Changes must keep all platform paths compiling.
-
-## Git workflow
-
-- `upstream` = the original FreeWRL project on SourceForge, `https://git.code.sf.net/p/freewrl/git` (browse at https://sourceforge.net/p/freewrl/git/ci/develop/tree/). We only read from it. It has two lines:
-  - `master` @ `e99ab4a00` (2020-02-21, "Merge branch 'develop'"): the older stable line, FreeWRL 4.4.0. It has not moved since 2020.
-  - `develop`: the active line. The maintainer said in 2025 that development happens here. At the time of the 2026-09 audit its head was `b3254b11e` (2024-04-20, "Version 6.7"), 951 commits ahead of `master`, with `master` fully contained in it. That commit is FreeWRL 6.7.0 (`freex3d/src/buildversion.h`).
-- `origin` = https://github.com/Ascendance3D/freewrl: the Ascendance Open Worlds modernization fork on GitHub, where we push. Its `master` is the maintained FreeWRL 6.7 modernization line, promoted from `develop` in 2026-09; before that promotion `master` mirrored upstream `master` at `e99ab4a00` (2020-02-21), which is now the historical baseline. `master` is the single canonical maintained trunk: all new work branches from it and merges back to it. `develop` was the earlier integration branch and has been retired (its tested state was promoted to `master` in 2026-09); it is no longer part of the workflow. The first Mac port (`macos-arm64`, PR #1) is based on the old 2020 `master`, and we keep it unchanged as a reference.
-- `sourceforge` = the fork's SourceForge mirror (`/u/djascendance/freewrl`).
-- `macos-arm64-develop-port`: the candidate port of the Mac work onto upstream `develop` (6.7).
-
-Workflow: `master` is the canonical trunk. New work starts from `master` on a short `feature-*` or `fix-*` task branch, opens a PR against `master`, and the task branch is deleted after merge. There is no long-lived `develop` or `beta` branch.
+## Git
+- `origin` = github.com/Ascendance3D/freewrl (push here); `upstream` = SourceForge FreeWRL (read only); `sourceforge` = fork mirror.
+- `master` is the only trunk. Work on short `feature-*`/`fix-*` branches → PR to `master` → delete branch. `develop` is retired.
