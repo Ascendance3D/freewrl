@@ -34,6 +34,7 @@ extern const ct_suite ct_cdl_suite;
 /* run-bounds.sh */
 extern const ct_suite ct_hanim_suite;
 extern const ct_suite ct_texture_suite;
+extern const ct_suite ct_texheader_suite;
 extern const ct_suite ct_shader_suite;
 extern const ct_suite ct_eai_suite;
 extern const ct_suite ct_tempfile_suite;

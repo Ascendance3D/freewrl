@@ -74,6 +74,7 @@ Dec 6, 2016 tti->data now always in RGBA
 
 #include <libFreeWRL.h>
 #include <limits.h>
+#include <stdint.h>
 
 /* We do not want to include Struct.h: enormous file :) */
 typedef struct _Multi_String Multi_String;
@@ -705,6 +706,34 @@ void saveImage3D_x3di3d(struct textureTableIndexStruct *tti, char *fname){
 
 }
 
+// The web3dit, .vol and NRRD loaders below take image sizes from the file header, and a
+// world's texture url can point at any such file. Check the sizes before they size memory:
+// TEXTURE_FILE_MAX_AXIS: 65536 pixels per axis, 4x the largest GL texture size.
+// TEXTURE_FILE_MAX_RGBA: the RGBA image made from a file is at most 1 GiB (2^28 pixels),
+//   so x * y * z * 4 also fits in the int sizes the texture code uses.
+// WEB3DIT_MAX_RGBA: 256 x 256 x 256 RGBA, the web3dit limit the loader always had.
+// VOL_MAX_RGBA: 128 x 128 x 128 x 4 pixels: the .vol raw-data limit (128^3 x 4 bytes)
+//   in 1-byte pixels, which also bounds the 1, 2 and 4 bit formats (no whole raw bytes).
+#define TEXTURE_FILE_MAX_AXIS 65536
+#define TEXTURE_FILE_MAX_RGBA ((size_t)1 << 30)
+#define WEB3DIT_MAX_RGBA ((size_t)256 * 256 * 256 * 4)
+#define VOL_MAX_RGBA ((size_t)128 * 128 * 128 * 4 * 4)
+static int texture_mul_size(size_t a, size_t b, size_t *out){
+	if(a != 0 && b > SIZE_MAX / a) return FALSE;
+	*out = a * b;
+	return TRUE;
+}
+// pixels = nx * ny * nz, with each size 1 to TEXTURE_FILE_MAX_AXIS and pixels * 4 <= maxrgba
+static int texture_file_pixels(int nx, int ny, int nz, size_t maxrgba, size_t *pixels){
+	size_t n;
+	if(nx < 1 || ny < 1 || nz < 1) return FALSE;
+	if(nx > TEXTURE_FILE_MAX_AXIS || ny > TEXTURE_FILE_MAX_AXIS || nz > TEXTURE_FILE_MAX_AXIS) return FALSE;
+	if(!texture_mul_size((size_t)nx, (size_t)ny, &n) || !texture_mul_size(n, (size_t)nz, &n)) return FALSE;
+	if(n > maxrgba / 4) return FALSE;
+	*pixels = n;
+	return TRUE;
+}
+
 int loadImage_web3dit(struct textureTableIndexStruct *tti, char *fname){
 /*	TESTED ONLY RGB Geometry 3 and C AS OF SEPT 9, 2016
 	reads image in ascii format almost like you would put inline for PixelTexture
@@ -733,10 +762,12 @@ D       #Y {U,D} image y-Down or texture y-Up row order
 	"""
 	format 'invented' by dug9 for testing freewrl, License: MIT
 */
-	int i,j,k,m,nx,ny,nz,nv,nc, iret, totalbytes, ipix, jpix, kpix, nchan;
-	int version, Rmin, Rmax, Nchannelspervalue, Mvaluesperpixel, Dimensions;
-	unsigned int pixint, Pixels[10], iydown;
+	int i,j,k,m,n,nx,ny,nz,nv,nc, iret, ipix, jpix, kpix, nchan;
+	int version, Rmin, Rmax, Nchannelspervalue, Mvaluesperpixel, Dimensions, Pixels[3];
+	unsigned int pixint, iydown;
+	size_t npixels, totalbytes;
 	float pixfloat;
+	double range;
 	char Geometry, ODescription[200], Type, Componentnames[10], YDirection;
 	FILE *fp;
 
@@ -744,41 +775,43 @@ D       #Y {U,D} image y-Down or texture y-Up row order
 
 	fp = fopen(fname,"r");
 	if (fp != NULL) {
-		char *rv; 
-		UNUSED(rv);
-
 		char line [1000];
-		rv = fgets(line,1000,fp);
-		if(strncmp(line,"web3dit",7)){
+		if(!fgets(line,1000,fp) || strncmp(line,"web3dit",7)){
 			//not our type
 			fclose(fp);
 			return iret;
 		}
+		//header values the file does not give are left invalid, and are rejected below
+		Geometry = Type = YDirection = 0;
+		version = Rmin = Rmax = Nchannelspervalue = Mvaluesperpixel = Dimensions = 0;
+		Pixels[0] = Pixels[1] = Pixels[2] = 0;
+		ODescription[0] = Componentnames[0] = 0;
+		//a header that ends early is not a texture
 		//could sniff Geometry here, if caller says what geometry type is OK for them, return if not OK
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%c",&Geometry);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d",&version);
-		rv=fgets(line,1000,fp);
-		sscanf(line,"%s",ODescription);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
+		sscanf(line,"%199s",ODescription);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%c",&Type);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d %d",&Rmin,&Rmax);
 
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d",&Nchannelspervalue);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d",&Mvaluesperpixel);
-		rv=fgets(line,1000,fp);
-		sscanf(line,"%s",Componentnames);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
+		sscanf(line,"%9s",Componentnames);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d",&Dimensions);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%d %d %d",&Pixels[0], &Pixels[1], &Pixels[2]);
-		rv=fgets(line,1000,fp);
+		if(!fgets(line,1000,fp)) goto bad_header;
 		sscanf(line,"%c",&YDirection);
-		rv=fgets(line,1000,fp); //waste #I Image warning line
+		if(!fgets(line,1000,fp)) goto bad_header; //waste #I Image warning line
 
 
 		nx = ny = nz = 1;
@@ -787,25 +820,41 @@ D       #Y {U,D} image y-Down or texture y-Up row order
 		if(Dimensions > 2) nz = Pixels[2];
 		nv = Mvaluesperpixel;
 		nc = Nchannelspervalue;
-		nchan = nv * nc;
 		iydown = 1;
 		if(YDirection == 'U') iydown = 0;
-			
-		totalbytes = 4 * nx * ny * nz; //output 4 channel RGBA image size
-		if(totalbytes <= 256 * 256 * 256 * 4){
+
+		//channels per value (N) and values per pixel (M) are 1 to 4, with N x M at most 4
+		//(L, LA, RGB or RGBA): the pixel[] below holds 4 channels
+		if(nc < 1 || nc > 4 || nv < 1 || nv > 4 || nv * nc > 4){
+			printf("web3dit: %d channels per value and %d values per pixel are not supported\n",nc,nv);
+			goto bad_header;
+		}
+		nchan = nv * nc;
+		range = (double)Rmax - (double)Rmin;
+		if(Type == 'f' && !(range > 0.0)){
+			printf("web3dit: channel range %d %d is empty\n",Rmin,Rmax);
+			goto bad_header;
+		}
+		//output 4 channel RGBA image size, at most WEB3DIT_MAX_RGBA bytes
+		if(!texture_file_pixels(nx,ny,nz,WEB3DIT_MAX_RGBA,&npixels)){
+			printf("web3dit: image size %d %d %d is not valid\n",nx,ny,nz);
+			goto bad_header;
+		}
+		totalbytes = npixels * 4;
+		{
 			unsigned char *rgbablob;
 			rgbablob = malloc(totalbytes);
+			if(!rgbablob) goto bad_header;
 			memset(rgbablob,0,totalbytes);
 
 			//now convert to RGBA 4 bytes per pixel
 			for(i=0;i<nz;i++){
 				for(j=0;j<ny;j++){
 					for(k=0;k<nx;k++){
-						unsigned char pixel[4],*rgba, n;
+						unsigned char pixel[4],*rgba;
 						pixel[0] = pixel[1] = pixel[2] = pixel[3] = 0;
 						for(m=0;m<nv;m++){
 							int rvi;
-							UNUSED(rvi);
 
 							switch(Type){
 								case 'f':
@@ -819,10 +868,22 @@ D       #Y {U,D} image y-Down or texture y-Up row order
 								rvi=fscanf(fp,"%d",&pixint);
 								break;
 							}
+							if(rvi != 1){
+								//fewer values than the header says
+								printf("web3dit: image data ends early\n");
+								free(rgbablob);
+								goto bad_header;
+							}
 							for(n=0;n<nc;n++){
 								switch(Type){
 									case 'f':
-										pixel[n] = (unsigned char)(unsigned int)((pixfloat - Rmin) / (Rmax - Rmin) * 255.0);
+									{
+										//values outside the range clamp to 0 or 255
+										double d = ((double)pixfloat - Rmin) / range * 255.0;
+										if(!(d > 0.0)) d = 0.0;
+										if(d > 255.0) d = 255.0;
+										pixel[n] = (unsigned char)d;
+									}
 									break;
 									case 'x':
 									case 'i':
@@ -885,6 +946,9 @@ D       #Y {U,D} image y-Down or texture y-Up row order
 	}
 	return iret;
 
+bad_header:
+	fclose(fp);
+	return FALSE;
 }
 void saveImage_web3dit(struct textureTableIndexStruct *tti, char *fname){
 /*	TESTED ONLY RGB Geometry 3 and C AS OF SEPT 9, 2016
@@ -1018,7 +1082,8 @@ The endian is one of
 0 for big endian (most significant byte first). For example Motorola processors, Sun, SGI, some HP.
 1 for little endian (least significant byte first). For example Intel processors, Dec Alphas.
 */
-	int i,j,k,nx,ny,nz, bitsperpixel, bpp, iendian, iret, totalbytes, ipix, nchan;
+	int i,j,k,nx,ny,nz, bitsperpixel, bpp, iendian, iret, ipix, nchan;
+	size_t npixels, totalbytes;
 	// unused int jpix;
 	float sx,sy,sz,tx,ty,tz;
 	FILE *fp;
@@ -1032,11 +1097,15 @@ The endian is one of
 
 		char line [1000];
 		rv=fgets(line,1000,fp);
-		if(strncmp(line,"vol",3)){
+		if(!rv || strncmp(line,"vol",3)){
 			//for now we'll enforce 'vol' as first the chars of file for sniffing, but not enforcable
 			fclose(fp);
 			return iret;
 		}
+		//values the file does not give are left invalid, and are rejected below
+		nx = ny = nz = 0;
+		bitsperpixel = 0;
+		line[0] = 0;
 		rv=fgets(line,1000,fp);
 		sscanf(line,"%d %d %d",&nx,&ny,&nz);
 		rv=fgets(line,1000,fp);
@@ -1061,18 +1130,33 @@ The endian is one of
 			case 32: nchan = 1; break;
 			//32 - four bytes representing a signed integer
 			default:
-				break;
+				printf("vol: %d bits per pixel is not supported\n",bitsperpixel);
+				fclose(fp);
+				return FALSE;
 		}
 
-		totalbytes = bpp * nx * ny * nz;
+		//sizes from the header: checked before they size memory
+		if(!texture_file_pixels(nx,ny,nz,VOL_MAX_RGBA,&npixels)){
+			printf("vol: image size %d %d %d is not valid\n",nx,ny,nz);
+			fclose(fp);
+			return FALSE;
+		}
+		totalbytes = npixels * (size_t)bpp;
 		if(totalbytes < 128 * 128 * 128 *4){
 			unsigned char* blob, *rgbablob;
 			size_t rvt;
 			UNUSED(rvt);
 
 			blob = malloc(totalbytes + 4);
-			rgbablob = malloc(nx * ny * nz * 4);
-			memset(rgbablob,0,nx*ny*nz*4);
+			rgbablob = malloc(npixels * 4);
+			if(!blob || !rgbablob){
+				free(blob);
+				free(rgbablob);
+				fclose(fp);
+				return FALSE;
+			}
+			memset(blob,0,totalbytes + 4); //short data reads as zero
+			memset(rgbablob,0,npixels*4);
 
 			rvt=fread(blob,totalbytes,1,fp);
 			//now convert to RGBA 4 bytes per pixel
@@ -1194,7 +1278,7 @@ const int itype;
 const int bsize;
 const char * fmt;
 } nrrddatatypes [] = {
-{{"signed char", "int8_t", "int8",  NULL,NULL,NULL,NULL},	CDATATYPE_char, 1, "%hh"},
+{{"signed char", "int8_t", "int8",  NULL,NULL,NULL,NULL},	CDATATYPE_char, 1, "%hhd"},
 {{"uchar", "unsigned char", "uint8", "uint8_t",	NULL,NULL,NULL}, CDATATYPE_uchar, 1, "%hhu" },
 {{"short", "short int", "signed short", "signed short int", "int16", "int16_t", NULL}, CDATATYPE_short, 2, "%hd" },
 {{"ushort", "unsigned short", "unsigned short int", "uint16", "uint16_t", NULL, NULL}, CDATATYPE_ushort, 2, "%hu" },
@@ -1267,7 +1351,7 @@ encoding: raw
 		char *remainder;
 		const char *fmt;
 		unsigned long long nvoxel;
-		unsigned long long totalbytes;
+		size_t npixels, totalbytes;
 		unsigned char *data;
 		unsigned char *voxel;
 		double dhi, dlo; 
@@ -1280,7 +1364,7 @@ encoding: raw
 		dhi=0.0; dlo=0.0;
 
 		rv=fgets(line,2047,fp);
-		if(strncmp(line,"NRRD",4)){
+		if(!rv || strncmp(line,"NRRD",4)){
 			//not our type
 			fclose(fp);
 			return iret;
@@ -1297,6 +1381,12 @@ encoding: raw
 		//read header field, one per loop:
 		for(;;){
 			rv=fgets(line,2047,fp);
+			if(!rv){
+				//end of file before the blank line that ends the header: no data
+				printf("nrrd: header has no end\n");
+				fclose(fp);
+				return FALSE;
+			}
 			i = 0;
 			ifieldtype = 0; //unknown
 			ilen = 0; //length of field string
@@ -1338,7 +1428,9 @@ encoding: raw
 						if(nrrddatatypes[k].itype == 0) break;
 						for(j=0;j<7;j++){
 							if(nrrddatatypes[k].stypes[j]){  //some are null
-								if(!strncmp(remainder,nrrddatatypes[k].stypes[j],klen)){
+								//the whole name: "int" is int32, not a prefix of "int8_t"
+								if(klen > 0 && (size_t)klen == strlen(nrrddatatypes[k].stypes[j])
+									&& !strncmp(remainder,nrrddatatypes[k].stypes[j],klen)){
 									ifound = TRUE;
 									idatatype = nrrddatatypes[k].itype;
 									//kdatatype = (int)k;
@@ -1371,7 +1463,8 @@ encoding: raw
 					}
 					break;
 				case NRRDFIELD_encoding:
-					sscanf(remainder,"%s",cencoding);
+					cencoding[0] = 0;
+					sscanf(remainder,"%255s",cencoding);
 					if(!strcmp(cencoding,"raw"))
 						iencoding = NRRDENCODING_RAW;
 					else if(!strcmp(cencoding,"ascii"))
@@ -1380,7 +1473,8 @@ encoding: raw
 
 					break;
 				case NRRDFIELD_endian:
-					sscanf(remainder,"%s",cendian);
+					cendian[0] = 0;
+					sscanf(remainder,"%255s",cendian);
 					if(!strcmp(cendian,"little"))
 						iendian = NRRDENDIAN_LITTLE;
 					else if(!strcmp(cendian,"big"))
@@ -1407,6 +1501,12 @@ encoding: raw
 			printf("hows that?\n");
 
 		}
+		//the header must give a known type and encoding, 1 to 4 dimensions and 1 to 4 channels
+		if(idatatype == 0 || iencoding == 0 || idim < 1 || nchannel < 1 || nchannel > 4){
+			printf("nrrd: type, encoding, dimension or nchannel is missing or not supported\n");
+			fclose(fp);
+			return FALSE;
+		}
 		//clean up dimensions
 		if(isize[0] == 1){
 			//remove degenerate dimension, found in some images
@@ -1422,19 +1522,32 @@ encoding: raw
 			idim = 3; //as of oct 3, 2016 we just do scalar / iso-value 3D images, not color, not time-series, not xyz
 		}
 		
+		//sizes from the header: each 1 to TEXTURE_FILE_MAX_AXIS, and the voxel count and
+		//byte counts in size_t with a checked multiply, before they size memory
+		if(!texture_file_pixels(isize[0],isize[1],isize[2],TEXTURE_FILE_MAX_RGBA,&npixels)
+			|| !texture_mul_size(npixels,(size_t)bsize,&totalbytes)){
+			printf("nrrd: sizes %d %d %d are not valid\n",isize[0],isize[1],isize[2]);
+			fclose(fp);
+			return FALSE;
+		}
 		//malloc data buffer
-		nvoxel = isize[0] * isize[1] * isize[2];
-		totalbytes = nvoxel * bsize;
-		data = MALLOC(unsigned char *,(size_t)totalbytes);
-		memset(data,0,(size_t)totalbytes);
+		nvoxel = npixels;
+		data = MALLOC(unsigned char *,totalbytes);
 		voxel = MALLOC(unsigned char *, bsize);
+		if(!data || !voxel){
+			FREE_IF_NZ(data);
+			FREE_IF_NZ(voxel);
+			fclose(fp);
+			return FALSE;
+		}
+		memset(data,0,totalbytes);
 		//read data
 		if(iencoding == NRRDENCODING_RAW){
 			int dataLittleEndian;
 			size_t nelem_read, element_size = 0L;
 			element_size = bsize;
 			nelem_read = fread(data,element_size, (size_t)nvoxel,fp);
-			printf("num elems read = %llu elemsize %ld bytes requeted = %llu %llu\n",(unsigned long long)nelem_read,(long)bsize,bsize*nvoxel,totalbytes);
+			printf("num elems read = %llu elemsize %ld bytes requeted = %llu %llu\n",(unsigned long long)nelem_read,(long)bsize,bsize*nvoxel,(unsigned long long)totalbytes);
 			//endian conversion
 			dataLittleEndian = iendian == NRRDENDIAN_LITTLE ? TRUE : FALSE;
 			if(isMachineLittleEndian() != dataLittleEndian && bsize > 1){
@@ -1470,6 +1583,8 @@ encoding: raw
 				}
 			}
 		}
+		fclose(fp);
+		FREE_IF_NZ(voxel);
 		//we have binary data in voxel datatype described in file
 		if (nchannel == 1) {
 			//currently (Oct 2, 2016) this function assumes scalar-per-voxel aka luminance or alpha
@@ -1494,10 +1609,10 @@ encoding: raw
 				printf("initial range for ushort hi %lf lo %lf\n", dhi, dlo);
 				break;
 			case CDATATYPE_int:
-				dlo = dhi = (double)*(long*)(voxel);
+				dlo = dhi = (double)*(int*)(voxel);
 				break;
 			case CDATATYPE_uint:
-				dlo = dhi = (double)*(unsigned long*)(voxel);
+				dlo = dhi = (double)*(unsigned int*)(voxel);
 				break;
 			case CDATATYPE_longlong:
 				dlo = dhi = (double)*(long long*)(voxel);
@@ -1539,12 +1654,12 @@ encoding: raw
 					dhi = max(dhi, (double)*(unsigned short*)(voxel));
 					break;
 				case CDATATYPE_int:
-					dlo = min(dlo, (double)*(long*)(voxel));
-					dhi = max(dhi, (double)*(long*)(voxel));
+					dlo = min(dlo, (double)*(int*)(voxel));
+					dhi = max(dhi, (double)*(int*)(voxel));
 					break;
 				case CDATATYPE_uint:
-					dlo = min(dlo, (double)*(unsigned long*)(voxel));
-					dhi = max(dhi, (double)*(unsigned long*)(voxel));
+					dlo = min(dlo, (double)*(unsigned int*)(voxel));
+					dhi = max(dhi, (double)*(unsigned int*)(voxel));
 					break;
 				case CDATATYPE_longlong:
 					dlo = min(dlo, (double)*(unsigned long long*)(voxel));
@@ -1570,7 +1685,11 @@ encoding: raw
 			if (1) printf("nrrd image voxel range hi %lf lo %lf 255range scale factor %lf\n", dhi, dlo, d255range);
 		}
 		//now convert to display usable data type which currently is RGBA
-		tti->texdata = MALLOC(unsigned char *,(size_t)nvoxel * 4); //4 for RGBA
+		tti->texdata = MALLOC(unsigned char *,npixels * 4); //4 for RGBA
+		if(!tti->texdata){
+			FREE_IF_NZ(data);
+			return FALSE;
+		}
 		tti->channels = nchannel; //1=lum 2=lum-alpha 3=rgb 4=rgba //doing 2-channel allows modulation of material color
 			//Oct 16, 2016: in textures.c we now compute gradient automatically and put in RGB, if channels == 1 and z > 1
 		tti->hasAlpha = TRUE;
@@ -1618,10 +1737,10 @@ encoding: raw
 					}
 					break;
 					case CDATATYPE_int:
-						A = (unsigned char)((*((long*)voxel)) / 65536 / 255 + 127);
+						A = (unsigned char)((*((int*)voxel)) / 65536 / 255 + 127);
 						break;
 					case CDATATYPE_uint:
-						A = (unsigned char)((*((unsigned long*)voxel)) / 65536 / 255);
+						A = (unsigned char)((*((unsigned int*)voxel)) / 65536 / 255);
 						break;
 					case CDATATYPE_longlong:
 						A = (unsigned char)((*((long long*)voxel)) / 65536 / 65536 / 255 + 127);
@@ -1670,11 +1789,11 @@ encoding: raw
 						//printf("[%lf %lu %u %d]  ",dtemp2,lutemp,utemp,(int)uctemp);
 						break;
 					case CDATATYPE_int:
-						dtemp = (double)(*(long*)voxel);
+						dtemp = (double)(*(int*)voxel);
 						A = (unsigned char)(unsigned short)(unsigned int)((dtemp - dlo) * d255range);
 						break;
 					case CDATATYPE_uint:
-						dtemp = (double)(*(unsigned long*)voxel);
+						dtemp = (double)(*(unsigned int*)voxel);
 						A = (unsigned char)(unsigned short)(unsigned int)((dtemp - dlo) * d255range);
 						break;
 					case CDATATYPE_longlong:
@@ -1729,8 +1848,9 @@ encoding: raw
 			}
 		}
 		FREE_IF_NZ(data); //free the raw data we malloced, now that we have rgba, unless we plan to do more processing on scalar values later.
+		iret = TRUE;
 	}
-	return TRUE;
+	return iret;
 
 }
 //<<< NRRD MIT ================================
