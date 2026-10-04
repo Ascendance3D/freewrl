@@ -365,6 +365,9 @@ static void android_save_log(char *thislog) {
 	free(thislog);
 	p->androidHaveUnreadMessages = min(p->androidHaveUnreadMessages, p->maxLines -1);
 }
+/* Formats like vsnprintf into buffer (buffer_length bytes). Every write is bounded by
+   buffer_length; a piece that does not fit is dropped. %n prints the count, it never
+   stores it. fmt must be a trusted format: pass outside text as ConsoleMessage("%s", text). */
 int fwvsnprintf(char *buffer, int buffer_length, const char *fmt, va_list ap)
 {
 	int i, j, count;
@@ -377,48 +380,55 @@ int fwvsnprintf(char *buffer, int buffer_length, const char *fmt, va_list ap)
 	unsigned u;
 	char *s;
 	void *v;
+	if (buffer_length < 3) return -1;
 	tempbuf = malloc(buffer_length);
 	format = malloc(buffer_length);
+	if (!tempbuf || !format) {
+		free(tempbuf);
+		free(format);
+		return -1;
+	}
 	count = 0;
 	buffer[0] = '\0';
 	while (*fmt)
 	{
 		tempbuf[0] = '\0';
-		for (j = 0; fmt[j] && fmt[j] != '%'; j++) {
+		for (j = 0; fmt[j] && fmt[j] != '%' && j < buffer_length - 1; j++) {
 			format[j] = fmt[j];	/* not a format string	*/
 		}
 
 		if (j) {
 			format[j] = '\0';
-			count += sprintf(tempbuf, "%s", format);/* printf it verbatim				*/
+			count += snprintf(tempbuf, buffer_length, "%s", format);/* printf it verbatim				*/
 			fmt += j;
 		}
 		else {
-			for (j = 0; !isalpha(fmt[j]); j++) {	 /* find end of format specifier */
+			/* find end of format specifier; stop at the end of fmt and of format[] */
+			for (j = 0; fmt[j] && !isalpha((unsigned char)fmt[j]) && j < buffer_length - 2; j++) {
 				format[j] = fmt[j];
 				if (j && fmt[j] == '%')				/* special case printing '%'		*/
 					break;
 			}
-			format[j] = fmt[j];			/* finish writing specifier		 */
+			format[j] = fmt[j];			/* finish writing specifier (NUL: a lone '%' at the end, dropped) */
 			format[j + 1] = '\0';			/* don't forget NULL terminator */
-			fmt += j + 1;
+			fmt += fmt[j] ? j + 1 : j;		/* never step past the end of fmt */
 
 			switch (format[j]) {			 /* cases for all specifiers		 */
 			case 'd':
 			case 'i':						/* many use identical actions	 */
 				i = va_arg(ap, int);		 /* process the argument	 */
-				count += sprintf(tempbuf, format, i); /* and printf it		 */
+				count += snprintf(tempbuf, buffer_length, format, i); /* and printf it		 */
 				break;
 			case 'o':
 			case 'x':
 			case 'X':
 			case 'u':
 				u = va_arg(ap, unsigned);
-				count += sprintf(tempbuf, format, u);
+				count += snprintf(tempbuf, buffer_length, format, u);
 				break;
 			case 'c':
 				c = (char)va_arg(ap, int);		/* must cast!			 */
-				count += sprintf(tempbuf, format, c);
+				count += snprintf(tempbuf, buffer_length, format, c);
 				break;
 			case 's':
 				s = va_arg(ap, char *);
@@ -435,9 +445,9 @@ int fwvsnprintf(char *buffer, int buffer_length, const char *fmt, va_list ap)
 						tmpstr[ltc] = '.'; ltc++;
 						tmpstr[ltc] = '\0';
 
-						count += sprintf(tempbuf, format, tmpstr);
+						count += snprintf(tempbuf, buffer_length, format, tmpstr);
 					}
-					else count += sprintf(tempbuf, format, s);
+					else count += snprintf(tempbuf, buffer_length, format, s);
 				}
 				break;
 			case 'f':
@@ -446,17 +456,17 @@ int fwvsnprintf(char *buffer, int buffer_length, const char *fmt, va_list ap)
 			case 'g':
 			case 'G':
 				d = va_arg(ap, double);
-				count += sprintf(tempbuf, format, d);
+				count += snprintf(tempbuf, buffer_length, format, d);
 				break;
 			case 'p':
 				v = va_arg(ap, void *);
-				count += sprintf(tempbuf, format, v);
+				count += snprintf(tempbuf, buffer_length, format, v);
 				break;
 			case 'n':
-				count += sprintf(tempbuf, "%d", count);
+				count += snprintf(tempbuf, buffer_length, "%d", count);
 				break;
 			case '%':
-				count += sprintf(tempbuf, "%%");
+				count += snprintf(tempbuf, buffer_length, "%%");
 				break;
 			default:
 				ERROR_MSG("ConsoleMessage: invalid format specifier: %c\n", format[j]);

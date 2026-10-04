@@ -72,6 +72,15 @@ renamed or removed, the extraction fails and the run stops. It does not use a
   apart from its nodes on world replacement (`ProdCon.c`, and at exit) while a touch holds
   it, the Group that holds EAI-created nodes freed after they moved. The `do_*Sensor`
   doubles read the sensor node, so a stale call is an AddressSanitizer heap-use-after-free.
+- `test_parse_error.c`: parser error reporting (CodeQL G01): `cParseErrorCurID` and
+  `cParseErrorFieldString` (`CParseParser.c`) through `ConsoleMessage`, `ConsoleMessage0`
+  and `fwvsnprintf` (`ConsoleMessage.c`), captured by a registered console callback.
+  A token, input text or field value holding `%x`, `%d`, `%5d` or `%%` is logged as text;
+  the longest token (155 characters) with 2000- and 5000-character message and input, and
+  a 2000-character field value, fit the 800-byte message buffer; formatted calls (`%d`,
+  `%u`, `%x`, `%c`, `%s`, `%f`, `%e`, widths, precision, `%%`) give the exact text; a `%s`
+  argument at and over the 4095-byte formatter length, an 8000 width, a literal longer
+  than the buffer and a lone trailing `%` stay inside the formatter's buffers.
 
 ## Sanitizers
 

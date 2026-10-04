@@ -2957,7 +2957,7 @@ static BOOL parser_sfnodeValue(struct VRMLParser* me, void* ret) {
         /* expect something like a number (memory pointer) to be here */
 		// https://stackoverflow.com/questions/15610053/correct-printf-format-specifier-for-size-t-zu-or-iu 
         if (sscanf(me->lexer->startOfStringPtr[me->lexer->lexerInputLevel], "%zu", & tmp) != 1) {
-            CPARSE_ERROR_FIELDSTRING ("error finding SFNode id on line :%s:",
+            CPARSE_ERROR_FIELDSTRING ("error finding SFNode id on line",
 			me->lexer->startOfStringPtr[me->lexer->lexerInputLevel]);
             *rv=NULL;
             return FALSE;
@@ -2989,7 +2989,10 @@ static BOOL parser_fieldTypeNotParsedYet(struct VRMLParser* me, void* ret) {
 }
 
 
-/* prettyprint this error */
+/* prettyprint this error. The message holds text from the world file (the current token,
+   the next input, a field value), so it goes to ConsoleMessage as data ("%s"), never as the
+   format. cParseErrorCurID fits OUTLINELEN by construction: str is cut to FROMSRC, curID is
+   at most MAX_IDLEN (155, lexer_setCurID) and nextIn is cut to FROMSRC. */
 	#define OUTLINELEN 	800
 	#define FROMSRC		140
 void cParseErrorCurID(struct VRMLParser *me, char *str) {
@@ -3016,31 +3019,28 @@ void cParseErrorCurID(struct VRMLParser *me, char *str) {
 	}
 
 	p->foundInputErrors++;
-	ConsoleMessage(fw_outline); 
+	ConsoleMessage("%s", fw_outline);
 }
 
+/* str2 is a field value from the world file, with no length limit: keep FROMSRC characters
+   of it (and of str and nextIn), mark a cut with "...", and bound every write. */
 void cParseErrorFieldString(struct VRMLParser *me, char *str, const char *str2) {
 
 	char fw_outline[OUTLINELEN];
-	int str2len = (int) strlen(str2);
+	size_t len;
 	ppCParseParser p = (ppCParseParser)gglobal()->CParseParser.prv;
 
-	if (strlen(str) > FROMSRC) str[FROMSRC] = '\0';
-	strcpy(fw_outline,str);
-	strcat (fw_outline," (");
-	strncat (fw_outline,str2,str2len);
-	strcat (fw_outline, ") ");
-	if (me->lexer->curID != ((void *)0)) strcat (fw_outline, me->lexer->curID); 
+	snprintf(fw_outline, sizeof(fw_outline), "%.*s (%.*s%s) %s",
+		FROMSRC, str, FROMSRC, str2, strlen(str2) > FROMSRC ? "..." : "",
+		me->lexer->curID != NULL ? me->lexer->curID : "");
 	if (me->lexer->nextIn != NULL) {
-		strcat (fw_outline," at: \"");
-		strncat(fw_outline,me->lexer->nextIn,FROMSRC);
-		if (strlen(me->lexer->nextIn) > FROMSRC)
-			strcat (fw_outline,"...");
-		strcat (fw_outline,"\"");
+		len = strlen(fw_outline);
+		snprintf(fw_outline + len, sizeof(fw_outline) - len, " at: \"%.*s%s\"",
+			FROMSRC, me->lexer->nextIn, strlen(me->lexer->nextIn) > FROMSRC ? "..." : "");
 	}
 
 	p->foundInputErrors++;
-	ConsoleMessage(fw_outline); 
+	ConsoleMessage("%s", fw_outline);
 }
 
 //

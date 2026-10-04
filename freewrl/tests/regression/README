@@ -5,6 +5,8 @@ X_ITE, e.g.  tools/visual-test/compare.sh regression/route_dotted.wrl
 
 route_dotted.wrl       classic VRML "ROUTE a.b TO c.d" (6.7 parser regression, all platforms)
 route_malformed.wrl    bad ROUTE statements are reported, not a crash (same parser path)
+parse_error_format.wrl  a parse error whose token and input hold %x, %d, %5d: the log shows them as text
+                       (6.7 used the message as a printf format, all platforms); pass: no crash, % text unchanged, green box
 proto_replace.wrl      PROTO declarations of a replaced world are freed once (macOS QA invalid free, all platforms)
 hanim_skin.x3d         HAnim skinning, static joint rotation (CPU skinning on macOS)
 hanim_anim.x3d         HAnim skinning driven by an interpolator
