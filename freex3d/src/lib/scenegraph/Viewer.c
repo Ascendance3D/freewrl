@@ -3126,7 +3126,7 @@ void fwl_set_StereoParameter (const char *optArg) {
 	viewer = Viewer();
 
 	i = sscanf(optArg,"%lf",&viewer->stereoParameter);
-	if (i==0) printf ("warning, command line stereo parameter incorrect - was %s\n",optArg);
+	if (i != 1) printf ("warning, command line stereo parameter incorrect - was %s\n",optArg);
 	else updateEyehalf();
 }
 
@@ -3136,7 +3136,7 @@ void fwl_set_EyeDist (const char *optArg) {
 	viewer = Viewer();
 
 	i= sscanf(optArg,"%lf",&viewer->eyedist);
-	if (i==0) printf ("warning, command line eyedist parameter incorrect - was %s\n",optArg);
+	if (i != 1) printf ("warning, command line eyedist parameter incorrect - was %s\n",optArg);
 	else updateEyehalf();
 }
 
@@ -3146,7 +3146,7 @@ void fwl_set_ScreenDist (const char *optArg) {
 	viewer = Viewer();
 
 	i= sscanf(optArg,"%lf",&viewer->screendist);
-	if (i==0) printf ("warning, command line screendist parameter incorrect - was %s\n",optArg);
+	if (i != 1) printf ("warning, command line screendist parameter incorrect - was %s\n",optArg);
 	else updateEyehalf();
 }
 /* end of Shutter glasses, stereo mode configure */
