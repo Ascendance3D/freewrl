@@ -2,6 +2,7 @@
 # Host-only tests for bounds and data-safety logic in FreeWRL library code:
 #   Component_HAnim.c    parse_float_values and its tokenizer
 #   LoadTextures.c       GeneratedTexture blank-texture size checks
+#   LoadTextures.c       web3dit, .vol and NRRD texture file headers
 #   Compositing_Shaders.c shader PLUG compositing (Plug, AddDefine0, ...)
 #   EAIEventsIn.c        GETNODEPARENTS reply, with outBufferCat (EAIHelpers.c)
 #   io_files.c           fw_temp_file_create, fw_temp_dir_create
@@ -46,6 +47,15 @@ x() { LC_ALL=C awk -v fn="$2" -v to="${3:-}" -f "$here/extract.awk" "$lib/$1"; }
 	x scenegraph/Component_HAnim.c parse_float_values
 } > "$out/hanim.inc"
 x opengl/LoadTextures.c texture_load_blank_Texture > "$out/texture.inc"
+{
+	# the size limits are macros, not functions: copy their lines unchanged
+	LC_ALL=C grep -E '^#define (TEXTURE_FILE_MAX_AXIS|TEXTURE_FILE_MAX_RGBA|WEB3DIT_MAX_RGBA|VOL_MAX_RGBA) ' \
+		"$lib/opengl/LoadTextures.c"
+	x opengl/LoadTextures.c texture_mul_size texture_file_pixels
+	x opengl/LoadTextures.c loadImage_web3dit
+	x opengl/LoadTextures.c loadImage3DVol
+	x opengl/LoadTextures.c isMachineLittleEndian loadImage_nrrd
+} > "$out/texheader.inc"
 x opengl/Compositing_Shaders.c dupRange AddDefine > "$out/shader.inc"
 {
 	x input/EAIHelpers.c outBufferCat
@@ -67,7 +77,7 @@ x main/ConsoleMessage.c fwvsnprintf ConsoleMessage > "$out/consolemsg.inc"
 x vrml_parser/CParseParser.c cParseErrorCurID cParseErrorFieldString > "$out/parseerror.inc"
 
 objs=
-for t in test_bounds_main test_hanim test_texture test_shader_plug test_eai_reply test_tempfile \
+for t in test_bounds_main test_hanim test_texture test_texture_header test_shader_plug test_eai_reply test_tempfile \
 	test_pick_ray test_sensor_lifetime test_parse_error; do
 	# built like the production sources: no extra warning flags, since each test
 	# includes extracted production code

@@ -50,6 +50,15 @@ renamed or removed, the extraction fails and the run stops. It does not use a
 - `test_texture.c`: the GeneratedTexture blank texture (`LoadTextures.c`): the empty
   default size, one value, zero, negative and overflowing sizes are rejected with no
   allocation; valid sizes give black opaque pixels.
+- `test_texture_header.c`: texture file headers (CodeQL G08): `loadImage_web3dit`,
+  `loadImage3DVol` and `loadImage_nrrd` with `texture_file_pixels` and `texture_mul_size`
+  (`LoadTextures.c`; the size-limit macros are copied with them). Each test writes a small
+  file at run time. Valid web3dit (2D RGBA, 3D luminance, float range with clamping),
+  .vol and NRRD (uchar, big-endian ushort, 4-byte int types, a degenerate first axis,
+  ascii) files load; channel counts over 4 and over 255, size products that overflow
+  `int` or `size_t`, sizes over the per-axis and total-byte limits, zero, negative and
+  missing sizes, truncated data, a header with no end, unknown types and encodings,
+  out-of-range `nchannel`, and long header words are rejected with no texture data.
 - `test_shader_plug.c`: shader PLUG compositing (`Compositing_Shaders.c`): plug names,
   parameter lists, plugs and shader parts longer than the old fixed buffers, malformed
   `void PLUG_` declarations and `/* PLUG: */` points, `AddDefine0`, `AddVersion0`,
