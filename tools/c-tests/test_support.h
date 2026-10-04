@@ -40,5 +40,6 @@ extern const ct_suite ct_tempfile_suite;
 extern const ct_suite ct_pickray_suite;
 extern const ct_suite ct_sensors_suite;
 extern const ct_suite ct_parse_error_suite;
+extern const ct_suite ct_bvh_suite;
 
 #endif

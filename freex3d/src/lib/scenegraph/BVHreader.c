@@ -19,6 +19,7 @@ What X3D needs is HAnim2MotionData.
 #include <string.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "LinearAlgebra.h"
 #include <stdio.h>
 #define TRUE 1
@@ -58,14 +59,14 @@ static int chan_lookup(char *cname){
 	struct chan_name *cn;
 	i = 0;
 	iname = 0;
-	do{
-		cn = &chan_names[i];
+	//stop at the NULL entry: an unknown channel name is CHAN_NONE
+	while((cn = &chan_names[i])->cname != NULL){
 		if(!strcmp(cn->cname,cname)){
 			iname = cn->iname;
 			break;
 		}
 		i++;
-	}while(cn->cname != NULL);
+	}
 	return iname;
 	
 }
@@ -110,11 +111,34 @@ static int instringlist(char* name, char** list) {
 	return have;
 }
 
-void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
+// Limits for values read from a .bvh file, checked before they size or index memory.
+// BVH_MAX_JOINTS: the parser's joint table (ccjoints) has always held 100 joints;
+//   a file with more used to write past it.
+// BVH_MAX_JOINT_CHANNELS: the format has 3 position and 3 rotation channels per
+//   joint, and joint_frame_motion.ichan holds 6.
+// BVH_MAX_FRAMES: 1,000,000 frames is 2.3 hours at 120 fps.
+// BVH_MAX_VALUES: frames x channels, at most 2^26 floats (256 MiB). A 100-joint,
+//   600-channel file can have 111,848 frames (15 minutes at 120 fps).
+#define BVH_MAX_JOINTS 100
+#define BVH_MAX_JOINT_CHANNELS 6
+#define BVH_MAX_FRAMES 1000000
+#define BVH_MAX_VALUES ((size_t)1 << 26)
+#define BVH_MAX_NAME 100
+
+// *out = a * b; FALSE if the product does not fit in size_t
+static int bvh_mul_size(size_t a, size_t b, size_t *out){
+	if(a != 0 && b > SIZE_MAX / a) return FALSE;
+	*out = a * b;
+	return TRUE;
+}
+
+// Returns TRUE and sets every output on success. On a malformed or over-limit file
+// it prints why, frees what it allocated, sets the outputs empty and returns FALSE.
+int read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 	int flipZ, float armAngle, float legAngle, float scale,
 	struct joint_frame_motion** chan, int* njoint, int* channel_count, float** values,
 	float* bvh_frame_time, int* bvh_frame_count);
-void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
+int read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 	int flipZ, float armAngle, float legAngle, float scale,
 	struct joint_frame_motion** chan, int* njoint, int* channel_count, float** values,
 	float* bvh_frame_time, int* bvh_frame_count)
@@ -127,6 +151,21 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 	char line [4096], *pos;
 	char *token, *delims;
 	float global_scale = 1.0f;
+	struct joint_frame_motion *cjoint, *cj, ccjoints[BVH_MAX_JOINTS];
+	struct joint_frame_motion *cchan = NULL;
+	float *fvalues = NULL;
+	int mjoint = 0;
+	size_t nvalues, nbytes;
+
+	*chan = NULL;
+	*values = NULL;
+	*njoint = 0;
+	*channel_count = 0;
+	*bvh_frame_count = 0;
+	*bvh_frame_time = 0.0;
+	cjoint = ccjoints; //malloc(100 * sizeof(struct joint_frame_motion));
+	memset(cjoint,0,BVH_MAX_JOINTS*sizeof(struct joint_frame_motion));
+	cj = NULL;
 
 	pos = blob;
 	rv = getline2(line,2048,&pos);
@@ -134,46 +173,56 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 
     // Split by whitespace.
 	delims = " ,\r\n\t\"";
-	token = strtok(line,delims);
+	token = rv ? strtok(line,delims) : NULL;
     // Create hierarchy as empties
-	if( strcasecmp(token,"hierarchy")){
+	if(!token || strcasecmp(token,"hierarchy")){
 		printf("not a BVH file \n");
-		return;
+		return FALSE;
 	}
 
-    *bvh_frame_count = 0;
-    *bvh_frame_time = 0.0;
-
 	int channelIndex = -1;
-	*channel_count = 0;
-	struct joint_frame_motion *cjoint, *cj, ccjoints[100];
-	cjoint = ccjoints; //malloc(100 * sizeof(struct joint_frame_motion));
-	memset(cjoint,0,100*sizeof(struct joint_frame_motion));
-	int mjoint = 0;
 	int level = 0;
 	while( getline2(line,2048,&pos)){
         //...
 		token = strtok(line,delims);
 		//printf("token %s\n",token);
+		if(!token) continue; //blank line
         if(!strcasecmp(token,"root") || !strcasecmp(token,"joint")){
 			// JOINT name, start new joint
 			char *nametokens[4];
-			char name[100];
+			char name[BVH_MAX_NAME];
 			int len=0;
 			memset(nametokens,0,4*sizeof(void*));
-			while(nametokens[len] = strtok(NULL,delims)) len++;
+			while(len < 4 && (nametokens[len] = strtok(NULL,delims)) != NULL) len++;
 			//printf("len %d\n",len);
+			if(len == 0){
+				printf("BVH: joint without a name\n");
+				goto fail;
+			}
+			if(mjoint >= BVH_MAX_JOINTS){
+				printf("BVH: more than %d joints\n",BVH_MAX_JOINTS);
+				goto fail;
+			}
             // Join spaces into 1 word with underscores joining it.
+			if(strlen(nametokens[0]) >= sizeof(name)){
+				printf("BVH: joint name too long\n");
+				goto fail;
+			}
 			strcpy(name,nametokens[0]);
 			printf("%d name=%s ",mjoint, name);
             // Make sure the names are unique - Object names will match joint names exactly and both will be unique.
 			for(int i=1;i<len-1;i++) {
+				if(strlen(name) + 1 + strlen(nametokens[i]) >= sizeof(name)){
+					printf("BVH: joint name too long\n");
+					goto fail;
+				}
 				strcat(name,"_");
 				strcat(name,nametokens[i]);
 			}
 			cj = &cjoint[mjoint];
-			mjoint++;
 			cj->mocap_name = strdup(name);
+			if(!cj->mocap_name) goto fail;
+			mjoint++;
 		}
 		if(!strcasecmp(token,"OFFSET")){
 			if(0){
@@ -189,7 +238,20 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 		if(!strcasecmp(token,"CHANNELS")){
  			int channels;
 			token = strtok(NULL,delims); //CHANNELS
-			sscanf(token,"%d",&channels);
+			if(!cj){
+				printf("BVH: CHANNELS before ROOT\n");
+				goto fail;
+			}
+			if(!token || sscanf(token,"%d",&channels) != 1
+				|| channels < 0 || channels > BVH_MAX_JOINT_CHANNELS){
+				printf("BVH: CHANNELS count must be 0 to %d\n",BVH_MAX_JOINT_CHANNELS);
+				goto fail;
+			}
+			// a joint can repeat CHANNELS lines, so bound the running total too
+			if(*channel_count > BVH_MAX_JOINTS * BVH_MAX_JOINT_CHANNELS - channels){
+				printf("BVH: more than %d channels\n",BVH_MAX_JOINTS * BVH_MAX_JOINT_CHANNELS);
+				goto fail;
+			}
 			*channel_count += channels;
 			printf(" channels %d totalchannels %d\n",channels,*channel_count );
 			cj->nchan = channels;
@@ -198,6 +260,10 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
             //for channel in file_lines[lineIdx][2:]:
 			for(int i=0;i<channels;i++){
 				char *channel = strtok(NULL,delims); //Zrotation
+				if(!channel){
+					printf("BVH: CHANNELS line has fewer names than its count\n");
+					goto fail;
+				}
 				int ichan = chan_lookup(channel);
 				cj->ichan[i] = ichan;
 
@@ -218,36 +284,55 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 		}
 	} //end while lines
 
-	*njoint = mjoint;
+	if(mjoint == 0 || *channel_count < 1){
+		printf("BVH: no joints with channels\n");
+		goto fail;
+	}
     // start of motion channel float values, starting with:
     //  Frames: n
     //  Frame Time: dt
-	getline2(line,2048,&pos); //Frames:	2752
+	if(!getline2(line,2048,&pos)) goto truncated; //Frames:	2752
 	token = strtok(line,delims); //frames:
-	if(!strcasecmp(token,"frames:")){
+	if(token && !strcasecmp(token,"frames:")){
 		token = strtok(NULL,delims); //2752
-		sscanf(token,"%d",bvh_frame_count);
+		if(!token || sscanf(token,"%d",bvh_frame_count) != 1) *bvh_frame_count = 0;
+	}
+	if(*bvh_frame_count < 1 || *bvh_frame_count > BVH_MAX_FRAMES){
+		printf("BVH: Frames must be 1 to %d\n",BVH_MAX_FRAMES);
+		goto fail;
 	}
 
-	getline2(line,2048,&pos); //Frame Time:	0.00833333
+	if(!getline2(line,2048,&pos)) goto truncated; //Frame Time:	0.00833333
 	token = strtok(line,delims); //frame
-	if(!strcasecmp(token,"frame")){
+	if(token && !strcasecmp(token,"frame")){
 		token = strtok(NULL,delims); //time
-		if(!strcasecmp(token,"time:")){
+		if(token && !strcasecmp(token,"time:")){
 			token = strtok(NULL,delims); //0.00833333
-			sscanf(token,"%f",bvh_frame_time);
+			if(token) sscanf(token,"%f",bvh_frame_time);
 		}
 	}
 
-	printf("njoint %d \n",*njoint);
+	// frames x channels in size_t, then bytes; both checked before allocating
+	if(!bvh_mul_size((size_t)*channel_count, (size_t)*bvh_frame_count, &nvalues)
+		|| nvalues > BVH_MAX_VALUES
+		|| !bvh_mul_size(nvalues, sizeof(float), &nbytes)){
+		printf("BVH: more than %lu frame values\n",(unsigned long)BVH_MAX_VALUES);
+		goto fail;
+	}
+	// n values need at least 2n-1 characters: don't allocate for data that isn't there
+	if(strlen(pos) < 2 * nvalues - 1) goto truncated;
+
+	printf("njoint %d \n",mjoint);
 	printf("nchannel %d\n",*channel_count);
-	struct joint_frame_motion *cchan = malloc(*njoint *sizeof(struct joint_frame_motion));
-	*chan = cchan;
+	cchan = malloc(mjoint * sizeof(struct joint_frame_motion));
+	fvalues = malloc(nbytes);
+	if(!cchan || !fvalues){
+		printf("BVH: out of memory\n");
+		goto fail;
+	}
 	memcpy(cchan,cjoint,mjoint * sizeof(struct joint_frame_motion));
  
-	float * fvalues = malloc( (*channel_count) * (*bvh_frame_count) * sizeof(float));
-	*values = fvalues;
-	int k = 0;
+	size_t k = 0;
 	//char *delims2 = " ,\t\r\n";
 	char *str = pos;
 	//FILE * fout = fopen("single_row.bvh","w+");
@@ -255,7 +340,11 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
         for(int i=0;i<*channel_count;i++){
 			token = strtok(str,delims);
 			str = NULL; //so next strtok(NULL,...)
-			sscanf(token,"%f",&fvalues[k]);
+			if(!token) goto truncated;
+			if(sscanf(token,"%f",&fvalues[k]) != 1){
+				printf("BVH: frame value is not a number\n");
+				goto fail;
+			}
 			//fprintf(fout,"%f ",fvalues[k]);
 			k++;
 		}
@@ -266,7 +355,7 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 
 	//convert degrees to radians
 	for(int iframe=0;iframe< *bvh_frame_count;iframe++){
-		float *fv = &fvalues[iframe * (*channel_count)];
+		float *fv = &fvalues[(size_t)iframe * (size_t)(*channel_count)];
 		int kchan = 0;
 		for(int j=0;j<mjoint;j++){
 			//printf("%s %d \n",vector_get(char*,jnames,j),chan[j].nchan);
@@ -277,11 +366,12 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 				axis_swap_left = instringlist(jname, swaplistleft);
 				axis_swap_right = instringlist(jname, swaplistright);
 				if (axis_swap_left || axis_swap_right) {
-					int ix, iy;
+					int ix = -1, iy = -1;
 					for (int k = 0; k < cchan[j].nchan; k++) {
 						if (cchan[j].ichan[k] == 1) ix = k;
 						if (cchan[j].ichan[k] == 2) iy = k;
 					}
+					if (ix < 0 || iy < 0) axis_swap_left = axis_swap_right = 0;
 					if (axis_swap_left) {
 						float tmp = fv[kchan + ix];
 						fv[kchan + ix] = fv[kchan + iy];
@@ -331,6 +421,22 @@ void read_bvh_blob(char* blob, int ignorePosition, int yUp, int teePose,
 		}
 	}
 
+	*chan = cchan;
+	*values = fvalues;
+	*njoint = mjoint;
+	return TRUE;
+
+truncated:
+	printf("BVH: file ends before the declared frame data\n");
+fail:
+	for(int j=0;j<mjoint;j++)
+		free(cjoint[j].mocap_name);
+	free(cchan);
+	free(fvalues);
+	*channel_count = 0;
+	*bvh_frame_count = 0;
+	*bvh_frame_time = 0.0;
+	return FALSE;
 }
 
 

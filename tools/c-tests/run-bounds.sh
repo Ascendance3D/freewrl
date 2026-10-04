@@ -11,6 +11,7 @@
 #   CParseParser.c       gc_broto_instance (pointing-device sensors freed with their world)
 #   CParseParser.c       cParseErrorCurID, cParseErrorFieldString, with
 #   ConsoleMessage.c     fwvsnprintf, ConsoleMessage0, ConsoleMessage (world text is not a format)
+#   BVHreader.c          read_bvh_blob, the .bvh motion-capture parser (included whole)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
 # Nothing here starts FreeWRL, opens a window, creates a GL context or loads a world.
@@ -74,5 +75,13 @@ for t in test_bounds_main test_hanim test_texture test_shader_plug test_eai_repl
 		-I"$here" -I"$out" -I"$lib/scenegraph" -c "$here/$t.c" -o "$out/$t.o"
 	objs="$objs $out/$t.o"
 done
+# BVHreader.c is included whole by test_bvh.c. It includes <config.h> and <malloc.h>;
+# it uses neither, so empty stand-ins let it build the same way on Linux and macOS.
+mkdir "$out/bvh-include"
+: > "$out/bvh-include/config.h"
+echo '#include <stdlib.h>' > "$out/bvh-include/malloc.h"
+$CC $cflags -Wno-macro-redefined -I"$here" -I"$out/bvh-include" -I"$lib/scenegraph" \
+	-c "$here/test_bvh.c" -o "$out/test_bvh.o"
+objs="$objs $out/test_bvh.o"
 $CC $san -o "$out/test_bounds" $objs -lm
 "$out/test_bounds" "$@"
