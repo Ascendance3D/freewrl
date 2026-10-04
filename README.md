@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/freewrl-logo-128.png" alt="FreeWRL logo" width="128" height="128">
+  <img src="docs/assets/freewrl-logo-revival-1024.png" alt="FreeWRL revival logo" width="200" height="200">
 </p>
 
 # FreeWRL
