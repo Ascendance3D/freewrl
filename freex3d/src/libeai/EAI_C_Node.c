@@ -1137,7 +1137,7 @@ float X3D_getCurrentSpeed() {
 	char *ptr;
 	float curspeed;
 	ptr = _X3D_makeShortCommand(GETCURSPEED);
-	if (sscanf(ptr,"%f",&curspeed) == 0) {
+	if (sscanf(ptr,"%f",&curspeed) != 1) {
 		printf ("client, error - problem reading float from %s\n",ptr);
 		exit(0);
 	}
@@ -1149,7 +1149,7 @@ float X3D_getCurrentFrameRate() {
 	char *ptr;
 	float curframe;
 	ptr = _X3D_makeShortCommand(GETFRAMERATE);
-	if (sscanf(ptr,"%f",&curframe) == 0) {
+	if (sscanf(ptr,"%f",&curframe) != 1) {
 		printf ("client, error - problem reading float from %s\n",ptr);
 		exit(0);
 	}
