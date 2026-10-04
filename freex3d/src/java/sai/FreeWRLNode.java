@@ -27,6 +27,7 @@ public class FreeWRLNode implements X3DNode {
 	}
 
 	// equals compares ptr by reference, so hash the reference.
+	@Override
 	public int hashCode() {
 		return System.identityHashCode(ptr);
 	}
