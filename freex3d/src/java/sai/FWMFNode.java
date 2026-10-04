@@ -56,7 +56,7 @@ public class FWMFNode extends FreeWRLMField implements MFNode {
 
 		count = tokens.countTokens();
 
-		if (index > count) {
+		if ((index >= count) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFNode get1Value passed index out of bounds");
 		}
 		

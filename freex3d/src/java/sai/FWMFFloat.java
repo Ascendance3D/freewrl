@@ -57,7 +57,7 @@ public class FWMFFloat extends FreeWRLMField implements MFFloat {
 		
 		rval = new float[lines];
 
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFFloat get1Value passed index out of bounds");
 		}
 

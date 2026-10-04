@@ -53,7 +53,7 @@ public class FWMFInt32 extends FreeWRLMField implements MFInt32 {
 
 		rval = new int[lines];
 		
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFInt32 get1Value passed index out of bounds");
 		}
 

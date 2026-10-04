@@ -88,7 +88,7 @@ public class FWMFVec2d extends FreeWRLMField implements MFVec2d {
 			throw new ArrayIndexOutOfBoundsException("MFVec2d get1Value passed array of insufficient size");
 		}
 		
-		if (index > lines) {
+		if ((index >= lines) || (index < 0)) {
 			throw new ArrayIndexOutOfBoundsException("MFVec2d get1Value passed index out of bounds");
 		}
 
@@ -171,7 +171,7 @@ public class FWMFVec2d extends FreeWRLMField implements MFVec2d {
                 }
 
                 for (count = 0; count < value.length; count++) {
-                        if (value.length < ROWS) {
+                        if ((count + ROWS) > value.length) {
                                 throw new ArrayIndexOutOfBoundsException("MFVec2d append degenerate vector value received");
                         }
 
@@ -209,7 +209,7 @@ public class FWMFVec2d extends FreeWRLMField implements MFVec2d {
                 }
 
                 for (count = 0; count < value.length; count++) {
-                        if (value.length < ROWS) {
+                        if ((count + ROWS) > value.length) {
                                 throw new ArrayIndexOutOfBoundsException("MFVec2d insert degenerate vector value received");
                         }
 

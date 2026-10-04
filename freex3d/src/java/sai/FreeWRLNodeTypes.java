@@ -4,7 +4,6 @@ import java.util.*;
 
 public class FreeWRLNodeTypes implements X3DNodeTypes {
 	private static final HashMap nodeTypes;
-	private static final HashMap fwTypes;
 
  	public int X3D_Component_Networking               = 1;
 	public int X3D_Component_Shape                    = 2;
@@ -72,8 +71,6 @@ public class FreeWRLNodeTypes implements X3DNodeTypes {
 		nodeTypes.put(new Integer(X3DSoundSourceNode), "X3DSoundSourceNode");
 		nodeTypes.put(new Integer(X3DTriggerNode), "X3DTriggerNode");
 		nodeTypes.put(new Integer(X3DInfoNode), "X3DInfoNode");
-
-		fwTypes = new HashMap();
 	}
 
 	public static String getStringType(int type) {
