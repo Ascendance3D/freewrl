@@ -6,5 +6,11 @@ This is the development ground for the java scripting interface.
 If the code is weird and non-idiomatic java, please tell me -- it's
 my first java program. No, really, it is.
 
-genfields.pl generates the files in fields/ subdirectory from
-VRMLFields.pm, making it possible to specify both Const* and * quickly.
+genfields.py generates the SF*, ConstSF*, MF* and ConstMF* classes in the
+field/ subdirectory. genexceptions.py generates the Invalid*Exception
+classes in this directory. Both scripts hold their own type tables.
+
+They need Python 3.12 or later. Run them from this directory:
+
+    python3 genfields.py
+    python3 genexceptions.py
