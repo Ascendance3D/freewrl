@@ -98,7 +98,9 @@ public class SFImage extends Field {
     public void __toPerl(PrintWriter out)  throws IOException {
         StringBuffer sb = new StringBuffer();
         sb.append(width).append(' ').append(height).append(' ').append(components);
-        if (pixels != null) {
+        if (pixels == null) {
+            sb.append(" null");
+        } else {
             for (int i = 0; i < pixels.length; i+=components) {
 		sb.append(" 0x");
 		for (int j = i; j < i+components; j++)

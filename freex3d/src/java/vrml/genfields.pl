@@ -26,8 +26,8 @@ my %toString = (
         for (int i = 0; i < pixels.length; i+=components) {
 	    sb.append(" 0x");
 	    for (int j = i; j < i+components; j++)
-		sb.append("0123456789ABCDEF".charAt((pixels[i+j] & 0xf0) >> 4))
-		    .append("0123456789ABCDEF".charAt(pixels[i+j] & 0x0f));
+		sb.append("0123456789ABCDEF".charAt((pixels[j] & 0xf0) >> 4))
+		    .append("0123456789ABCDEF".charAt(pixels[j] & 0x0f));
 	}
         return sb.toString();},
 	"Int32"  => 'return String.valueOf(value);',
@@ -44,7 +44,19 @@ my %toPerl = (
 	"Bool"   => 'out.print (value);',
 	"Color"  => 'out.print(red+ " "+green+" "+blue);',
 	"Float"  => 'out.print(f);',
-	"Image"  => 'out.print(width+" "+height+" "+components+" "+pixels);',
+	"Image"  => q{StringBuffer sb = new StringBuffer();
+        sb.append(width).append(' ').append(height).append(' ').append(components);
+        if (pixels == null) {
+            sb.append(" null");
+        } else {
+            for (int i = 0; i < pixels.length; i+=components) {
+		sb.append(" 0x");
+		for (int j = i; j < i+components; j++)
+		    sb.append("0123456789ABCDEF".charAt((pixels[j] & 0xf0) >> 4))
+			.append("0123456789ABCDEF".charAt(pixels[j] & 0x0f));
+	    }
+        }
+        out.print(sb.toString());},
 	"Int32"  => 'out.print(value);',
 	"Node"   => 'out.print(node._get_nodeid());',
 	"Rotation"  => 'out.print(axisX+" "+axisY+" "+axisZ+" "+angle);',
