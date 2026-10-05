@@ -75,6 +75,7 @@ Every emulated call, what it replaces and what happens when it can't be done. Ev
 | --- | --- | --- |
 | ✅ | Release arm64, clean | `xcodebuild -project OSX_gui/FreeWRL-Desktop/FreeWRL.xcodeproj -scheme FreeWRL -configuration Release ARCHS=arm64 CODE_SIGN_IDENTITY=- -derivedDataPath <dir> clean build` → exit 0 |
 | ✅ | Debug arm64, clean | same with `-configuration Debug` → exit 0 |
+| ✅ | CMake/Ninja arm64, clean | `cmake -S freex3d -B <dir> -G Ninja -DCMAKE_PREFIX_PATH=<deps>` then `cmake --build <dir>` → `<dir>/FreeWRL.app`. Mirrors the Xcode target: same sources, `config.h` macros, linked libraries, rpath and warning set; `smoke.sh` 17/17. Needs `ibtool` (Xcode) for `MainMenu.xib`. Not ad-hoc signed as a bundle; `package.sh` signs |
 | ✅ | Linked libraries | FreeType, ODE, freealut (from `FW_DEPS`: a `tools/macos-deps` prefix, or Homebrew for local development) and Apple frameworks; Imlib2 replaced by stb_image, openal-soft by `OpenAL.framework` |
 | ✅ | Deployment target | 15.0 in every `FreeWRL.xcodeproj` configuration; built with `MACOSX_DEPLOYMENT_TARGET=15.0` |
 | ✅ | Self-contained app | `tools/macos-package/package.sh`: macOS 15+, no Homebrew at run time. See [Standalone packaging](#standalone-packaging) |
