@@ -306,7 +306,7 @@ int fv_display_initialize_desktop(){
 	if(nwindows > 1){
 		//2nd fun window! to challenge us!
 		freewrl_params_t *p0;
-		dp->winToEmbedInto = (void*) - 1;
+		dp->winToEmbedInto = FW_NATIVE_WINDOW_UNDEFINED;
 		p0 = targetwindow_get_params(0);
 		if(!fv_create_window_and_context(dp,p0)){
 			return FALSE;
@@ -316,7 +316,7 @@ int fv_display_initialize_desktop(){
 	}
 	if(nwindows > 2){
 		freewrl_params_t *p1;
-		dp->winToEmbedInto = (void *) - 1;
+		dp->winToEmbedInto = FW_NATIVE_WINDOW_UNDEFINED;
 		p1 = targetwindow_get_params(1);
 		if(!fv_create_window_and_context(dp, p1)){
 			return FALSE;

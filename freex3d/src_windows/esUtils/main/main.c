@@ -82,7 +82,7 @@ int fwInit ( ESContext *esContext )
     fv_params->height = esContext->height; //400;
     //fv_params->eai = FALSE;
     fv_params->fullscreen = FALSE;
-    fv_params->winToEmbedInto = INT_ID_UNDEFINED;
+    fv_params->winToEmbedInto = FW_NATIVE_WINDOW_UNDEFINED;
     fv_params->verbose = FALSE;
 	fv_params->frontend_handles_display_thread = TRUE;
 	if(!fwl_initFreeWRL(fv_params)) return FALSE;

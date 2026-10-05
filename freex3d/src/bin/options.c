@@ -35,6 +35,8 @@
 #include "main.h"
 #include "options.h"
 
+#include <inttypes.h>
+
 #if HAVE_GETOPT_H
 #include <getopt.h>
 #endif
@@ -222,7 +224,7 @@ int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *fv_params, int
 {
     int c, itmp;
     float ftmp;
-    long* ldtmp;
+    uintptr_t xid;
     int option_index = 0;
     int real_option_index;
     const char *real_option_name;
@@ -349,8 +351,9 @@ int fv_parseCommandLine (int argc, char **argv, freewrl_params_t *fv_params, int
 
 	case 'd': /* --display, required argument int */
 		printf ("Parameter --display = %s\n", optarg);
-		sscanf(optarg,"%zu", (size_t*)&ldtmp);
-		fv_params->winToEmbedInto = ldtmp;
+		/* X11 parent Window XID */
+		if (sscanf(optarg, "%" SCNuPTR, &xid) == 1)
+			fv_params->winToEmbedInto = (void *)xid;
 		break;
 
 

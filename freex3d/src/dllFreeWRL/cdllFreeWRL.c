@@ -86,7 +86,7 @@ DLLFREEWRL_API void dllFreeWRL_onInit(void *fwctx, int width, int height, void* 
 	params->height = height; //400;
 	//params->eai = bEai;
 	params->fullscreen = 0;
-	params->winToEmbedInto = (long)windowhandle;
+	params->winToEmbedInto = windowhandle;
 	params->frontend_handles_display_thread = frontend_handles_display_thread;
 	ok = fwl_initFreeWRL(params);
 #ifndef FRONTEND_HANDLES_DISPLAY_THREAD

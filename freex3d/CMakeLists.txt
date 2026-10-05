@@ -359,16 +359,15 @@ add_library(freewrl_build_flags INTERFACE)
 target_include_directories(freewrl_build_flags BEFORE INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
 if(APPLE)
   # The warning set that xcodebuild passes for the FreeWRL target (its defaults
-  # plus the CLANG_WARN_* / GCC_WARN_* settings). It is part of the Xcode build
-  # contract: "-Wno-conversion -Wint-conversion" makes int-conversion a warning,
-  # not clang's default error, and two winToEmbedInto assignments
-  # (src/lib/main.c, src/dllFreeWRL/cdllFreeWRL.c) need that.
+  # plus the CLANG_WARN_* / GCC_WARN_* settings), without Xcode's -Wno-conversion.
+  # Ahead of -Wint-conversion, that flag turns int-conversion from clang's
+  # default error into a warning, and no source needs that any more.
   set(FREEWRL_XCODE_WARNINGS
     -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes
     -Wunreachable-code -Wno-missing-braces -Wparentheses -Wswitch
     -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable
     -Wunused-value -Wempty-body -Wuninitialized -Wno-unknown-pragmas -Wno-shadow
-    -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion
+    -Wno-four-char-constants -Wconstant-conversion -Wint-conversion
     -Wbool-conversion -Wenum-conversion -Wno-float-conversion
     -Wno-non-literal-null-conversion -Wno-objc-literal-conversion
     -Wshorten-64-to-32 -Wpointer-sign -Wno-newline-eof -Wno-implicit-fallthrough
