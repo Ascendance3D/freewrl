@@ -49,8 +49,8 @@ public class ConstSFImage extends ConstField {
         for (int i = 0; i < pixels.length; i+=components) {
 	    sb.append(" 0x");
 	    for (int j = i; j < i+components; j++)
-		sb.append("0123456789ABCDEF".charAt((pixels[i+j] & 0xf0) >> 4))
-		    .append("0123456789ABCDEF".charAt(pixels[i+j] & 0x0f));
+		sb.append("0123456789ABCDEF".charAt((pixels[j] & 0xf0) >> 4))
+		    .append("0123456789ABCDEF".charAt(pixels[j] & 0x0f));
 	}
         return sb.toString();
     }
@@ -68,7 +68,17 @@ public class ConstSFImage extends ConstField {
     }
 
     public void __toPerl(PrintWriter out)  throws IOException {
-        out.print(width+" "+height+" "+components+" "+pixels);
+        StringBuffer sb = new StringBuffer();
+        sb.append(width).append(' ').append(height).append(' ').append(components);
+        if (pixels != null) {
+            for (int i = 0; i < pixels.length; i+=components) {
+		sb.append(" 0x");
+		for (int j = i; j < i+components; j++)
+		    sb.append("0123456789ABCDEF".charAt((pixels[j] & 0xf0) >> 4))
+			.append("0123456789ABCDEF".charAt(pixels[j] & 0x0f));
+	    }
+        }
+        out.print(sb.toString());
 	//out.println();
     }
     //public void setOffset(String offs) { this.offset = offs; } //JAS2
