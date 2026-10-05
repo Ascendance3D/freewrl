@@ -31,7 +31,7 @@ public class VSFImage extends VField
 	height = in.readInt();
 	components = in.readInt();
 	pixels = new byte[width * height * components];
-	in.read(pixels);
+	in.readFully(pixels);
     }
 
     public void write(DataOutputStream out) throws IOException
