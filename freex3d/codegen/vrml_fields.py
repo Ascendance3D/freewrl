@@ -162,18 +162,20 @@ def _float_text(value):
 
 
 def _scalar(field, value):
+    # An undef list element: Perl writes undef as "". Each caller handles
+    # an undef default before it gets here.
+    if value is None:
+        return ""
     if not isinstance(value, str):
         raise FieldDataError(f"{field}: expected a single value, got {value!r}")
     return value
 
 
-def _list(field, value, need=0):
+def _list(field, value):
     # Perl dereferences these with @{$val} under "use strict", so a value
     # that is not a list stops Perl.
     if not isinstance(value, tuple):
         raise FieldDataError(f"{field}: expected a list, got {value!r}")
-    if len(value) < need:
-        raise FieldDataError(f"{field}: expected {need} values, got {len(value)}")
     return value
 
 
@@ -182,11 +184,19 @@ def _list_or_empty(value):
     return value if isinstance(value, tuple) else ()
 
 
+def _items(field, value, length):
+    # Perl reads "@{$val}[i]" for i < length. Perl reads undef as an empty
+    # list, and an index past the end gives undef, which Perl writes as "".
+    # A scalar value stops Perl (strict refs).
+    values = () if value is None else _list(field, value)
+    return tuple(_scalar(field, values[i]) if i < len(values) else "" for i in range(length))
+
+
 def _sf_array(field, value, length, suffix, last_semicolon=True):
-    values = _list(field, value, length)
+    values = _items(field, value, length)
     out = ""
     for i in range(length):
-        text = _scalar(field, values[i])
+        text = values[i]
         out += f"{field}.c[{i}] = {_float_text(text) if suffix else text};"
     # SFVec3f: Perl leaves out the last ';'.
     return out if last_semicolon else out[:-1]
@@ -209,9 +219,9 @@ def _mf_struct(field, values, struct, width, suffix, alloc_newline=True, last_se
     if alloc_newline:
         out += "\n"
     for i, item in enumerate(values):
-        row = _list(field, item, width)
+        row = _items(field, item, width)
         for w in range(width):
-            text = _scalar(field, row[w])
+            text = row[w]
             out += f"\n\t\t\t{field}.p[{i}].c[{w}] = {_float_text(text) if suffix else text}; "
     out += f"\n\t\t\t{field}.n={len(values)}"
     return out + (";" if last_semicolon else "")
@@ -226,10 +236,16 @@ def _init_sf_plain(field, value):
     return f"{field} = " + ("0" if value is None else _scalar(field, value))
 
 
+def _note(text):
+    # VRMLFields.pm prints these notes to stdout and continues.
+    print(text)
+
+
 def _init_sfnode(field, value):
     if value is None:
-        # Perl prints a note and writes "<field> = " (broken C).
-        raise FieldDataError(f"{field}: SFNode default is undef")
+        # Perl prints a note and writes "<field> = " (broken C). Keep it.
+        _note("undefined in SFNode")
+        return f"{field} = "
     return f"{field} = " + _scalar(field, value)
 
 
@@ -245,6 +261,8 @@ def _init_sfvec2f(field, value):
 
 
 def _init_sfimage(field, value):
+    if value is None:
+        _note("undefined in SFImage")
     values = _list_or_empty(value)
     if not values:
         return (f"{field}.arr.n=0; {field}.arr.p=NULL; "
@@ -278,11 +296,13 @@ def _init_mfbool(field, value):
     return out + f"{field}.n={len(values)};"
 
 
-def _init_mf_empty_only(field, values):
-    # MFTime and MFNode: Perl prints "HAVE TO MALLOC HERE" and writes "1"
-    # for a non-empty default (broken C), so stop instead.
+def _init_mf_empty_only(field, values, label):
+    # MFTime and MFNode: for a non-empty default, Perl prints
+    # "<label> HAVE TO MALLOC HERE" and the sub returns the value of
+    # print, which is 1. So Perl writes "1" (broken C). Keep it.
     if values:
-        raise FieldDataError(f"{field}: non-empty default is not supported")
+        _note(f"{label} HAVE TO MALLOC HERE")
+        return "1"
     return f"{field}.n=0; {field}.p=0"
 
 
@@ -309,11 +329,13 @@ def _init_mfimage(field, value):
 
 def _sf_array_init(ftype, suffix, last_semicolon=True):
     length = SF_ARRAY_TYPES[ftype][1]
+    # Perl prints this note for undef and continues. The SFMatrix types
+    # print "SFColor". Keep it.
+    note = "undefined in " + ("SFColor" if ftype.startswith("SFMatrix") else ftype)
 
     def init(field, value):
         if value is None:
-            # Perl prints a note and then stops on the undef dereference.
-            raise FieldDataError(f"{field}: {ftype} default is undef")
+            _note(note)
         return _sf_array(field, value, length, suffix, last_semicolon)
     return init
 
@@ -337,11 +359,11 @@ C_INITIALIZE = {
     "SFInt32": _init_sf_plain,
     "MFInt32": lambda f, v: _mf_scalar(f, _list_or_empty(v), "int", False),
     "SFTime": _init_sf_plain,
-    "MFTime": lambda f, v: _init_mf_empty_only(f, _list(f, v)),
+    "MFTime": lambda f, v: _init_mf_empty_only(f, _list(f, v), "MFTIME"),
     "SFDouble": _init_sf_plain,
     "MFDouble": lambda f, v: _mf_scalar(f, _list_or_empty(v), "double", False),
     "SFNode": _init_sfnode,
-    "MFNode": lambda f, v: _init_mf_empty_only(f, _list_or_empty(v)),
+    "MFNode": lambda f, v: _init_mf_empty_only(f, _list_or_empty(v), "MFNODE"),
     "SFColor": _sf_array_init("SFColor", True),
     "MFColor": _mf_struct_init("SFColor", True, False),
     "SFColorRGBA": _sf_array_init("SFColorRGBA", False),

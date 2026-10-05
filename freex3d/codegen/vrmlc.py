@@ -565,8 +565,10 @@ def dump_field(field):
         return (f"\t\t\tspacer fprintf (fp,\" {f} ({t}):\\n\");\n"
                 f"\t\t\tfor (i=0; i<tmp->{f}.n; i++) {{ spacer "
                 f"fprintf (fp,\"\t\t\t%d: \\t{DUMP_MF_FORMAT[t]}\\n\",i,{args}); }}\n")
-    # VRMLC.pm prints "type ... not handled yet" and skips the field.
-    raise GenerateError(f"dump_scene: field type {t} of {f} is not handled")
+    # VRMLC.pm prints "type ... not handled yet", writes no dump code for
+    # the field and continues. Keep it.
+    print(f"type {t} not handled yet")
+    return ""
 
 
 def generate(license_text):
