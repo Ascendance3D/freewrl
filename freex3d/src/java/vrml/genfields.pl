@@ -188,7 +188,7 @@ EOF
 		if ($ft =~ /$multival/) {
 			my $i = -1;
 			my $body = join("\n        ",
-							map { $i++; split " ",$_; "values[$i] = $_[1];"}
+							map { $i++; my $n = (split " ",$_)[1]; "values[$i] = $n;"}
 							@values);
 			@_ = split " ",$values[0];
 			print O <<EOF;
@@ -221,7 +221,7 @@ sub sf_setvalue
 	my ($ft, @values) = @_;
 
 	my $body = join("\n        ",
-					map { split " ",$_; "this.$_[1] = $_[1];"}
+					map { my $n = (split " ",$_)[1]; "this.$n = $n;"}
 					@values);
 	my $params = join(", ", @values);
 
@@ -237,7 +237,7 @@ EOF
 	if ($ft =~ /$multival/) {
 		my $i = -1;
 		$body = join("\n        ",
-					 map { $i++; split " ",$_; "this.$_[1] = values[$i];"}
+					 map { $i++; my $n = (split " ",$_)[1]; "this.$n = values[$i];"}
 					 @values);
 		@_ = split " ",$values[0];
 	print O <<EOF;
@@ -251,7 +251,7 @@ EOF
 
 	# set methods with (Const)SF$ft
 	$body = join("\n        ",
-				 map { split " ",$_; "$_[1] = sf$ft.$_[1];"}
+				 map { my $n = (split " ",$_)[1]; "$n = sf$ft.$n;"}
 				 @values);
 
 	print O <<EOF;
