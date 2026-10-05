@@ -71,7 +71,7 @@ void fwl_OSX_initializeParameters(const char* initialURL) {
 		myParams.height = 400;
 		myParams.xpos = 0;
 		myParams.ypos = 0;
-		myParams.winToEmbedInto = INT_ID_UNDEFINED;
+		myParams.winToEmbedInto = FW_NATIVE_WINDOW_UNDEFINED;
 		myParams.fullscreen = FALSE;
 		myParams.multithreading = TRUE;
 		myParams.enableEAI = FALSE;

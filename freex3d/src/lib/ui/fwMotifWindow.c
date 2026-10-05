@@ -248,14 +248,15 @@ int fv_create_main_window(freewrl_params_t * params) //int argc, char *argv[])
 	/* FIXME: see fwBareWindow.c */
 	/* Roberto Gerson */
 	/* If -d is setted, so reparent the window */
-	if (params->winToEmbedInto != INT_ID_UNDEFINED){
-		printf("fwMotifWindow::Trying to reparent window: %ld, to new parent: %ld\n",
+	if (params->winToEmbedInto != FW_NATIVE_WINDOW_UNDEFINED){
+		Window parent = (Window)(uintptr_t) params->winToEmbedInto;
+		printf("fwMotifWindow::Trying to reparent window: %lu, to new parent: %lu\n",
 			XtWindow(freewrlTopWidget),
-			params->winToEmbedInto);
+			parent);
 
 		XReparentWindow(XtDisplay(freewrlTopWidget),
 				XtWindow(freewrlTopWidget),
-				(Window) params->winToEmbedInto, 0, 0);
+				parent, 0, 0);
 
 		XMapWindow(XtDisplay(freewrlTopWidget), XtWindow(freewrlTopWidget));
 	}

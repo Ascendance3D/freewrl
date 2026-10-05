@@ -27,6 +27,8 @@
 #ifndef __LIBFREEWRL_API_H__
 #define __LIBFREEWRL_API_H__
 
+#include <stdint.h>
+
 
 /* for front ends that do not have these X-11-based defines */
 // OLD_IPHONE_AQUA #if defined(AQUA) || defined(_MSC_VER) || defined(_ANDROID)
@@ -82,7 +84,11 @@ typedef struct freewrl_params {
 	int xpos;
 	int ypos;
 	int wnum;
-	long * winToEmbedInto;
+	/* Opaque native parent window to embed into, never dereferenced:
+	   X11 Window XID stored through uintptr_t, Win32 HWND stored as is.
+	   FW_NATIVE_WINDOW_UNDEFINED (and NULL on Win32) means no parent was
+	   supplied. */
+	void *winToEmbedInto;
 	int touchtype;
 	bool fullscreen;
 	bool multithreading;
@@ -102,6 +108,9 @@ typedef struct freewrl_params {
 	void *surface;
 
 } freewrl_params_t;
+
+/* freewrl_params_t.winToEmbedInto value for "no parent window supplied" */
+#define FW_NATIVE_WINDOW_UNDEFINED ((void *)(intptr_t)-1)
 
 
 /* FreeWRL parameters */

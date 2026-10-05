@@ -88,11 +88,12 @@ int fv_create_main_window(freewrl_params_t * params) //int argc, char *argv[])
     /* FIXME: Caller / front-end should reparent FreeWRL window itself */
     /* Roberto Gerson */
     /* If -d is setted, so reparent the window */
-    if (params->winToEmbedInto != INT_ID_UNDEFINED) {
-	    DEBUG_MSG("create_main_window: reparent %ld to %ld\n",
+    if (params->winToEmbedInto != FW_NATIVE_WINDOW_UNDEFINED) {
+	    Window parent = (Window)(uintptr_t) params->winToEmbedInto;
+	    DEBUG_MSG("create_main_window: reparent %lu to %lu\n",
 		      Xwin,
-		      params->winToEmbedInto);
-	    XReparentWindow(Xdpy, Xwin, (Window) params->winToEmbedInto, 0, 0);
+		      parent);
+	    XReparentWindow(Xdpy, Xwin, parent, 0, 0);
     }
 
 
