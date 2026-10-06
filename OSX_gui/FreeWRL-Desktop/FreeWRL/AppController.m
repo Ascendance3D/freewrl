@@ -27,19 +27,12 @@ extern void* fwctx;
 	
 	[openDlg setAllowedFileTypes:@[@"wrl", @"x3d", @"x3dv"]];
 	
+	// Load the chosen world at once, through the same loader as argv and application:openURLs:.
 	[openDlg beginWithCompletionHandler:^(NSInteger result) {
-		if(result==NSFileHandlingPanelOKButton) {
-			[txtLocation setStringValue: openDlg.URLs[0].relativeString];
-
-
+		if(result==NSModalResponseOK && fwctx) {
+			dllFreeWRL_onLoad(fwctx,(char*)openDlg.URLs[0].fileSystemRepresentation);
 		}
 	}];
-	
-}
-- (IBAction)Load:(id)sender {
-	//dllFreeWRL_onLoad(fwctx, "/Users/doug/source2/freewrl/freewrl/tests/2.wrl");
-	//dllFreeWRL_onLoad(fwctx,(char*)&txtLocation.stringValue.UTF8String[7]);
-	dllFreeWRL_onLoad(fwctx,(char*)txtLocation.stringValue.UTF8String);
 
 }
 - (void) dealloc

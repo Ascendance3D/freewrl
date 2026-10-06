@@ -23,31 +23,14 @@
                 <autoresizingMask key="autoresizingMask"/>
                 <subviews>
                     <customView id="206" customClass="FWGLView">
-                        <rect key="frame" x="0.0" y="0.0" width="672" height="455"/>
+                        <rect key="frame" x="0.0" y="0.0" width="672" height="480"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                     </customView>
-                    <textField verticalHuggingPriority="750" id="bmj-uK-XoU">
-                        <rect key="frame" x="50" y="456" width="622" height="24"/>
-                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                        <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" usesSingleLineMode="YES" id="0O4-MF-QJP">
-                            <font key="font" metaFont="system"/>
-                            <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
-                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                        </textFieldCell>
-                    </textField>
-                    <button verticalHuggingPriority="750" id="REH-z7-cGm">
-                        <rect key="frame" x="-6" y="449" width="62" height="32"/>
-                        <autoresizingMask key="autoresizingMask" flexibleMinY="YES"/>
-                        <buttonCell key="cell" type="push" title="Load" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="iUo-E4-KVD">
-                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                            <font key="font" metaFont="system"/>
-                        </buttonCell>
-                        <connections>
-                            <action selector="Load:" target="Y2d-4u-69T" id="DTh-b9-3dP"/>
-                        </connections>
-                    </button>
                 </subviews>
             </view>
+            <connections>
+                <outlet property="initialFirstResponder" destination="206" id="Fw1-iF-R0p"/>
+            </connections>
             <point key="canvasLocation" x="400" y="105"/>
         </window>
         <menu title="MainMenu" systemMenu="main" id="29" userLabel="MainMenu">
@@ -72,7 +55,7 @@
                 <menuItem title="File" id="83">
                     <menu key="submenu" title="File" id="81">
                         <items>
-                            <menuItem title="OpenFile" keyEquivalent="o" id="FRW-pb-b1h">
+                            <menuItem title="Open…" keyEquivalent="o" id="FRW-pb-b1h">
                                 <connections>
                                     <action selector="OpenFile:" target="Y2d-4u-69T" id="Qn5-hN-Zau"/>
                                 </connections>
@@ -90,10 +73,6 @@
             </items>
         </menu>
         <customObject id="212" userLabel="FreeWRLAppDelegate" customClass="FreeWRLAppDelegate"/>
-        <customObject id="Y2d-4u-69T" customClass="AppController">
-            <connections>
-                <outlet property="txtLocation" destination="bmj-uK-XoU" id="kKj-l5-1Vu"/>
-            </connections>
-        </customObject>
+        <customObject id="Y2d-4u-69T" customClass="AppController"/>
     </objects>
 </document>

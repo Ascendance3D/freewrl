@@ -2,7 +2,7 @@
 # run.sh APP WORLD SECONDS OUTPREFIX
 # Launch FreeWRL under lldb (stops on malloc_error_break, abort, crashes) for SECONDS, then stop it.
 # RELOAD_PERIOD (frames) and RELOAD_PATHS (colon list): replace the world every RELOAD_PERIOD frames
-# by calling dllFreeWRL_onLoad(fwctx, path), which is what the Load button does.
+# by calling dllFreeWRL_onLoad(fwctx, path), which is what File > Open does.
 # RELOAD_POINTER=X,Y (with RELOAD_PERIOD): hover, press and drag the pointer there each period
 # through dllFreeWRL_onMouse, as FWGLView does, so the picking pass runs (see reloader.py).
 # TRACE_SENSOR=do_SphereSensor (or another do_*Sensor): count that handler's calls by event.
