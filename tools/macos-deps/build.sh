@@ -2,16 +2,19 @@
 # Build the libraries FreeWRL.app embeds (FreeType, ODE, freealut) from source for an older
 # macOS than the build machine's, into a private prefix. Homebrew's bottles target the macOS
 # they were built on, so an app bundling them cannot run on anything older.
+# Also builds SDL3 into the same prefix for the later SDL platform layer; FreeWRL does not
+# link it yet, so package.sh does not embed it.
 #
 # usage: build.sh [-p prefix] [-t macos-version] [-c source-cache]
 #   -p  install prefix                         (default: ./macos-deps-out/prefix)
 #   -t  minimum macOS (MACOSX_DEPLOYMENT_TARGET) (default: 15.0)
 #   -c  where downloaded sources are kept      (default: ./macos-deps-out/sources)
 #
-# Sources are the ones Homebrew's formulae use, checked against the same SHA-256.
+# Sources are the ones Homebrew's formulae use, checked against the same SHA-256; SDL3 is
+# the upstream release archive, checked against its SHA-256 and the release commit.
 # Writes <prefix>/share/freewrl-deps/packages.tsv (package, version, libraries, source URL,
 # SHA-256) and each package's license files under <prefix>/share/freewrl-deps/licenses/,
-# which tools/macos-package/bundle.py reads. Needs only Xcode's command line tools and make.
+# which tools/macos-package/bundle.py reads. Needs Xcode's command line tools, make and CMake.
 set -eu
 H=$(cd "$(dirname "$0")" && pwd)
 PREFIX= TARGET=15.0 CACHE=
@@ -20,7 +23,7 @@ while getopts "p:t:c:" opt; do
 	p) PREFIX=$OPTARG ;;
 	t) TARGET=$OPTARG ;;
 	c) CACHE=$OPTARG ;;
-	*) sed -n '2,16p' "$0"; exit 2 ;;
+	*) sed -n '2,17p' "$0"; exit 2 ;;
 	esac
 done
 PREFIX=${PREFIX:-macos-deps-out/prefix} CACHE=${CACHE:-macos-deps-out/sources}
@@ -34,7 +37,12 @@ PACKAGES="
 freetype 2.14.3 https://downloads.sourceforge.net/project/freetype/freetype2/2.14.3/freetype-2.14.3.tar.xz 36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f
 ode 0.16.6 https://bitbucket.org/odedevs/ode/downloads/ode-0.16.6.tar.gz c91a28c6ff2650284784a79c726a380d6afec87ecf7a35c32a6be0c5b74513e8
 freealut 1.1.0 https://deb.debian.org/debian/pool/main/f/freealut/freealut_1.1.0.orig.tar.gz 60d1ea8779471bb851b89b49ce44eecb78e46265be1a6e9320a28b100c8df44f
+SDL3 3.4.18 https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3
 "
+# commit of SDL's release-<version> tag (github.com/libsdl-org/SDL); the archive's
+# REVISION.txt must name it. freex3d/CMakeLists.txt reads this line and the SDL3 row above.
+SDL3_COMMIT=829a65d769d935c4852f8159e964312c0957260a
+command -v cmake > /dev/null || { echo "SDL3 needs cmake" >&2; exit 1; }
 
 export MACOSX_DEPLOYMENT_TARGET=$TARGET
 FLAGS="-arch arm64 -mmacosx-version-min=$TARGET"
@@ -93,6 +101,26 @@ echo "$PACKAGES" | while read -r pkg ver url sha; do
 		libs=libalut.0.dylib
 		dirs="src include"  # the library and its header, not the examples and tests
 		licenses freealut COPYING ;;
+	SDL3)
+		rev=$(cat REVISION.txt)
+		case $rev in
+		"release-$ver-0-g"*) [ "${SDL3_COMMIT#"${rev##*-g}"}" != "$SDL3_COMMIT" ] ;;
+		*) false ;;
+		esac || { echo "SDL3: REVISION.txt says $rev, expected release-$ver at $SDL3_COMMIT" >&2; exit 1; }
+		# a shared library only: no static library, framework, tests or examples; the prefix's
+		# CMake config and pkg-config files are what FreeWRL's builds use
+		cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+			-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET="$TARGET" \
+			-DCMAKE_IGNORE_PREFIX_PATH="/opt/homebrew;/usr/local;/opt/local" \
+			-DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_FRAMEWORK=OFF -DSDL_TEST_LIBRARY=OFF \
+			-DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF > "$log" 2>&1 || { tail -30 "$log"; exit 1; }
+		{ cmake --build build -j"$NCPU" && cmake --install build; } >> "$log" 2>&1 || { tail -30 "$log"; echo "$pkg: build failed" >&2; exit 1; }
+		got=$(sed -n 's/^Version: //p' "$PREFIX/lib/pkgconfig/sdl3.pc")
+		[ "$got" = "$ver" ] || { echo "SDL3: installed version $got, expected $ver" >&2; exit 1; }
+		echo "   SDL3 $got, $rev"
+		libs=libSDL3.0.dylib
+		dirs=
+		licenses SDL3 LICENSE.txt ;;
 	esac
 	for d in $dirs; do
 		{ make -C "$d" -j"$NCPU" && make -C "$d" install; } >> "$log" 2>&1 || { tail -30 "$log"; echo "$pkg: build failed" >&2; exit 1; }
