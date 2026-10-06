@@ -72,6 +72,8 @@ visual-test-out/
 #macOS packaging and test output
 macos-package-out/
 macos-deps-out/
+#Linux dependency output
+linux-deps-out/
 __pycache__/
 
 # local secrets and env files (never commit)
