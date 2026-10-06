@@ -159,7 +159,7 @@ endif
 #AM_CPPFLAGS+=-DSTATUSBAR_HUD
 #endif
 
-
-# We'll try to maintain a dependency for generated code (first try here)
-scenegraph/GeneratedCode.c vrml_parser/NodeFields.h vrml_parser/Structs.h: $(top_srcdir)/codegen/VRMLC.pm
-	cd $(top_srcdir)/codegen && perl VRMLC.pm
+# scenegraph/GeneratedCode.c, vrml_parser/NodeFields.h and
+# vrml_parser/Structs.h are committed. The build does not regenerate them.
+# To regenerate, from the repository root (Python 3.12+):
+# python3 -B freex3d/codegen/vrmlc.py
