@@ -11,7 +11,7 @@ functions, not Cocoa methods, so the same test can measure a later SDL frontend.
 Pointer positions are points relative to the FreeWRL view (origin at its top left). The view
 rectangle on screen comes from the window bounds and the engine's drawable size: the view fills
 the window width and sits on the window's bottom edge, so nothing depends on the height of the
-URL strip above it (it goes away with the SDL frontend).
+title bar above it.
 
 Each case prints one line:  LIVE <case> <STATUS> <detail>
   PASS                 the engine got what the input contract (FWKeyEvents.h, libFreeWRL) says
@@ -187,8 +187,8 @@ class Driver:
         return False
 
     def view_focus(self, pid):
-        """make the FreeWRL view the key target: a click in the scene, as a user does. At launch
-        the URL field above the view holds the keyboard focus (launch-key-focus case)."""
+        """make the FreeWRL view the key target: a click in the scene, as a user does. The view
+        is also the window's initial first responder (launch-key-focus case)."""
         self.focus(pid)
         self.click(self.g["vw"] / 2.0, self.g["vh"] / 2.0)
         time.sleep(0.5)
@@ -311,10 +311,9 @@ def main_session(app, out, tool, seconds, screen_ok):
     # keyboard focus at launch, before any click in the view
     c = step(s, lambda: drv.key("k"))
     k = keys(c)
-    record("launch-key-focus", "PASS" if (ord("k"), KEYPRESS) in k else "KNOWN_NATIVE_DEFECT",
+    record("launch-key-focus", "PASS" if (ord("k"), KEYPRESS) in k else "FAIL_HARNESS",
            "a key typed right after launch: engine keys %s%s" % (
-               k, "" if k else " (the URL field below the title bar holds the keyboard focus "
-               "until the view is clicked; that strip goes away with the SDL frontend)"))
+               k, "" if k else " (the view is not the initial first responder)"))
     step(s, lambda: drv.move(cx, cy), 0.5)  # enter the view first: the pointer comes from the title bar
 
     # pointer: move, click, drag, and the point-to-pixel conversion

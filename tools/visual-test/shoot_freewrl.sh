@@ -5,7 +5,7 @@
 # the uncropped window to <out>.window.png.
 #   FREEWRL_APP  app bundle (default ~/Applications/FreeWRL.app)
 #   FREEWRL_ARGS extra FreeWRL options before the world, e.g. "--shadingStyle 1"
-#   CROP_TOP     title + URL bar to remove, in pixels (Retina default)
+#   CROP_TOP     title bar to remove, in pixels (Retina default: the 32 pt title bar and its 1 pt edge)
 #   CROP_BOTTOM  HUD bar to remove, in pixels; default: measured from the capture
 #                (FreeWRL 6.x's HUD wraps to one or more rows depending on window width)
 set -eu
@@ -43,6 +43,6 @@ hud_height() {
 }
 BOTTOM=${CROP_BOTTOM:-$(hud_height "$RAW")}
 [ "${BOTTOM:-0}" -gt 0 ] || BOTTOM=32 # HUD not found: master-era one-row status bar
-# title bar + URL bar on top, HUD at the bottom (the 3D viewport stops above the HUD)
-magick "$RAW" -strip -background black -alpha remove -alpha off -gravity North -chop "0x${CROP_TOP:-116}" -gravity South -chop "0x${BOTTOM}" +repage "PNG24:$OUT"
+# title bar on top, HUD at the bottom (the 3D viewport stops above the HUD)
+magick "$RAW" -strip -background black -alpha remove -alpha off -gravity North -chop "0x${CROP_TOP:-66}" -gravity South -chop "0x${BOTTOM}" +repage "PNG24:$OUT"
 echo "$OUT"

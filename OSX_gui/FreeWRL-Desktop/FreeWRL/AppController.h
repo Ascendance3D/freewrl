@@ -8,10 +8,6 @@
 
 #import <Foundation/Foundation.h>
 
-@interface AppController : NSObject {
-	@private
-	IBOutlet NSTextField *txtLocation;
-}
+@interface AppController : NSObject
 - (IBAction)OpenFile:(id)sender;
-- (IBAction)Load:(id)sender;
 @end

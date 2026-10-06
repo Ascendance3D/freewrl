@@ -3,7 +3,7 @@ import lldb, os, time
 # from a breakpoint on fw_frontend_frame_hook (libFreeWRL; the frontend calls it once per frame,
 # before it draws). It is a C symbol, so nothing here depends on a frontend's method names.
 #   RELOAD_PERIOD=N          every N frames load the next RELOAD_PATHS world through
-#   RELOAD_PATHS=a:b:c       dllFreeWRL_onLoad, which is what the Load button does
+#   RELOAD_PATHS=a:b:c       dllFreeWRL_onLoad, which is what File > Open does
 #   RELOAD_POINTER=X,Y       (with RELOAD_PERIOD) drive the pointer as FWGLView does, through
 #                            dllFreeWRL_onMouse (backing pixels from the top left of the view),
 #                            so the picking pass runs without a real cursor. In each period
