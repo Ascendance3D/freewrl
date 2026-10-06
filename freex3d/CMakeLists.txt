@@ -641,15 +641,22 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# Pinned SDL3 dependency probe (macOS and Linux, test only)
+# Pinned SDL3: dependency probe (macOS and Linux) and SDL3 frontend (macOS)
 # ---------------------------------------------------------------------------
 # tools/macos-deps/build.sh pins SDL3 and builds it into the deps prefix;
 # tools/linux-deps/build.sh builds the same pin into a private Linux prefix.
-# FreeWRL does not link SDL3 yet. With FREEWRL_SDL3_PROBE=ON, the build makes
-# a separate probe program, and ctest checks that the prefix has the pinned
-# release and commit. The version and commit come from macos-deps/build.sh only.
+# The version and commit come from macos-deps/build.sh only.
+# With FREEWRL_SDL3_PROBE=ON, the build makes a separate probe program, and
+# ctest checks that the prefix has the pinned release and commit.
+# With FREEWRL_SDL3_FRONTEND=ON (macOS only), the build also makes freewrl_sdl3,
+# an experimental SDL3 window and OpenGL context for the FreeWRL renderer. It is
+# not installed or packaged, and FreeWRL.app does not link SDL3.
 option(FREEWRL_SDL3_PROBE "Build and test the pinned SDL3 dependency probe" OFF)
-if(FREEWRL_SDL3_PROBE)
+option(FREEWRL_SDL3_FRONTEND "Build the experimental freewrl_sdl3 frontend (macOS only)" OFF)
+if(FREEWRL_SDL3_FRONTEND AND NOT APPLE)
+  message(FATAL_ERROR "FREEWRL_SDL3_FRONTEND is macOS only for now; set it OFF")
+endif()
+if(FREEWRL_SDL3_PROBE OR FREEWRL_SDL3_FRONTEND)
   set(_deps_sh "${CMAKE_CURRENT_SOURCE_DIR}/../tools/macos-deps/build.sh")
   file(STRINGS "${_deps_sh}" _sdl3_row REGEX "^SDL3 [0-9]")
   file(STRINGS "${_deps_sh}" _sdl3_commit REGEX "^SDL3_COMMIT=[0-9a-f]+$")
@@ -661,21 +668,34 @@ if(FREEWRL_SDL3_PROBE)
     FW_SDL3_MICRO=${CMAKE_MATCH_3})
   string(REPLACE "SDL3_COMMIT=" "" FREEWRL_SDL3_COMMIT "${_sdl3_commit}")
 
-  find_package(SDL3 ${FREEWRL_SDL3_VERSION} EXACT CONFIG REQUIRED COMPONENTS SDL3-shared)
-  if(APPLE AND SDL3_DIR MATCHES "^(/opt/homebrew|/usr/local|/opt/local)/")
+  find_package(SDL3 ${FREEWRL_SDL3_VERSION} EXACT CONFIG COMPONENTS SDL3-shared)
+  if(NOT SDL3_FOUND)
+    message(FATAL_ERROR "No SDL3 ${FREEWRL_SDL3_VERSION} in CMAKE_PREFIX_PATH; build it "
+      "with tools/macos-deps/build.sh (or tools/linux-deps/build.sh) and use that prefix")
+  elseif(APPLE AND SDL3_DIR MATCHES "^(/opt/homebrew|/usr/local|/opt/local)/")
     message(FATAL_ERROR "SDL3 found at ${SDL3_DIR}; use the tools/macos-deps prefix")
   elseif(NOT APPLE AND SDL3_DIR MATCHES "^(/usr|/opt)/")
     message(FATAL_ERROR "SDL3 found at ${SDL3_DIR}; use the tools/linux-deps prefix")
   endif()
   message(STATUS "SDL3 ${SDL3_VERSION} (pinned ${FREEWRL_SDL3_VERSION}, "
     "commit ${FREEWRL_SDL3_COMMIT}) from ${SDL3_DIR}")
-
+endif()
+if(FREEWRL_SDL3_PROBE)
   add_executable(freewrl_sdl3_probe "${CMAKE_CURRENT_SOURCE_DIR}/../tools/macos-deps/sdl3_probe.c")
   target_compile_definitions(freewrl_sdl3_probe PRIVATE ${_sdl3_defs}
     "FW_SDL3_COMMIT=\"${FREEWRL_SDL3_COMMIT}\"")
   target_link_libraries(freewrl_sdl3_probe PRIVATE SDL3::SDL3-shared)
   enable_testing()
   add_test(NAME sdl3_pinned_dependency COMMAND freewrl_sdl3_probe)
+endif()
+if(FREEWRL_SDL3_FRONTEND)
+  # options.c holds fv_parseCommandLine, which dllFreeWRL_onInitArgv calls. Fonts
+  # come from the source tree: there is no bundle Resources directory.
+  add_executable(freewrl_sdl3
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sdl3/FreeWRL_SDL3.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/bin/options.c")
+  target_compile_definitions(freewrl_sdl3 PRIVATE "FW_SDL3_FONT_DIR=\"${MAC_FONTS_DIR}\"")
+  target_link_libraries(freewrl_sdl3 PRIVATE freewrl_build_flags FreeWRL SDL3::SDL3-shared)
 endif()
 
 # ---------------------------------------------------------------------------
