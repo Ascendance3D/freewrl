@@ -3469,6 +3469,23 @@ double Time1970sec(void) {
 #endif
 
 
+/* The frontend calls this once per frame, before it draws. It has no effect: it is a stable,
+   frontend-neutral breakpoint target for QA tools (tools/macos-ci/reloader.py). noinline and the
+   volatile asm keep the call and the symbol in optimized Release builds. The asm takes a constant
+   that only this function loads, so the linker cannot fold the body into another empty function
+   (identical code folding), which would make a breakpoint here also stop in that function. */
+#if defined(_MSC_VER)
+__declspec(noinline)
+#elif defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline, used))
+#endif
+void fw_frontend_frame_hook(void)
+{
+#if defined(__GNUC__) || defined(__clang__)
+	__asm__ __volatile__("" : : "r"(0x46574648)); /* "FWFH" */
+#endif
+}
+
 /* Main eventloop for FreeWRL!!! */
 void fwl_do_keyPress0(int key, int type);
 void handle0(const int mev, const unsigned int button, const float x, const float y);

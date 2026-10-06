@@ -442,6 +442,101 @@ bool rdr_caps_av_ssbo()
 	ppdisplay p = (ppdisplay)gglobal()->display.prv;
 	return p->rdr_caps.av_ssbo;
 }
+void fwl_log_gl_strings(void)
+{
+	fprintf(stderr, "GL_VERSION %s\nGL_SHADING_LANGUAGE_VERSION %s\nGL_RENDERER %s\n",
+		(const char *)FW_GL_GETSTRING(GL_VERSION), (const char *)FW_GL_GETSTRING(GL_SHADING_LANGUAGE_VERSION),
+		(const char *)FW_GL_GETSTRING(GL_RENDERER));
+}
+
+/* GL_IDENTITY: a GL string as key="value"; a missing string or a double quote reads as ? */
+static void gl_identity_string(const char *key, GLenum name)
+{
+	const char *s = (const char *)FW_GL_GETSTRING(name);
+	fprintf(stderr, " %s=\"", key);
+	if (!s) s = "?";
+	for (; *s; s++)
+		fputc(*s == '"' || *s == '\n' ? '?' : *s, stderr);
+	fputc('"', stderr);
+}
+/* GL_IDENTITY: the bit size of one default-framebuffer attachment, 0 when it has none, or -1
+   when the context cannot report it (an error is read back and cleared, so none leaks) */
+static int gl_identity_bits(int glversion, GLenum attachment, GLenum pname)
+{
+#if defined(GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) && defined(GL_DRAW_FRAMEBUFFER)
+	GLint binding = -1, type = GL_NONE, size = -1;
+	if (glversion < 30) return -1;
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &binding);
+	if (glGetError() != GL_NO_ERROR || binding != 0) return -1;
+	glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+	if (glGetError() != GL_NO_ERROR) return -1;
+	if (type == GL_NONE) return 0;
+	glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment, pname, &size);
+	return glGetError() == GL_NO_ERROR ? size : -1;
+#else
+	return -1;
+#endif
+}
+/* With FREEWRL_GL_IDENTITY=1, prints one stable line that describes the current GL context, for
+   native-vs-SDL comparison (tools/macos-ci, tools/linux-ci):
+     GL_IDENTITY vendor="..." renderer="..." version="..." glsl="..." profile_mask=N red=N
+       green=N blue=N alpha=N depth=N stencil=N doublebuffer=N samples=N swap_interval=N
+   -1 means the context (or this frontend-neutral seam) cannot report the value: profile_mask
+   before GL 3.2, attachment sizes before GL 3.0, and swap_interval always (only the frontend's
+   window system knows it). It only reads GL state; GL errors raised by these reads are cleared. */
+void fwl_log_gl_identity(void)
+{
+	const char *env = getenv("FREEWRL_GL_IDENTITY");
+	const char *version;
+	GLint major = 0, minor = 0, profile = -1, samples = -1;
+	GLboolean doublebuffer = GL_FALSE;
+	GLenum color;
+	int glversion, dbl = -1, i;
+
+	if (!env || strcmp(env, "1")) return;
+	/* start clean, so each read below can test its own error (bounded: without a current
+	   context some drivers report an error on every call) */
+	for (i = 0; i < 16 && glGetError() != GL_NO_ERROR; i++) ;
+	version = (const char *)FW_GL_GETSTRING(GL_VERSION);
+	if (!version || sscanf(version, "%d.%d", &major, &minor) != 2) major = minor = 0;
+	glversion = major * 10 + minor;
+#ifdef GL_CONTEXT_PROFILE_MASK
+	if (glversion >= 32) {
+		glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
+		if (glGetError() != GL_NO_ERROR) profile = -1;
+	}
+#endif
+#if defined(GL_DOUBLEBUFFER) && defined(GL_BACK_LEFT)
+	glGetBooleanv(GL_DOUBLEBUFFER, &doublebuffer);
+	if (glGetError() == GL_NO_ERROR) dbl = doublebuffer ? 1 : 0;
+	color = dbl == 0 ? GL_FRONT_LEFT : GL_BACK_LEFT;
+#else
+	color = GL_BACK; /* OpenGL ES names the default color buffer GL_BACK */
+#endif
+	glGetIntegerv(GL_SAMPLES, &samples);
+	if (glGetError() != GL_NO_ERROR) samples = -1;
+
+	fprintf(stderr, "GL_IDENTITY");
+	gl_identity_string("vendor", GL_VENDOR);
+	gl_identity_string("renderer", GL_RENDERER);
+	gl_identity_string("version", GL_VERSION);
+	gl_identity_string("glsl", GL_SHADING_LANGUAGE_VERSION);
+	fprintf(stderr, " profile_mask=%d", (int)profile);
+#ifdef GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE
+	fprintf(stderr, " red=%d green=%d blue=%d alpha=%d depth=%d stencil=%d",
+		gl_identity_bits(glversion, color, GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE),
+		gl_identity_bits(glversion, color, GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE),
+		gl_identity_bits(glversion, color, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE),
+		gl_identity_bits(glversion, color, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE),
+		gl_identity_bits(glversion, GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE),
+		gl_identity_bits(glversion, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE));
+#else
+	fprintf(stderr, " red=-1 green=-1 blue=-1 alpha=-1 depth=-1 stencil=-1");
+#endif
+	fprintf(stderr, " doublebuffer=%d samples=%d swap_interval=-1\n", dbl, (int)samples);
+	fflush(stderr);
+}
+
 bool initialize_rdr_caps()
 {
 	//s_renderer_capabilities_t *rdr_caps;
@@ -462,6 +557,8 @@ bool initialize_rdr_caps()
 	TRACE_MSG("GLEW initialization: version %s\n", glewGetString(GLEW_VERSION));
 	}
 #endif
+
+	fwl_log_gl_identity(); /* only with FREEWRL_GL_IDENTITY=1 */
 
 	/* OpenGL is initialized, context is created,
 	   get some info, for later use ...*/

@@ -10,7 +10,11 @@ header), and a light local check to run before `git push`.
 `RELOAD_POINTER=X,Y` it also hovers, presses, drags and releases the pointer there through
 `dllFreeWRL_onMouse`, so the picking pass runs without a real cursor; with `TRACE_SENSOR=do_X`
 it counts that sensor handler's calls by event. `reloader.py` does this from a breakpoint on
-`-[FWGLView animationTimer:]`. It reads the app's context pointer from the global `fwctx`
+`fw_frontend_frame_hook`, a libFreeWRL function the frontend calls once per frame before it draws
+(today from `-[FWGLView animationTimer:]`; a later SDL frontend calls the same symbol), so the
+harness does not depend on a frontend's method names. `FRAME_STATS=1` adds a `frames:` field
+(frame count and interval cadence); `TRACE_CALLS=fn,...` prints one `CALL` line per call of those
+C functions (`tools/macos-input`, `perf-baseline.sh`). It reads the app's context pointer from the global `fwctx`
 through the symbol table and calls with casts, so it works on a packaged Release app without
 its dSYM (the bare expression `fwctx` needs debug info and failed silently before 2026-10-01).
 
@@ -29,6 +33,17 @@ cycle starts the list again and a hosted GitHub runner makes only 6 to 8 replace
 packaged app (needs a GUI session): `10.wrl` with a breakpoint on `do_SphereSensor` must show
 hover, press, drag and release calls, and `sensor_replace.wrl` must print its five `SENSOR_*`
 markers. It prints `SENSORPROOF 2/2` on success.
+
+## SDL3 migration baselines (perf-baseline.sh, tools/macos-input)
+
+`perf-baseline.sh APP OUTDIR [WORLD] [RUNS]` records launch-to-ready time, frames in a fixed
+10 s window and their cadence, and idle CPU, for native-vs-SDL comparison on the same Mac.
+`tools/macos-input/live-input.sh APP OUTDIR` posts real key, pointer, wheel and window events
+(CGEventPost, Accessibility permission) and reports per case `PASS`, `KNOWN_NATIVE_DEFECT`,
+`SKIP_PERMISSION` or `FAIL_HARNESS`. Both need a GUI session and stay local; without the
+permission the input test prints `SKIP_ACCESSIBILITY_PERMISSION` and exits 0. The Linux twin is
+`tools/linux-ci/x11-input-baseline.sh` (Xvfb, xdotool, gdb). With `FREEWRL_GL_IDENTITY=1`
+FreeWRL prints one `GL_IDENTITY key=value ...` line about its GL context.
 
 ## Light local pre-push check
 

@@ -6,6 +6,11 @@
 # RELOAD_POINTER=X,Y (with RELOAD_PERIOD): hover, press and drag the pointer there each period
 # through dllFreeWRL_onMouse, as FWGLView does, so the picking pass runs (see reloader.py).
 # TRACE_SENSOR=do_SphereSensor (or another do_*Sensor): count that handler's calls by event.
+# FRAME_STATS=1: time every frame; the result line gets frames: (count and cadence, reloader.py).
+# TRACE_CALLS=fn[:f],...: print a CALL line with the first four arguments of each call of these C
+# functions (":f" reads the first argument as a float), for the live input tests.
+# The per-frame breakpoint is fw_frontend_frame_hook, which the frontend calls once per frame
+# before it draws: a C symbol, so the harness does not depend on a frontend's own method names.
 # Prints one result line: reloads= counts only loads lldb made (an expression error is a
 # reload-failure, not a reload); pointer-events= and pointer-failures= the same for the pointer;
 # HARNESS: names a harness fault (reloader.py not armed, a failed load or pointer event).
@@ -21,14 +26,18 @@ echo "target create \"$EXE\""
 echo "breakpoint set -n malloc_error_break"
 echo "breakpoint set -n abort"
 bp=2
-if [ -n "$RELOAD_PERIOD" ]; then
-  echo "breakpoint set -S animationTimer:"
+if [ -n "$RELOAD_PERIOD" ] || [ -n "$FRAME_STATS" ]; then
+  echo "breakpoint set -n fw_frontend_frame_hook"
   bp=$((bp+1)); echo "breakpoint command add -F reloader.cb $bp"
 fi
 if [ -n "$TRACE_SENSOR" ]; then
   echo "breakpoint set -n $TRACE_SENSOR"
   bp=$((bp+1)); echo "breakpoint command add -F reloader.trace $bp"
 fi
+for fn in $(echo "$TRACE_CALLS" | tr ',' ' '); do
+  echo "breakpoint set -n ${fn%:f} -N ${fn%:f}"
+  bp=$((bp+1)); echo "breakpoint command add -F reloader.calls $bp"
+done
 [ -n "$ASAN_OPTIONS" ] && echo "settings set target.env-vars ASAN_OPTIONS=$ASAN_OPTIONS"
 echo "process handle SIGUSR1 SIGUSR2 SIGPIPE -n false -p true -s false"
 echo "process launch -o $O.out -e $O.err -- \"$W\""
@@ -58,5 +67,6 @@ if [ -n "$RELOAD_PERIOD" ]; then
   [ -z "$RELOAD_POINTER" ] || [ "${ptrok:-0}" -gt 0 ] || harness="$harness HARNESS:no-pointer-events"
 fi
 trace=$(grep '^TRACE ' $O.lldb.log | tail -1 | sed 's/^TRACE //')
+frames=$(grep '^FRAMES ' $O.lldb.log | tail -1 | sed 's/^FRAMES //')
 # malloc= stays the last field (corpus.sh matches 'malloc=none$')
-echo "$(basename $O) elapsed=${el}s reloads=$loads reload-failures=$loadfail pointer-events=${ptrok:-0} pointer-failures=${ptrfail:-0}${trace:+ trace:$trace}$harness $res malloc=${mal:-none}"
+echo "$(basename $O) elapsed=${el}s reloads=$loads reload-failures=$loadfail pointer-events=${ptrok:-0} pointer-failures=${ptrfail:-0}${trace:+ trace:$trace}${frames:+ frames:$frames}$harness $res malloc=${mal:-none}"

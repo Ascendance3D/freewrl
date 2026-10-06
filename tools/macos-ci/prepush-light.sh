@@ -2,8 +2,8 @@
 # prepush-light.sh [--all] [--base REF] [--app APP] [--runtime [--seconds N] FIXTURE...]
 # Light local checks to run before `git push`: seconds instead of a GitHub Actions round trip.
 # They catch shell syntax errors, broken or stale regression fixtures, and drift between a
-# fixture and the marker a CI script greps for, and run the host-only C tests and the static
-# document-type gate. GitHub Actions stays the final gate. This script never pushes, merges,
+# fixture and the marker a CI script greps for, and run the host-only C tests, the keyboard
+# contract test and the static document-type gate. GitHub Actions stays the final gate. This script never pushes, merges,
 # fetches or changes a remote, never installs a git hook, and by default never starts FreeWRL.
 # It works from any directory. See tools/macos-ci/README.md.
 #   --all        check every regression fixture, not only those changed since the base
@@ -173,6 +173,17 @@ else
 		report FAIL host-c-tests "tools/c-tests/run-containers.sh failed; its last lines:"
 		tail -15 "$tmp/c-tests" | sed 's/^/    /'
 	fi
+fi
+
+# 6b. keyboard contract: the Cocoa key mapping and the canonical KEYPRESS=1, KEYDOWN=2, KEYUP=3
+#     values that every frontend (Cocoa, X11, a later SDL one) sends (tools/key-events-test)
+if ! command -v cc >/dev/null 2>&1; then
+	report SKIP key-events "no C compiler 'cc' (tools/key-events-test/run.sh needs one)"
+elif "$root/tools/key-events-test/run.sh" > "$tmp/key-events" 2>&1; then
+	report PASS key-events "tools/key-events-test/run.sh: $(grep -c '^PASS' "$tmp/key-events") check(s)"
+else
+	report FAIL key-events "tools/key-events-test/run.sh:"
+	grep -v '^PASS' "$tmp/key-events" | sed 's/^/    /'
 fi
 
 # 6a. every GitHub Action the workflows use runs on Node 24 (reads each action.yml through gh)
