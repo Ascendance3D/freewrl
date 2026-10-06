@@ -142,6 +142,17 @@ Linux configuration status (checked on Ubuntu 24.04):
 | `--with-javascript=sm` | Legacy. The code uses the SpiderMonkey 1.8.5–24 API (`JSRuntime`). `configure` looks only for `mozjs-24`, `mozjs-17.0`, `mozjs187`, `mozjs185` or `mozilla-js` < 3.0. Current distributions do not package these, so `configure` stops with an error |
 | `--enable-plugin` (default on) | Legacy. The plugin uses NPAPI, which current browsers removed. `configure` finds no NPAPI SDK, warns and does not build the plugin |
 
+SDL3 dependency (Linux, for the later SDL platform layer): `tools/linux-deps/build.sh -p <prefix>`
+builds SDL 3.4.18 (tag `release-3.4.18`, commit `829a65d769d935c4852f8159e964312c0957260a`,
+github.com/libsdl-org/SDL) from the upstream release archive into a private prefix. It checks
+the archive SHA-256 and that `REVISION.txt` names that commit, and reads the pin from
+`tools/macos-deps/build.sh`, so both platforms use one pin. A system SDL3 package is never
+used. Ubuntu 24.04 needs `libxss-dev` for SDL's X11 backend. FreeWRL does not link or load
+SDL3: the X11 frontend and the OpenGL renderer stay active, and SDL frontend work has not
+started. `cmake -S freex3d -B build -G Ninja -DFREEWRL_SDL3_PROBE=ON -DCMAKE_PREFIX_PATH=<prefix>`
+builds a test-only probe that `ctest` runs to check the version and commit; the probe is off
+by default and refuses an SDL3 under `/usr` or `/opt`.
+
 ### macOS (Apple Silicon)
 
 Supported: macOS 15 Sequoia and newer on Apple Silicon (arm64). Build from the

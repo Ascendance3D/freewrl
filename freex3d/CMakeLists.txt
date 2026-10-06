@@ -641,17 +641,15 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# Pinned SDL3 dependency probe (macOS, test only)
+# Pinned SDL3 dependency probe (macOS and Linux, test only)
 # ---------------------------------------------------------------------------
-# tools/macos-deps/build.sh pins SDL3 and builds it into the deps prefix.
+# tools/macos-deps/build.sh pins SDL3 and builds it into the deps prefix;
+# tools/linux-deps/build.sh builds the same pin into a private Linux prefix.
 # FreeWRL does not link SDL3 yet. With FREEWRL_SDL3_PROBE=ON, the build makes
 # a separate probe program, and ctest checks that the prefix has the pinned
-# release and commit. The version and commit come from build.sh only.
-option(FREEWRL_SDL3_PROBE "Build and test the pinned SDL3 dependency probe (macOS)" OFF)
+# release and commit. The version and commit come from macos-deps/build.sh only.
+option(FREEWRL_SDL3_PROBE "Build and test the pinned SDL3 dependency probe" OFF)
 if(FREEWRL_SDL3_PROBE)
-  if(NOT APPLE)
-    message(FATAL_ERROR "FREEWRL_SDL3_PROBE is macOS only (tools/macos-deps)")
-  endif()
   set(_deps_sh "${CMAKE_CURRENT_SOURCE_DIR}/../tools/macos-deps/build.sh")
   file(STRINGS "${_deps_sh}" _sdl3_row REGEX "^SDL3 [0-9]")
   file(STRINGS "${_deps_sh}" _sdl3_commit REGEX "^SDL3_COMMIT=[0-9a-f]+$")
@@ -664,8 +662,10 @@ if(FREEWRL_SDL3_PROBE)
   string(REPLACE "SDL3_COMMIT=" "" FREEWRL_SDL3_COMMIT "${_sdl3_commit}")
 
   find_package(SDL3 ${FREEWRL_SDL3_VERSION} EXACT CONFIG REQUIRED COMPONENTS SDL3-shared)
-  if(SDL3_DIR MATCHES "^(/opt/homebrew|/usr/local|/opt/local)/")
+  if(APPLE AND SDL3_DIR MATCHES "^(/opt/homebrew|/usr/local|/opt/local)/")
     message(FATAL_ERROR "SDL3 found at ${SDL3_DIR}; use the tools/macos-deps prefix")
+  elseif(NOT APPLE AND SDL3_DIR MATCHES "^(/usr|/opt)/")
+    message(FATAL_ERROR "SDL3 found at ${SDL3_DIR}; use the tools/linux-deps prefix")
   endif()
   message(STATUS "SDL3 ${SDL3_VERSION} (pinned ${FREEWRL_SDL3_VERSION}, "
     "commit ${FREEWRL_SDL3_COMMIT}) from ${SDL3_DIR}")
