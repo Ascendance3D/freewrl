@@ -45,6 +45,11 @@ permission the input test prints `SKIP_ACCESSIBILITY_PERMISSION` and exits 0. Th
 `tools/linux-ci/x11-input-baseline.sh` (Xvfb, xdotool, gdb). With `FREEWRL_GL_IDENTITY=1`
 FreeWRL prints one `GL_IDENTITY key=value ...` line about its GL context.
 
+`sdl3-scaffold.sh BIN OUTDIR [WORLD] [SECONDS]` checks the experimental `freewrl_sdl3` frontend
+(`cmake -DFREEWRL_SDL3_FRONTEND=ON`): pinned SDL3 linkage and the loaded library, the OpenGL 4.1
+core context and `GL_IDENTITY` line, window geometry, CPU use, one window, and a clean close through
+the native close button with one frame hook and one draw per frame.
+
 ## Light local pre-push check
 
 ```sh
