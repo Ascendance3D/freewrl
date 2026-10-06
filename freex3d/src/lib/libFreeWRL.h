@@ -370,6 +370,15 @@ float fwl_getDensityFactor();
 int fwl_hwnd_to_windex(void *hWnd);
 void fwl_setScreenDim1(int wi, int he, int windex);
 bool fwl_initialize_GL(void);
+/* QA hooks, frontend neutral (Cocoa, X11 and a later SDL frontend use the same ones):
+   fw_frontend_frame_hook  the frontend calls it once per frame; it does nothing and is a
+                           stable breakpoint target for test tools (tools/macos-ci/run.sh)
+   fwl_log_gl_strings      the GL_VERSION, GL_SHADING_LANGUAGE_VERSION, GL_RENDERER lines
+   fwl_log_gl_identity     with FREEWRL_GL_IDENTITY=1, one machine-readable GL_IDENTITY line
+   Both log functions need the GL context current and only read GL state. */
+void fw_frontend_frame_hook(void);
+void fwl_log_gl_strings(void);
+void fwl_log_gl_identity(void);
 //void fwl_setLastMouseEvent(int etype);
 int fwl_handle_aqua(const int mev, const unsigned int button, int x, int y);
 //APPLE int fwl_handle_aqua1(const int mev, const unsigned int button, int x, int y, int windex);

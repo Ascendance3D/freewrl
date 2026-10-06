@@ -260,6 +260,8 @@ void initialize_freewrl(){
 - (void)animationTimer:(NSTimer *)timer
 {
     //NSLog (@"timer tick");
+    // QA breakpoint target, once per frame, before the frame is drawn (tools/macos-ci/run.sh)
+    fw_frontend_frame_hook();
     // Just draw
     [self drawRect:[self bounds]];
 }
@@ -639,9 +641,7 @@ mouseDisplaySensitive = mouseOverSensitive; \
 
     [super prepareOpenGL];
 
-    fprintf(stderr, "GL_VERSION %s\nGL_SHADING_LANGUAGE_VERSION %s\nGL_RENDERER %s\n",
-        (const char *)glGetString(GL_VERSION), (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION),
-        (const char *)glGetString(GL_RENDERER));
+    fwl_log_gl_strings(); // GL_VERSION, GL_SHADING_LANGUAGE_VERSION, GL_RENDERER lines (CI reads GL_RENDERER)
     
     //NSLog(@"calling fwl_init_instance");
     //if (!initialized) {

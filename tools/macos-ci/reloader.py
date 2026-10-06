@@ -1,6 +1,7 @@
-import lldb, os
+import lldb, os, time
 # lldb Python module for run.sh: world replacement, pointer events and sensor-handler tracing
-# from a breakpoint on -[FWGLView animationTimer:] (one hit per frame).
+# from a breakpoint on fw_frontend_frame_hook (libFreeWRL; the frontend calls it once per frame,
+# before it draws). It is a C symbol, so nothing here depends on a frontend's method names.
 #   RELOAD_PERIOD=N          every N frames load the next RELOAD_PATHS world through
 #   RELOAD_PATHS=a:b:c       dllFreeWRL_onLoad, which is what the Load button does
 #   RELOAD_POINTER=X,Y       (with RELOAD_PERIOD) drive the pointer as FWGLView does, through
@@ -12,11 +13,20 @@ import lldb, os
 #                            is under X,Y
 #   TRACE_SENSOR=do_X        count the calls of that sensor handler (do_SphereSensor, ...) by
 #                            event: hover, press, drag, release, leave (run.sh sets its breakpoint)
+#   FRAME_STATS=1            time each frame hook hit; report() prints the frame count and cadence
+#   TRACE_CALLS=fn[:f],...   (run.sh sets the breakpoints) print each call of these C functions
+#                            with its first four arguments: from debug info when the dSYM is
+#                            found, else from registers (":f": the first argument is a float)
 # Prints, into the lldb log run.sh reads:
-#   RELOADER armed ...       first frame: the settings seen and the fwctx address
+#   RELOADER armed ...       first frame with fwctx: the settings, the fwctx address, the time
 #   RELOAD n world OK|FAIL: error
 #   POINTER events=n failed=m   every period
 #   TRACE handler calls=n hover=.. press=.. drag=.. release=.. leave=..   at the end (report)
+#   CALL fn t=epoch a0 a1 a2 a3     each traced call; t is the Unix time in seconds
+#   FRAMES total=n window10s=m ...  at the end (report), with FRAME_STATS: frames in the 10 s
+#                            that start 5 s after the first frame, and the frame interval
+#                            median, 95th percentile and maximum in that window, in ms, and
+#                            first_t, the Unix time of the first frame
 # The app's context pointer is read from the global fwctx through the symbol table, and the
 # calls are made with casts, so this works on a packaged Release app without its dSYM (the
 # expression `fwctx` alone needs debug info, and failed silently before).
@@ -24,6 +34,9 @@ PERIOD = int(os.environ.get("RELOAD_PERIOD", "0"))
 PATHS = [p for p in os.environ.get("RELOAD_PATHS", "").split(":") if p]
 POINTER = [int(v) for v in os.environ.get("RELOAD_POINTER", "").split(",") if v]
 TRACE = os.environ.get("TRACE_SENSOR", "")
+FRAME_STATS = bool(os.environ.get("FRAME_STATS"))
+FLOAT_CALLS = {c[:-2] for c in os.environ.get("TRACE_CALLS", "").split(",") if c.endswith(":f")}
+frame_times = []
 MOTION, PRESS, RELEASE, MAPNOTIFY = 6, 4, 5, 19
 st = {"n": 0, "loads": 0, "mouse": 0, "mouse_fail": 0, "stopped": 0, "fwctx": None, "fwctx_err": ""}
 STOPPED = "stopped"
@@ -91,6 +104,10 @@ def pointer(frame, ctx, phase):
 
 def cb(frame, bp_loc, extra_args, internal_dict):
     st["n"] += 1
+    if not frame_times:
+        st["first_frame"] = time.time()
+    if FRAME_STATS or not frame_times:
+        frame_times.append(time.monotonic())
     ctx = fwctx(frame)
     if ctx is None:
         if st["n"] == 1:
@@ -98,8 +115,9 @@ def cb(frame, bp_loc, extra_args, internal_dict):
         return False
     if not st.get("armed"):
         st["armed"] = True
-        print("RELOADER armed: period=%d paths=%d pointer=%s trace=%s fwctx=0x%x" % (
-            PERIOD, len(PATHS), ",".join(str(v) for v in POINTER) or "-", TRACE or "-", ctx), flush=True)
+        print("RELOADER armed: period=%d paths=%d pointer=%s trace=%s fwctx=0x%x t=%.3f" % (
+            PERIOD, len(PATHS), ",".join(str(v) for v in POINTER) or "-", TRACE or "-", ctx,
+            time.time()), flush=True)
     if PERIOD > 40 and len(POINTER) == 2:
         pointer(frame, ctx, st["n"] % PERIOD)
     if PERIOD and st["n"] % PERIOD == 0:
@@ -129,7 +147,69 @@ def trace(frame, bp_loc, extra_args, internal_dict):
         tr["leave"] += 1
     return False
 
+def _int32(v):
+    v &= 0xffffffff
+    return v - (1 << 32) if v & 0x80000000 else v
+
+def _debug_args(frame):
+    """the first four arguments from debug info (dSYM), or None; right at inlined call sites too"""
+    out = []
+    vs = frame.GetVariables(True, False, False, True)
+    for i in range(min(4, vs.GetSize())):
+        v = vs.GetValueAtIndex(i)
+        if v.GetType().GetCanonicalType().GetBasicType() in (lldb.eBasicTypeFloat, lldb.eBasicTypeDouble):
+            s = v.GetValue()
+            if s is None:
+                return None
+            out.append("%g" % float(s))
+        else:
+            err = lldb.SBError()
+            n = v.GetValueAsSigned(err)
+            if not err.Success():
+                return None
+            out.append(str(n))
+    return out or None
+
+def calls(frame, bp_loc, extra_args, internal_dict):
+    """a TRACE_CALLS function at entry. run.sh names each breakpoint after its function, since
+    an optimized build inlines some (the stop is then in a frame of the caller or an inlined
+    callee). The arguments come from that function's frame through debug info, else from
+    x0..x3 (s0 for a ":f" float) as the arm64 calling convention passes them."""
+    names = lldb.SBStringList()
+    bp_loc.GetBreakpoint().GetNames(names)
+    name = names.GetStringAtIndex(0) if names.GetSize() else (frame.GetFunctionName() or "?").split("(")[0]
+    thread, args = frame.GetThread(), None
+    for i in range(min(8, thread.GetNumFrames())):
+        f = thread.GetFrameAtIndex(i)
+        if (f.GetFunctionName() or "").split("(")[0] == name:
+            args = _debug_args(f)
+            break
+        if not f.IsInlined():
+            break
+    if args is None and name in FLOAT_CALLS:
+        args = ["%g" % frame.FindRegister("s0").GetData().GetFloat(lldb.SBError(), 0)]
+    elif args is None:
+        args = [str(_int32(frame.FindRegister("x%d" % i).GetValueAsUnsigned())) for i in range(4)]
+    print("CALL %s t=%.3f %s" % (name, time.time(), " ".join(args)), flush=True)
+    return False
+
+def frame_report():
+    t = frame_times
+    if len(t) < 2:
+        print("FRAMES total=%d window10s=0" % st["n"], flush=True)
+        return
+    lo, hi = t[0] + 5.0, t[0] + 15.0
+    w = [x for x in t if lo <= x < hi]
+    gaps = sorted((b - a) * 1000.0 for a, b in zip(w, w[1:]))
+    pick = lambda q: gaps[min(len(gaps) - 1, int(q * len(gaps)))] if gaps else -1.0
+    complete = t[-1] >= hi
+    print("FRAMES total=%d window10s=%d%s p50_ms=%.1f p95_ms=%.1f max_ms=%.1f first_t=%.3f" % (
+        st["n"], len(w), "" if complete else "(short-run)", pick(0.5), pick(0.95),
+        gaps[-1] if gaps else -1.0, st.get("first_frame", 0.0)), flush=True)
+
 def report():
+    if FRAME_STATS:
+        frame_report()
     if TRACE:
         print("TRACE %s calls=%d hover=%d press=%d drag=%d release=%d leave=%d" % (
             TRACE, tr["calls"], tr["hover"], tr["press"], tr["drag"], tr["release"], tr["leave"]), flush=True)

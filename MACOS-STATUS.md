@@ -193,6 +193,19 @@ The macOS prereleases `v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2` are publis
 
 - Keyboard: `FWGLView` sent every key as `KEYDOWN` (a local `#define KeyPress 2`), never `KEYPRESS`, so every one-shot hotkey (`q`, viewer modes, `v`/`b` viewpoints, `h` headlight, `c` collision, the `:` command line, ...) and StringSensor did nothing. The mapping is in `FWKeyEvents.h`; `tools/key-events-test/run.sh` tests it.
 
+## SDL3 migration baseline (native frontends, 2026-10-05)
+
+PR1 of the SDL3 program adds test hooks and records the native behaviour. It adds no SDL code.
+
+- Frame hook: the frontend calls `fw_frontend_frame_hook()` (libFreeWRL, `main/MainLoop.c`) once per frame, before it draws; Cocoa calls it from `-[FWGLView animationTimer:]`. `tools/macos-ci/run.sh` breaks on it, not on the Objective-C method. The global `fwctx` stays as it is.
+- GL identity: `FREEWRL_GL_IDENTITY=1` prints one `GL_IDENTITY` line (`display.c` `fwl_log_gl_identity`, called from `initialize_rdr_caps` on every frontend). This Mac (M1, macOS 27): `vendor="Apple" renderer="Apple M1" version="4.1 Metal - 91.7" glsl="4.10" profile_mask=1 red=8 green=8 blue=8 alpha=8 depth=32 stencil=8 doublebuffer=1 samples=0 swap_interval=-1` (`-1`: not readable through the shared seam). The `GL_RENDERER` lines CI reads are unchanged (`fwl_log_gl_strings`).
+- Retina: the engine works in drawable pixels. Default window 672x512 pt, view 672x455 pt, drawable 1344x910 px, density 2; a pointer at view (100,100) pt reaches the engine as (200,200) px.
+- Input baseline (`tools/macos-input/live-input.sh`, real CGEventPost events): `q`, `v`, `h`, `e`, `w`, Space, Return, Command+Q, Command+N (no KEYPRESS, world kept), held-key release, StringSensor, pointer move/click/drag and resize pass. Known native defects, recorded and not fixed: arrows and F1 reach the engine as the low byte of the Cocoa function-key character (not `UP_KEY`.. / `F1_KEY`); Shift/Ctrl/Option alone send nothing (no `flagsChanged:`); the wheel sends nothing (no `scrollWheel:`); auto-repeat sends repeated `KEYDOWN`; Backspace arrives as 127, so the `:` command line cannot delete; at launch the URL field holds the keyboard focus, so keys go there until the view is clicked.
+- Bottom HUD (engine UI, keep it unchanged in the SDL frontend): by default the menu bar is pinned (`common.c` `pin_menubar = 1`), so the icon row shows without hover. A click on the empty part of the menu bar unpins it; then the non-hover state is the narrow status bar, hovering the bar shows the icon row, and leaving hides it. The left, center and right buttons hit at drawable-relative positions in both states.
+- Performance (`tools/macos-ci/perf-baseline.sh`, `1.wrl`, M1, under lldb): ready about 6.4 s after launch (lldb start included), 596-600 frames in a fixed 10 s window (median interval 16.7 ms, VBL), idle CPU about 6 %.
+- Final SDL macOS window: it keeps the normal macOS title bar with close, minimize and zoom, the FreeWRL rendering area and the FreeWRL bottom HUD/status bar. The old URL/address field and Load button below the title bar will be removed (in the SDL opt-in or switch PR, not before). The HUD's collapsed and hover-expanded behaviour stays engine-controlled; it is not replaced by SDL or Cocoa widgets.
+- CI for the SDL3 program: local macOS/Linux QA and GitHub Actions only; no Xcode Cloud, no Codemagic. Live input, HUD and performance tests need a GUI session and permissions, so they stay local.
+
 ## Next up
 
 - [x] Verify `q`, picking, navigation, HUD clicks and tests 8/10 on Retina (targeted QA on `32caaa36a`, token `FREEWRL_6_7_MACOS_ARM64_GL41_KEYBOARD_AND_INTERACTION_QA_PASS`)
