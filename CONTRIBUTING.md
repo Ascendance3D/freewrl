@@ -45,14 +45,22 @@ Node structs, field tables and dispatch tables are generated. Do not edit these 
 - `freex3d/src/lib/vrml_parser/NodeFields.h`
 - `freex3d/src/libeai/GeneratedCode.c`
 
-Edit `freex3d/codegen/*.pm` instead, then regenerate:
+These files are committed. Normal builds do not regenerate them and do not need Python.
+
+The generator is `freex3d/codegen/vrmlc.py`. It needs Python 3.12 or later and uses only the
+standard library. Edit the generator data (`vrml_nodes.py`, `vrml_fields.py`, `vrml_rend.py`) or
+`vrmlc.py` instead, then regenerate and verify:
 
 ```sh
-cd freex3d/codegen
-perl VRMLC.pm
+python3 -B freex3d/codegen/vrmlc.py
+python3 -B freex3d/codegen/vrmlc.py --check
 ```
 
-Commit the `.pm` change and the regenerated files together.
+In a CMake build directory, the `freewrl_codegen` and `freewrl_codegen_check` targets run the
+same commands. `--check` writes nothing and fails if a committed file differs from the generator
+output.
+
+Commit the generator change and the regenerated files together.
 
 When you add a `.c` file, add it to `freex3d/src/lib/Makefile.sources` (Linux) and to
 `OSX_gui/FreeWRL-Desktop/FreeWRL.xcodeproj` (macOS).

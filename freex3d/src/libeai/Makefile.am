@@ -119,5 +119,6 @@ if WINDOW_USE_WIN32
 AM_CPPFLAGS+=-DTARGET_WIN32
 endif
 
-GeneratedCode.c: $(top_srcdir)/codegen/VRMLC.pm
-	cd $(top_srcdir)/codegen && perl VRMLC.pm
+# GeneratedCode.c is committed. The build does not regenerate it.
+# To regenerate, from the repository root (Python 3.12+):
+# python3 -B freex3d/codegen/vrmlc.py

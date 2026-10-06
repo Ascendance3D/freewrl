@@ -240,9 +240,11 @@ Known FreeWRL 6.7 defects, present upstream and not introduced by the port:
    pull request against `master`, and delete the task branch after it merges.
 3. Keep every platform compiling; much of the code is conditional on
    platform defines.
-4. Node definitions are generated: edit `freex3d/codegen/*.pm` and run
-   `perl VRMLC.pm` from `freex3d/codegen/` rather than editing the generated
-   files.
+4. Node definitions are generated: edit the Python generator in
+   `freex3d/codegen/` and run `python3 -B freex3d/codegen/vrmlc.py`
+   (Python 3.12+) rather than editing the generated files. Verify with
+   `python3 -B freex3d/codegen/vrmlc.py --check`. The generated files are
+   committed; normal builds do not regenerate them.
 5. Fixes to FreeWRL itself are welcome upstream too, on the SourceForge
    project.
 

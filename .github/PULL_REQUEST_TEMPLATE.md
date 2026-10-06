@@ -14,7 +14,7 @@ Platforms tested:
 
 ## Impact
 
-- Generated files: <!-- none, or which .pm files changed and that VRMLC.pm was rerun -->
+- Generated files: <!-- none, or which codegen files changed, that `python3 -B freex3d/codegen/vrmlc.py --check` passes, and that intentional output changes are committed with the generator change -->
 - Security: <!-- none, or describe -->
 - Documentation: <!-- none, or which files -->
 

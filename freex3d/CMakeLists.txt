@@ -615,13 +615,29 @@ endif()
 # Code generation (manual target; generated files are committed).
 # Not named "codegen": CMake 3.31+ reserves that name (policy CMP0171).
 # ---------------------------------------------------------------------------
-find_program(PERL_EXECUTABLE perl)
-if(PERL_EXECUTABLE)
+# Python is optional: a normal configure and build do not need it.
+# freewrl_codegen regenerates the committed files; freewrl_codegen_check
+# compares them with the generator output and writes nothing.
+find_package(Python3 3.12 COMPONENTS Interpreter QUIET)
+set(FREEWRL_VRMLC "${CMAKE_CURRENT_SOURCE_DIR}/codegen/vrmlc.py")
+# A user-set Python3_EXECUTABLE skips the version filter, so test it here too.
+if(Python3_Interpreter_FOUND AND Python3_VERSION VERSION_GREATER_EQUAL 3.12)
   add_custom_target(freewrl_codegen
-    COMMAND "${PERL_EXECUTABLE}" VRMLC.pm
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/codegen"
+    COMMAND "${Python3_EXECUTABLE}" -B "${FREEWRL_VRMLC}"
     COMMENT "Regenerating GeneratedCode.c, Structs.h, NodeFields.h"
     VERBATIM)
+  add_custom_target(freewrl_codegen_check
+    COMMAND "${Python3_EXECUTABLE}" -B "${FREEWRL_VRMLC}" --check
+    COMMENT "Checking GeneratedCode.c, Structs.h, NodeFields.h"
+    VERBATIM)
+else()
+  foreach(_codegen_target freewrl_codegen freewrl_codegen_check)
+    add_custom_target(${_codegen_target}
+      COMMAND "${CMAKE_COMMAND}" -E echo
+        "${_codegen_target} needs Python 3.12+ (not found at configure time)"
+      COMMAND "${CMAKE_COMMAND}" -E false
+      VERBATIM)
+  endforeach()
 endif()
 
 # ---------------------------------------------------------------------------

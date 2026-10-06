@@ -38,7 +38,7 @@ end loop
 
 - Directory layout
 
-freewrl/freex3d/codegen - perl files to generate GeneratedCode.c and Structs.h node and field plumbing; only run perl after an infrequent change to the node or field structs, check in the GeneratedCode.c and Structs.h.
+freewrl/freex3d/codegen - Python 3.12+ files (vrmlc.py) to generate GeneratedCode.c, Structs.h and NodeFields.h node and field plumbing; only run vrmlc.py after an infrequent change to the node or field structs, check in the generated files. Normal builds do not regenerate them.
 freewrl/freex3d/projectfiles_vc9 and _vc10 - win32 MSVC .proj and .sln build files
 freewrl/freex3d/src - cross platform source code files for:
 /libeai - in web3d.org specs there's something called External Authoring Interface EAI that allows scripting via port communications
@@ -53,7 +53,11 @@ within /lib - the directories are fuzzy categories, not strict, and I have only 
 
 VRML has 2 main entity types: nodes and fields.
 There's a lot of repetitive plumbing for each of those types, and for each specific node and field type.
-When changing the system occasionally -very infrequently- if a generic field struct or node struct needs to be changed, instead of changing it repetitively in hundreds of node or field structs, it's changed on one line in a codegen/ perl file, and the perl is re-run to generate all the repetitive plumbing code.
+When changing the system occasionally -very infrequently- if a generic field struct or node struct needs to be changed, instead of changing it repetitively in hundreds of node or field structs, it's changed on one line in a codegen/ Python file, and the generator is re-run to generate all the repetitive plumbing code.
+The generator is codegen/vrmlc.py. It needs Python 3.12 or later. From the repository root:
+python3 -B freex3d/codegen/vrmlc.py           regenerate the committed files
+python3 -B freex3d/codegen/vrmlc.py --check   verify the committed files, write nothing
+The generated files are committed. Normal builds do not regenerate them.
 To re-run the perl, in windows I put it in a .bat file in /codegen, install perl somewhere, then run the .bat, which looks like this:
 E:/Perl/bin/perl.exe VRMLC.pm
 pause
