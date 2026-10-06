@@ -641,6 +641,44 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
+# Pinned SDL3 dependency probe (macOS, test only)
+# ---------------------------------------------------------------------------
+# tools/macos-deps/build.sh pins SDL3 and builds it into the deps prefix.
+# FreeWRL does not link SDL3 yet. With FREEWRL_SDL3_PROBE=ON, the build makes
+# a separate probe program, and ctest checks that the prefix has the pinned
+# release and commit. The version and commit come from build.sh only.
+option(FREEWRL_SDL3_PROBE "Build and test the pinned SDL3 dependency probe (macOS)" OFF)
+if(FREEWRL_SDL3_PROBE)
+  if(NOT APPLE)
+    message(FATAL_ERROR "FREEWRL_SDL3_PROBE is macOS only (tools/macos-deps)")
+  endif()
+  set(_deps_sh "${CMAKE_CURRENT_SOURCE_DIR}/../tools/macos-deps/build.sh")
+  file(STRINGS "${_deps_sh}" _sdl3_row REGEX "^SDL3 [0-9]")
+  file(STRINGS "${_deps_sh}" _sdl3_commit REGEX "^SDL3_COMMIT=[0-9a-f]+$")
+  if(NOT _sdl3_row MATCHES "^SDL3 ([0-9]+)\\.([0-9]+)\\.([0-9]+) " OR NOT _sdl3_commit)
+    message(FATAL_ERROR "No SDL3 row or SDL3_COMMIT in ${_deps_sh}")
+  endif()
+  set(FREEWRL_SDL3_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}")
+  set(_sdl3_defs FW_SDL3_MAJOR=${CMAKE_MATCH_1} FW_SDL3_MINOR=${CMAKE_MATCH_2}
+    FW_SDL3_MICRO=${CMAKE_MATCH_3})
+  string(REPLACE "SDL3_COMMIT=" "" FREEWRL_SDL3_COMMIT "${_sdl3_commit}")
+
+  find_package(SDL3 ${FREEWRL_SDL3_VERSION} EXACT CONFIG REQUIRED COMPONENTS SDL3-shared)
+  if(SDL3_DIR MATCHES "^(/opt/homebrew|/usr/local|/opt/local)/")
+    message(FATAL_ERROR "SDL3 found at ${SDL3_DIR}; use the tools/macos-deps prefix")
+  endif()
+  message(STATUS "SDL3 ${SDL3_VERSION} (pinned ${FREEWRL_SDL3_VERSION}, "
+    "commit ${FREEWRL_SDL3_COMMIT}) from ${SDL3_DIR}")
+
+  add_executable(freewrl_sdl3_probe "${CMAKE_CURRENT_SOURCE_DIR}/../tools/macos-deps/sdl3_probe.c")
+  target_compile_definitions(freewrl_sdl3_probe PRIVATE ${_sdl3_defs}
+    "FW_SDL3_COMMIT=\"${FREEWRL_SDL3_COMMIT}\"")
+  target_link_libraries(freewrl_sdl3_probe PRIVATE SDL3::SDL3-shared)
+  enable_testing()
+  add_test(NAME sdl3_pinned_dependency COMMAND freewrl_sdl3_probe)
+endif()
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 if(APPLE)

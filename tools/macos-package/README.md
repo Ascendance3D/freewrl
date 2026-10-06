@@ -49,7 +49,8 @@ renders. Do not ship a build that has not passed 7/7.
    `-mmacosx-version-min=15.0` into a private prefix (ODE: double precision,
    its internal libccd; freealut: against Apple's `OpenAL.framework`). Writes
    `share/freewrl-deps/packages.tsv` (package, version, libraries, source URL,
-   SHA-256) and each package's license files.
+   SHA-256) and each package's license files. It also builds SDL 3.4.18 for the
+   later SDL frontend; FreeWRL does not link it yet, so `bundle.py` does not embed it.
 2. `xcodebuild` Release, arm64, `MACOSX_DEPLOYMENT_TARGET=15.0`,
    `FW_DEPS=<prefix>` (skipped with `-a`).
 3. `bundle.py`: walks the executable's dependencies, copies every library
