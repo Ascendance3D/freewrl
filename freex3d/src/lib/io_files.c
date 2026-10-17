@@ -343,39 +343,47 @@ bool do_file_readable(const char *filename)
 bool do_dir_exists(const char *dir)
 {
 	struct stat ss;
+	const char *check_dir;
+	bool ret = FALSE;
+#if defined(_MSC_VER)
 	char *clean_dir = NULL;
 	size_t len;
-	bool ret = FALSE;
+#endif
 
 	if (!dir) return FALSE;
-
-	len = strlen(dir);
-	clean_dir = strdup(dir);
-	if (!clean_dir) return FALSE;
+	check_dir = dir;
 
 #if defined(_MSC_VER)
-	/* Remove any trailing backslash from dir */
-	while (len > 0 && clean_dir[len - 1] == '\\') {
-		/* Keep root dir backslash like C:\ */
-		if (len == 3 && clean_dir[1] == ':') {
-			break;
+	len = strlen(dir);
+	clean_dir = strdup(dir);
+	if (clean_dir) {
+		/* Remove any trailing backslash from dir */
+		while (len > 0 && clean_dir[len - 1] == '\\') {
+			/* Keep root dir backslash like C:\ */
+			if (len == 3 && clean_dir[1] == ':') {
+				break;
+			}
+			if (len == 1) {
+				break; /* Don't empty the string if it's just "\" */
+			}
+			clean_dir[len - 1] = '\0';
+			len--;
 		}
-		if (len == 1) {
-			break; /* Don't empty the string if it's just "\" */
-		}
-		clean_dir[len - 1] = '\0';
-		len--;
+		check_dir = clean_dir;
 	}
 #endif
 
-	if (stat(clean_dir, &ss) == 0) {
-		if (access(clean_dir,X_OK) == 0) {
+	if (stat(check_dir, &ss) == 0 && S_ISDIR(ss.st_mode)) {
+		if (access(check_dir,X_OK) == 0) {
 			ret = TRUE;
 		} else {
-			WARN_MSG("directory '%s' exists but is not accessible\n", clean_dir);
+			WARN_MSG("directory '%s' exists but is not accessible\n", check_dir);
 		}
 	}
-	free(clean_dir);
+
+#if defined(_MSC_VER)
+	if (clean_dir) free(clean_dir);
+#endif
 	return ret;
 }
 
