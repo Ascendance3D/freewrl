@@ -106,11 +106,11 @@ int main (int argc, char **argv)
 		char targetdir[2000];
 		//assume the first entry is to /lib
 		char *ce = strstr(libpath,"/lib/:");
-		*ce = (char)0;
-		strcpy(targetdir,libpath);
-		strcat(targetdir,"/fonts");
-		printf("setting FONTS_DIR %s\n",targetdir);
-		setenv("FREEWRL_FONTS_DIR",targetdir,1);
+		if (ce != NULL) {
+			snprintf(targetdir, sizeof(targetdir), "%.*s/fonts", (int)(ce - libpath), libpath);
+			printf("setting FONTS_DIR %s\n", targetdir);
+			setenv("FREEWRL_FONTS_DIR", targetdir, 1);
+		}
 	}
 #endif
     char consoleBuffer[200];
