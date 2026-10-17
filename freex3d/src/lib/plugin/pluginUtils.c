@@ -170,13 +170,33 @@ static void launch_browser(const char *browser, const char *url) {
 		}
 		if (grand_pid == 0) {
 			/* Grandchild process */
-			char *argv[3];
-			argv[0] = (char *)browser;
-			argv[1] = (char *)url;
-			argv[2] = NULL;
+			char *argv[64];
+			char *browser_copy;
+			char *token;
+			int argc = 0;
 
-			execvp(browser, argv);
+			browser_copy = strdup(browser);
+			if (!browser_copy) {
+				_exit(1);
+			}
+
+			token = strtok(browser_copy, " \t");
+			while (token != NULL && argc < 61) {
+				argv[argc++] = token;
+				token = strtok(NULL, " \t");
+			}
+
+			if (argc == 0) {
+				free(browser_copy);
+				_exit(1);
+			}
+
+			argv[argc++] = (char *)url;
+			argv[argc] = NULL;
+
+			execvp(argv[0], argv);
 			/* If execvp returns, it failed */
+			free(browser_copy);
 			_exit(1);
 		}
 		/* Child exits immediately, leaving grandchild orphaned (init will reap it) */
