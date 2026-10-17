@@ -392,6 +392,12 @@ void process_command () {
 
 int main(int argc,char **argv) {
 
+	/* Handle edge cases where argc is 0 or argv[0] is NULL */
+	if (argc < 1 || argv[0] == NULL) {
+		printf ("Server: too few args\n");
+		exit(1);
+	}
+
 	if ((argc == 2) && !strcmp(argv[1],"-v")) {
 		printf("FreeWRL sound server\nVersion: %s\n", freewrl_snd_get_version());
 		exit(0);
