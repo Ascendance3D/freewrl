@@ -1287,9 +1287,11 @@ void embedEXTERNPROTO(struct VRMLLexer *me, const char *myName, char *buffer, ch
 
         /* find the requested name, or find the first PROTO here */
         if (pound != NULL) {
+                size_t pound_len;
                 pound++;
                 /* printf ("looking for ID %s\n",pound);  */
                 proto=buffer;
+                pound_len = strlen(pound);
 
                 do {
                         FIND_PROTO_IN_proto_BUFFER
@@ -1298,7 +1300,7 @@ void embedEXTERNPROTO(struct VRMLLexer *me, const char *myName, char *buffer, ch
                         proto += sizeof ("PROTO");
                         while ((*proto <= ' ') && (*proto != '\0')) proto++;
                         /* printf ("found PROTO at %s\n",proto);  */
-                } while (strncmp(pound,proto,strlen(pound)) != 0);
+                } while (strncmp(pound,proto,pound_len) != 0);
         } else {
                 /* no name requested; find the first PROTO that is not an EXTERNPROTO */
                 proto = buffer;

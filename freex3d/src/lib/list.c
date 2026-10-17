@@ -406,10 +406,10 @@ cd_list_t* cdl_insert(cd_list_t *head, cd_list_t *point, cd_list_t *item)
         return tmp;
     }
     if(!point) point = head;
-	point->next = item;
+	item->next = point;
 	item->prev = point->prev;
-	point->prev = item;
 	item->prev->next = item;
+	point->prev = item;
 	if(head == point) {
 		head = item;
 	}
