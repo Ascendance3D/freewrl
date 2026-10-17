@@ -107,9 +107,13 @@ int main (int argc, char **argv)
 		//assume the first entry is to /lib
 		char *ce = strstr(libpath,"/lib/:");
 		if (ce != NULL) {
-			snprintf(targetdir, sizeof(targetdir), "%.*s/fonts", (int)(ce - libpath), libpath);
-			printf("setting FONTS_DIR %s\n", targetdir);
-			setenv("FREEWRL_FONTS_DIR", targetdir, 1);
+			int written = snprintf(targetdir, sizeof(targetdir), "%.*s/fonts", (int)(ce - libpath), libpath);
+			if (written >= 0 && (size_t)written < sizeof(targetdir)) {
+				printf("setting FONTS_DIR %s\n", targetdir);
+				setenv("FREEWRL_FONTS_DIR", targetdir, 1);
+			} else {
+				printf("warning: targetdir too small for FONTS_DIR\n");
+			}
 		}
 	}
 #endif
