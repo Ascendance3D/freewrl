@@ -81,6 +81,8 @@ x plugin/pluginUtils.c split_browser_command launch_browser > "$out/pluginUtils.
 {
 	x ../libeai/EAI_C_Field.c X3D_newSFVec3d
 	x ../libeai/EAI_C_Field.c X3D_getSFVec3d
+	x ../libeai/EAI_C_Field.c X3D_newSFVec2f
+	x ../libeai/EAI_C_Field.c X3D_getSFVec2f
 } > "$out/eaifield.inc"
 
 objs=
