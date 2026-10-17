@@ -4173,7 +4173,13 @@ quat.invert = function(out, a) {
         dot = a0*a0 + a1*a1 + a2*a2 + a3*a3,
         invDot = dot ? 1.0/dot : 0;
     
-    // TODO: Would be faster to return [0,0,0,0] immediately if dot == 0
+    if (!dot) {
+        out[0] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        out[3] = 0;
+        return out;
+    }
 
     out[0] = -a0*invDot;
     out[1] = -a1*invDot;
