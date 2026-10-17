@@ -1,0 +1,4 @@
+## 2023-10-24 - [Realloc in AddToSibAffectors]
+**Learning:** `AddToSibAffectors` appends sibling affectors to `__sibAffectors` per-frame by repeatedly reallocating memory size + 1. The profiling indicated that for standard benchmark worlds (like from `freewrl/tests`), this reallocating does not occur very often per frame (or the counts are completely small like <120 elements per minute across the load). As instructed in the guidelines: "If typical n is small (a handful) and glibc grows in place, say so, and stop. Do not open a PR. Journal the finding in .jules/bolt.md, since "realloc +1 looks bad but isn't" is the kind of lesson that journal is for."
+
+**Action:** Reallocs in `AddToSibAffectors` look like a major bottleneck due to the `+1` increment pattern, but in reality they are rare enough that the performance impact is negligible. Looking for another bottleneck.
