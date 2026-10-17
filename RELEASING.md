@@ -40,9 +40,15 @@ workflow never publishes on its own.
 GitHub Actions is a release-validation system, not a development test system.
 
 - Normal development and PR QA run **locally**.
-- Pushes and pull requests do **not** start GitHub Actions.
+- Pushes and pull requests do **not** start a workflow file. (GitHub's CodeQL default setup and
+  CodeRabbit do run on pull requests; they are analysis and review, not build or test gates.)
 - Ryan explicitly starts formal release validation: a manual run of
   `.github/workflows/macos.yml` (macOS Release Validation, `workflow_dispatch`).
+- Post-merge check: after a PR that touches macOS code merges, an agent may start `macos.yml` once
+  on `master` with the merge commit as `expected_sha`. A failure there means a fix-up PR, not a
+  rerun. See `docs/automation/JULES_DISPATCH.md`. `check-ci-run.sh` does not check who started a
+  run, so a successful post-merge run is also valid release evidence for that SHA. Ryan still
+  chooses the release SHA and starts the draft release workflow.
 - Release validation runs from `master` for **one exact expected SHA** (`expected_sha`, 40 hex
   characters). The run fails at once if it is not on `master` or if `github.sha` differs from
   `expected_sha`.
@@ -164,7 +170,8 @@ on the signed zip. Finder's Version field shows `CFBundleShortVersionString`.
 
 ### 1. Finish local development QA
 
-- Development and PR QA are done locally. Nothing on GitHub Actions is used for this.
+- Development and PR QA are done locally. Nothing on GitHub Actions is used for this, except
+  the post-merge `macos.yml` check on `master` described above.
 - You chose the version. Do not assume the next number; pick it deliberately.
 - You are on macOS 15 (Sequoia) or newer on Apple Silicon for any local macOS checks, and on
   Ubuntu 24.04 x86_64 for the Linux checks.
