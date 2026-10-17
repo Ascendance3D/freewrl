@@ -39,6 +39,7 @@
 #if !defined(_MSC_VER)
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 #include "../vrml_parser/Structs.h"
@@ -140,9 +141,54 @@ void goToViewpoint(char *vp) {
 }
 
 #if !defined(_MSC_VER) && !defined(ANDROIDNDK)
+/* Split a BROWSER command line into argv in place, without a shell.
+   Whitespace separates arguments; single or double quotes group text and are
+   removed; a backslash escapes the next character (except inside single quotes).
+   Returns the argument count, or -1 for too many arguments or an unterminated quote. */
+static int split_browser_command(char *buf, char **argv, int max) {
+	char *r = buf;
+	char *w = buf;
+	int argc = 0;
+
+	for (;;) {
+		int more;
+
+		while (*r == ' ' || *r == '\t') r++;
+		if (*r == '\0') break;
+		if (argc >= max) return -1;
+		argv[argc++] = w;
+		while (*r != '\0' && *r != ' ' && *r != '\t') {
+			if (*r == '\'') {
+				r++;
+				while (*r != '\0' && *r != '\'') *w++ = *r++;
+				if (*r == '\0') return -1;
+				r++;
+			} else if (*r == '"') {
+				r++;
+				while (*r != '\0' && *r != '"') {
+					if (*r == '\\' && r[1] != '\0') r++;
+					*w++ = *r++;
+				}
+				if (*r == '\0') return -1;
+				r++;
+			} else {
+				if (*r == '\\' && r[1] != '\0') r++;
+				*w++ = *r++;
+			}
+		}
+		more = (*r != '\0');
+		*w++ = '\0';
+		if (more) r++;
+	}
+	return argc;
+}
+
 static void launch_browser(const char *browser, const char *url) {
 	pid_t pid;
 	const char *c;
+	char *browser_copy;
+	char *argv[64];
+	int argc;
 
 	/* Reject unsafe URLs: must not start with '-' or contain control characters */
 	if (url[0] == '-') {
@@ -156,9 +202,26 @@ static void launch_browser(const char *browser, const char *url) {
 		}
 	}
 
+	/* Build argv before forking: FreeWRL is multithreaded, so the children
+	   must only call async-signal-safe functions (no malloc). */
+	browser_copy = strdup(browser);
+	if (!browser_copy) {
+		ConsoleMessage("Error: out of memory when launching browser");
+		return;
+	}
+	argc = split_browser_command(browser_copy, argv, 62);
+	if (argc <= 0) {
+		ConsoleMessage("Error: invalid or empty browser command");
+		free(browser_copy);
+		return;
+	}
+	argv[argc++] = (char *)url;
+	argv[argc] = NULL;
+
 	pid = fork();
 	if (pid < 0) {
 		ConsoleMessage("Error: fork failed when launching browser");
+		free(browser_copy);
 		return;
 	}
 
@@ -166,37 +229,16 @@ static void launch_browser(const char *browser, const char *url) {
 		/* Child process */
 		pid_t grand_pid = fork();
 		if (grand_pid < 0) {
+			static const char msg[] = "FreeWRL: failed to fork browser process\n";
+			(void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
 			_exit(1);
 		}
 		if (grand_pid == 0) {
 			/* Grandchild process */
-			char *argv[64];
-			char *browser_copy;
-			char *token;
-			int argc = 0;
-
-			browser_copy = strdup(browser);
-			if (!browser_copy) {
-				_exit(1);
-			}
-
-			token = strtok(browser_copy, " \t");
-			while (token != NULL && argc < 61) {
-				argv[argc++] = token;
-				token = strtok(NULL, " \t");
-			}
-
-			if (argc == 0) {
-				free(browser_copy);
-				_exit(1);
-			}
-
-			argv[argc++] = (char *)url;
-			argv[argc] = NULL;
-
+			static const char msg[] = "FreeWRL: failed to execute browser\n";
 			execvp(argv[0], argv);
 			/* If execvp returns, it failed */
-			free(browser_copy);
+			(void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
 			_exit(1);
 		}
 		/* Child exits immediately, leaving grandchild orphaned (init will reap it) */
@@ -205,6 +247,7 @@ static void launch_browser(const char *browser, const char *url) {
 		/* Parent process */
 		int status;
 		waitpid(pid, &status, 0);
+		free(browser_copy);
 	}
 }
 

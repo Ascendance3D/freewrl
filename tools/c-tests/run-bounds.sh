@@ -75,7 +75,7 @@ x scenegraph/RenderFuncs.c push_ray pop_ray > "$out/pickray.inc"
 } > "$out/sensors.inc"
 x main/ConsoleMessage.c fwvsnprintf ConsoleMessage > "$out/consolemsg.inc"
 x vrml_parser/CParseParser.c cParseErrorCurID cParseErrorFieldString > "$out/parseerror.inc"
-x plugin/pluginUtils.c launch_browser > "$out/pluginUtils.inc"
+x plugin/pluginUtils.c split_browser_command launch_browser > "$out/pluginUtils.inc"
 
 objs=
 for t in test_bounds_main test_hanim test_texture test_texture_header test_shader_plug test_eai_reply test_tempfile \
