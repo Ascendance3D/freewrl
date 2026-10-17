@@ -13,8 +13,6 @@
 #   CParseParser.c       cParseErrorCurID, cParseErrorFieldString, with
 #   ConsoleMessage.c     fwvsnprintf, ConsoleMessage0, ConsoleMessage (world text is not a format)
 #   BVHreader.c          read_bvh_blob, the .bvh motion-capture parser (included whole)
-#   EAI_C_Field.c        X3D_newSFVec3d, X3D_getSFVec3d (real libeai X3DNode types)
-#   pluginUtils.c        split_browser_command, launch_browser (no shell, argv only)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
 # Nothing here starts FreeWRL, opens a window, creates a GL context or loads a world.
@@ -77,19 +75,14 @@ x scenegraph/RenderFuncs.c push_ray pop_ray > "$out/pickray.inc"
 } > "$out/sensors.inc"
 x main/ConsoleMessage.c fwvsnprintf ConsoleMessage > "$out/consolemsg.inc"
 x vrml_parser/CParseParser.c cParseErrorCurID cParseErrorFieldString > "$out/parseerror.inc"
-x plugin/pluginUtils.c split_browser_command launch_browser > "$out/pluginUtils.inc"
-{
-	x ../libeai/EAI_C_Field.c X3D_newSFVec3d
-	x ../libeai/EAI_C_Field.c X3D_getSFVec3d
-} > "$out/eaifield.inc"
 
 objs=
 for t in test_bounds_main test_hanim test_texture test_texture_header test_shader_plug test_eai_reply test_tempfile \
-	test_pick_ray test_sensor_lifetime test_parse_error test_pluginUtils test_eai_field; do
+	test_pick_ray test_sensor_lifetime test_parse_error; do
 	# built like the production sources: no extra warning flags, since each test
 	# includes extracted production code
 	$CC $cflags \
-		-I"$here" -I"$out" -I"$lib/scenegraph" -I"$lib/../libeai" -c "$here/$t.c" -o "$out/$t.o"
+		-I"$here" -I"$out" -I"$lib/scenegraph" -c "$here/$t.c" -o "$out/$t.o"
 	objs="$objs $out/$t.o"
 done
 # BVHreader.c is included whole by test_bvh.c. It includes <config.h> and <malloc.h>;

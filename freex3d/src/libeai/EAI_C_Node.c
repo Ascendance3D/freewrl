@@ -227,9 +227,9 @@ X3DEventIn *_X3D_getEvent(X3DNode *node, char *name, int into) {
 		ptr = _X3D_Browser_SendEventType(adr, name, "");
 		break;
 	default:
-		printf ("error in getEventIn: unsupported access method %d\n", into);
-		free(retval);
-		return 0;
+		//TODO: FOR NOW WE FORCE TO AN "EVENTIN" CASE. IT WOULD BE BETTER TO THROW AN ERROR
+		ptr = _X3D_Browser_SendEventType(adr, name, "eventIn");
+		break;
 	}
 
 	/* ptr should point to , for example: 161412616 116 0 q 0 eventIn

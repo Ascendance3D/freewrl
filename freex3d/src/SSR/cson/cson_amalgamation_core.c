@@ -4029,22 +4029,23 @@ static int cson_output_indent( cson_data_dest_f f, void * state,
     if( 0 == blanks ) return 0;
     else
     {
+#if 0
+        /* FIXME: stuff the indention into the buffer and make a single
+           call to f().
+        */
         enum { BufLen = 200 };
         char buf[BufLen];
-        unsigned int total = depth * blanks;
+#endif
+        unsigned int i;
+        unsigned int x;
         char const ch = (1==blanks) ? '\t' : ' ';
         int rc = f(state, "\n", 1 );
-        if( 0 != rc ) return rc;
-
-        if( total == 0 ) return 0;
-
-        memset(buf, ch, (total < BufLen) ? total : BufLen);
-
-        while( total > 0 && 0 == rc )
+        for( i = 0; (i < depth) && (0 == rc); ++i )
         {
-            unsigned int const n = (total < BufLen) ? total : BufLen;
-            rc = f(state, buf, n);
-            total -= n;
+            for( x = 0; (x < blanks) && (0 == rc); ++x )
+            {
+                rc = f(state, &ch, 1);
+            }
         }
         return rc;
     }
