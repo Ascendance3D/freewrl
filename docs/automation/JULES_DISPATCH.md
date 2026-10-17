@@ -6,7 +6,7 @@ This is the hand-off for running Google Jules against this repository (`Ascendan
 - setting it up from scratch;
 - the dispatch, review and merge flow, and the pitfalls already hit in practice.
 
-The same setup drives `Ascendance3D/wrlforge`; the differences are in [Per-repository settings](#per-repository-settings).
+The FreeWRL-specific values are in [Repository settings](#repository-settings).
 
 Jules is an external, paid service. Dispatch only work the owner has approved, and never put credentials in a task, issue, PR or commit.
 
@@ -102,14 +102,14 @@ Use the absolute checkout path for `ENV_FILE`. The defaults only apply when a ta
 
 ### 2.4 Register the MCP server
 
-One MCP server is enough for both repositories, because each task names its own `source` and `branch`. The registered wrapper only supplies the key and the defaults.
+The registered wrapper only supplies the key and the defaults; each task still names its own `source` and `branch`.
 
 ```bash
 claude mcp add -s user jules-dispatch -- ~/.local/bin/jules-dispatch-freewrl mcp
 codex mcp add jules-dispatch -- ~/.local/bin/jules-dispatch-freewrl mcp
 ```
 
-If `jules-dispatch` is already registered with another repo's wrapper (for example, `jules-dispatch-wrlforge`), it works as is, provided that wrapper loads the same account's key. Restart the client after you register the server.
+If `jules-dispatch` is already registered with another repository's wrapper, it works as is, provided that wrapper loads the same account's key. Restart the client after you register the server.
 
 ### 2.5 Install the skill
 
@@ -123,18 +123,18 @@ cp -r /tmp/jules-dispatch-src/skills/jules-dispatch ~/.codex/skills/
 
 Then rerun every check in [section 1](#1-check-an-existing-environment).
 
-## Per-repository settings
+## Repository settings
 
-| | FreeWRL | WRL Forge |
-|---|---|---|
-| Jules source | `sources/github/Ascendance3D/freewrl` | `sources/github/Ascendance3D/wrlforge` |
-| Base branch | **`master`** (canonical trunk; `develop` is retired) | `main` |
-| Task branches | `fix-*` / `feature-*` from `master` (see `CLAUDE.md` › Git workflow) | `jules-<issue>-<slug>` |
-| CI on PRs | CodeQL analysis and a CodeRabbit review on every PR. **No build or test workflow.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only | ubuntu, windows and macOS Node tests on every PR |
-| Local verification | Linux autotools build and tests (see `CLAUDE.md` › Build), plus the macOS Xcode build where the change touches it | `npm run check`; `cargo +1.95.0 test` for Rust crates, which CI does not run |
-| Merge method | Merge commit (`gh pr merge --merge`) | Squash (`gh pr merge --squash`) |
-| Review worktrees | `~/Projects/cybertown/.worktrees/freewrl/<lane>` | `~/Projects/cybertown/.worktrees/wrlforge/<lane>` |
-| Wrapper | `jules-dispatch-freewrl` | `jules-dispatch-wrlforge` |
+| Setting | FreeWRL |
+|---|---|
+| Jules source | `sources/github/Ascendance3D/freewrl` |
+| Base branch | **`master`** (canonical trunk; `develop` is retired) |
+| Task branches | `fix-*` / `feature-*` from `master` (see `CLAUDE.md` › Git workflow) |
+| CI on PRs | CodeQL analysis and a CodeRabbit review on every PR. **No build or test workflow.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only |
+| Local verification | Linux autotools build and tests (see `CLAUDE.md` › Build), plus the macOS Xcode build where the change touches it |
+| Merge method | Merge commit (`gh pr merge --merge`) |
+| Review worktrees | `~/Projects/cybertown/.worktrees/freewrl/<lane>` |
+| Wrapper | `jules-dispatch-freewrl` |
 
 FreeWRL PRs get no automatic build or test checks. CodeQL and CodeRabbit do not build or run FreeWRL, so the reviewer's local build and test run is the only pre-merge gate. A PR with only CodeQL and CodeRabbit passes is not a tested PR.
 
@@ -209,7 +209,7 @@ Read every plan (`plan <id>` or `jules_get_plan`) against the issue before appro
 
 ### 3.5 PR review
 
-Review every PR in its own git worktree, outside the main checkout so its dirty state is untouched. Put it at the path in [Per-repository settings](#per-repository-settings), and remove it with `git worktree remove` when the review ends. Fetch `pull/<N>/head:refs/remotes/pr/<N>` first.
+Review every PR in its own git worktree, outside the main checkout so its dirty state is untouched. Put it at the path in [Repository settings](#repository-settings), and remove it with `git worktree remove` when the review ends. Fetch `pull/<N>/head:refs/remotes/pr/<N>` first.
 
 1. **Diff against the description.** Jules PR descriptions have claimed changes that were not in the diff. Confirm every claim with `git diff origin/master...refs/remotes/pr/<N>` and a targeted `rg`.
 2. **Scope.** Check `git diff --stat`. Revert formatter churn in unrelated files and production code, and delete any stray patch or helper files.
@@ -223,24 +223,13 @@ Send findings back to the same session. If a session fails a fix round, either s
 
 Merge only with owner authorization:
 
-1. Wait until the checks are **complete** on the final head: CI where it runs automatically, otherwise your local run. For FreeWRL, also wait for CodeQL and the CodeRabbit review. For repositories with required checks, merging or announcing before they finish gets blocked by branch policy.
-2. Resolve any open review threads. Branch rules may require thread resolution, and CodeRabbit threads count.
-3. Run these, with the merge method from [Per-repository settings](#per-repository-settings). Where the repository requires DCO sign-off (WRL Forge does), end the merge body with the owner's `Signed-off-by` trailer.
-
-FreeWRL (merge commit):
+1. Wait until your local build and test run passes on the final head, and until CodeQL and the CodeRabbit review are complete.
+2. Resolve any open review threads. CodeRabbit threads count.
+3. Merge with a merge commit:
 
 ```bash
 gh pr ready <N>
 gh pr merge <N> --merge --match-head-commit <full-sha> --subject "Merge PR #<N>: ..." --body "Fixes #<issue>. ..."
-```
-
-WRL Forge (squash, with DCO):
-
-```bash
-gh pr ready <N>
-gh pr merge <N> --squash --match-head-commit <full-sha> --subject "..." --body "Fixes #<issue>. ...
-
-Signed-off-by: <Owner Name> <owner@email>"
 ```
 
 Then message the session: "PR merged. This task is complete. Do not push further commits or open new PRs." Sessions often briefly reactivate after this message. Check that the PR head did not change.
@@ -262,4 +251,3 @@ Then message the session: "PR merged. This task is complete. Do not push further
 - The key lives only in the untracked `.env.local`. The wrapper exports only `JULES_API_KEY`, and MCP configs hold no secrets.
 - Never echo, log, or paste key values. Check a variable's presence with `rg -c '^NAME='`.
 - Do not put signing, release or deployment secrets in Jules tasks or repository settings that Jules can read.
-- Jules commits carry no `Signed-off-by` trailer. Where DCO is required, the owner signs off on the squash merge.
