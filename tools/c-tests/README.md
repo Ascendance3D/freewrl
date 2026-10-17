@@ -23,8 +23,7 @@ app. The tests link against those objects; nothing is reimplemented.
 - `test_list.c`: singly linked `s_list_t`, the `ml_enqueue`/`ml_dequeue` queue (FIFO:
   enqueue at the head, dequeue from the tail), payload-freeing deletes
   (`ml_delete2`, `ml_delete_all2`, `cdl_delete2`, `cdl_delete_all2`), and the circular
-  doubly linked `cd_list_t` (including `cdl_insert` into the middle, before the head and
-  before the last item).
+  doubly linked `cd_list_t`.
 
 The tests record current behavior, including quirks (for example `ml_delete` cannot
 remove the head, and `ml_insert` before a non-head item returns the item, not the list).
@@ -117,4 +116,6 @@ and 0 once it no longer does (then review and retire it); `--known-defects` repo
 either. Any other status, such as a sanitizer report, crash or signal, is an unexpected
 failure and makes the command exit nonzero.
 
-None at the moment.
+- `cdl_insert.c`: `cdl_insert` into a non-empty circular list corrupts the forward links
+  (the new item is never reachable going forward, and walking the ring from the head
+  can loop forever). `cd_list_t` has no callers in the engine.

@@ -487,9 +487,8 @@ public class FreeWRLScene implements X3DScene {
         public X3DNode[] getRootNodes() throws InvalidExecutionContextException {
 		checkValid();
 		Object[] returnval = rNodes.toArray();
-		int size = rNodes.size();
-		FreeWRLNode[] temp = new FreeWRLNode[size];
-		for (int i = 0; i < size; i++)
+		FreeWRLNode[] temp = new FreeWRLNode[rNodes.size()];
+		for (int i = 0; i < rNodes.size(); i++)
 			temp[i] = (FreeWRLNode) returnval[i];
 		return temp;
 	}
@@ -497,9 +496,8 @@ public class FreeWRLScene implements X3DScene {
 	public X3DRoute[] getRoutes() throws InvalidExecutionContextException {
 		checkValid();
 		Object[] returnval = routes.toArray();
-		int size = routes.size();
-		FWRoute[] temp = new FWRoute[size];
-		for (int i = 0; i < size; i++)
+		FWRoute[] temp = new FWRoute[routes.size()];
+		for (int i = 0; i < routes.size(); i++)
 			temp[i] = (FWRoute) returnval[i];
 		return temp;
 	}

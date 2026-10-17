@@ -118,11 +118,10 @@ void rewind_to_beginning (SNDFILE *wavfile) {
 // find a chunk start.
 int chunk (char *buf, char *find, int len) {
 	int mycnt;
-	int find_len = strlen(find);
 
 	mycnt=0;
-	while (mycnt < (len) - find_len) {
-		if (strncmp (&buf[mycnt], find, find_len) == 0) {
+	while (mycnt < (len) - strlen(find)) {
+		if (strncmp (&buf[mycnt], find, strlen(find)) == 0) {
 			// found it!
 			//printf ("found %s at %d\n",find, mycnt);
 			return (mycnt);
@@ -336,12 +335,11 @@ void process_command () {
 	if (strncmp ("REGS",msg.msg,4) == 0) {
 		// a REGISTER message
 		a=5; b=0;
-		int msg_len = strlen(msg.msg);
 		//printf ("REGS matched len %d, first start %c %c %c %c\n",strlen(msg.msg), msg.msg[a],msg.msg[a+1], msg.msg[a+2], msg.msg[a+3]);
 		
 		
 		// copy over the url name; skip past the REGS: at beginning.
-		while ((a<msg_len-1) && (b<300) && (msg.msg[a]>' ')) {
+		while ((a<strlen(msg.msg)-1) && (b<300) && (msg.msg[a]>' ')) {
 			cp[b]=msg.msg[a];
 			theFile[b] = msg.msg[a];
 			b++; a++;
@@ -371,9 +369,8 @@ void process_command () {
 			loop[a] = b;           // is this sound looped? (boolean)
 			sndfile[a]->pitch = x;          // pitch of 1 = standard playback
 			ampl[a] = 0.0;         // Gain of this sound
-			int cp_len = strlen(cp);
-			names[a] = (char*) malloc(cp_len+2);
-			for (c=0; c<=cp_len; c++) {
+			names[a] = (char*) malloc(strlen(cp)+2);
+			for (c=0; c<=strlen(cp); c++) {
 				names[a][c] = cp[c];
 			}
 		}

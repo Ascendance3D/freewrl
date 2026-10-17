@@ -57,10 +57,13 @@ static void test_harmless_url(void) {
 
     launch_browser(browser_cmd, url);
 
-    /* Wait for child to exit */
-    usleep(100000);
-
     struct stat st;
+    /* Wait for grandchild to run script and create output file (up to ~5s) */
+    for (int i = 0; i < 500; i++) {
+        if (stat(out_file, &st) == 0) break;
+        usleep(10000);
+    }
+
     CHECK(stat(touch_file, &st) != 0); /* File should NOT exist (no shell injection) */
     CHECK(stat(out_file, &st) == 0); /* Browser script should have run */
 
