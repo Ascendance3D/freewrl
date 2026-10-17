@@ -343,19 +343,29 @@ bool do_file_readable(const char *filename)
 bool do_dir_exists(const char *dir)
 {
 	struct stat ss;
+	bool exists = FALSE;
+	char *clean_dir = STRDUP(dir);
 
 #if defined(_MSC_VER)
-	/* TODO: Remove any trailing backslash from *dir */
-#endif
-
-	if (stat(dir, &ss) == 0) {
-		if (access(dir,X_OK) == 0) {
-			return TRUE;
-		} else {
-			WARN_MSG("directory '%s' exists but is not accessible\n", dir);
+	if (clean_dir) {
+		size_t len = strlen(clean_dir);
+		if (len > 0 && clean_dir[len - 1] == '\\') {
+			clean_dir[len - 1] = '\0';
 		}
 	}
-	return FALSE;
+#endif
+
+	if (clean_dir) {
+		if (stat(clean_dir, &ss) == 0) {
+			if (access(clean_dir,X_OK) == 0) {
+				exists = TRUE;
+			} else {
+				WARN_MSG("directory '%s' exists but is not accessible\n", clean_dir);
+			}
+		}
+		FREE(clean_dir);
+	}
+	return exists;
 }
 
 
