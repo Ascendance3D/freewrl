@@ -36,6 +36,11 @@
 #include <io_files.h>
 #include <signal.h>
 
+#if !defined(_MSC_VER)
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif
+
 #include "../vrml_parser/Structs.h"
 #include "../main/headers.h"
 #include "../main/MainLoop.h" /* for fwl_replaceWorldNeededRes() */
@@ -135,16 +140,76 @@ void goToViewpoint(char *vp) {
 }
 
 #if !defined(_MSC_VER) && !defined(ANDROIDNDK)
+static void launch_browser(const char *browser, const char *url) {
+	pid_t pid;
+	const char *c;
+
+	/* Reject unsafe URLs: must not start with '-' or contain control characters */
+	if (url[0] == '-') {
+		ConsoleMessage("Error: URL cannot start with '-'");
+		return;
+	}
+	for (c = url; *c != '\0'; c++) {
+		if ((unsigned char)*c < 32 || (unsigned char)*c == 127) {
+			ConsoleMessage("Error: URL contains control characters");
+			return;
+		}
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		ConsoleMessage("Error: fork failed when launching browser");
+		return;
+	}
+
+	if (pid == 0) {
+		/* Child process */
+		pid_t grand_pid = fork();
+		if (grand_pid < 0) {
+			_exit(1);
+		}
+		if (grand_pid == 0) {
+			/* Grandchild process */
+			char *argv[64];
+			char *browser_copy;
+			char *token;
+			int argc = 0;
+
+			browser_copy = strdup(browser);
+			if (!browser_copy) {
+				_exit(1);
+			}
+
+			token = strtok(browser_copy, " \t");
+			while (token != NULL && argc < 61) {
+				argv[argc++] = token;
+				token = strtok(NULL, " \t");
+			}
+
+			if (argc == 0) {
+				free(browser_copy);
+				_exit(1);
+			}
+
+			argv[argc++] = (char *)url;
+			argv[argc] = NULL;
+
+			execvp(argv[0], argv);
+			/* If execvp returns, it failed */
+			free(browser_copy);
+			_exit(1);
+		}
+		/* Child exits immediately, leaving grandchild orphaned (init will reap it) */
+		_exit(0);
+	} else {
+		/* Parent process */
+		int status;
+		waitpid(pid, &status, 0);
+	}
+}
+
 void startNewHTMLWindow(char *url) {
 	const char *browser;
-#define LINELEN 4000
-#define ERRLINELEN 4200
-	char sysline[LINELEN];
-	int sysReturnCode;
-	char syslineFailed[ERRLINELEN];
-	int testlen;
-
-	browser = NULL;
 
 // OLD_IPHONE_AQUA #ifdef AQUA
 // OLD_IPHONE_AQUA 	if (RUNNINGASPLUGIN) {
@@ -159,31 +224,8 @@ void startNewHTMLWindow(char *url) {
 		return;
 	}
 		
-	/* bounds check here */
-	testlen = 0;
-	if (browser) testlen = (int) strlen(browser);
+	launch_browser(browser, url);
 
-	testlen += (int) strlen(url) + 10; 
-	if (testlen > LINELEN) {
-		ConsoleMessage ("Anchor: combination of browser name and file name too long.");
-	} else {
-			
-		if (browser) strcpy (sysline, browser);
-		else strcpy (sysline, browser);
-		strcat (sysline, " ");
-		strcat (sysline, url);
-		strcat (sysline, " &");
-		freewrlSystem (sysline);
-	}
-		
-
-	if (browser) sprintf(sysline, "%s %s &", browser, url);
-	else sprintf(sysline, "open %s &",  url);
-	sysReturnCode = system (sysline);
-	if (sysReturnCode < 0) {
-		sprintf(syslineFailed ,"ERR %s %d system call failed, returned %d. Was: %s\n",__FILE__,__LINE__,sysReturnCode,sysline);
-		ConsoleMessage (syslineFailed);
-	}
 // OLD_IPHONE_AQUA #ifdef AQUA
 // OLD_IPHONE_AQUA 
 // OLD_IPHONE_AQUA 	}
