@@ -44,6 +44,7 @@ status=0
 
 if [ $known = 1 ]; then
 	for f in "$here"/known_defects/*.c; do
+		[ -e "$f" ] || continue # no reproducers at the moment
 		n=$(basename "$f" .c)
 		$CC $cflags -Wall -Wextra -Werror $inc "$f" "$out/list.o" -o "$out/kd_$n"
 		echo "-- known defect: $n"
