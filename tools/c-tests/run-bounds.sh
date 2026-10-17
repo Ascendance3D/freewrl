@@ -61,6 +61,8 @@ x opengl/Compositing_Shaders.c dupRange AddDefine > "$out/shader.inc"
 	x input/EAIHelpers.c outBufferCat
 	x input/EAIEventsIn.c handleGETNODEPARENTS
 } > "$out/eai.inc"
+x ../libeai/EAI_C_Field.c X3D_newSFVec3d > "$out/eaifield.inc"
+
 x io_files.c temp_template fw_temp_dir_create > "$out/tempfile.inc"
 {
 	x scenegraph/Vector.c newVector_ deleteVector_
@@ -77,7 +79,7 @@ x main/ConsoleMessage.c fwvsnprintf ConsoleMessage > "$out/consolemsg.inc"
 x vrml_parser/CParseParser.c cParseErrorCurID cParseErrorFieldString > "$out/parseerror.inc"
 
 objs=
-for t in test_bounds_main test_hanim test_texture test_texture_header test_shader_plug test_eai_reply test_tempfile \
+for t in test_bounds_main test_hanim test_texture test_texture_header test_shader_plug test_eai_reply test_eai_field test_tempfile \
 	test_pick_ray test_sensor_lifetime test_parse_error; do
 	# built like the production sources: no extra warning flags, since each test
 	# includes extracted production code
