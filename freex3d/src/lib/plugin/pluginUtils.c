@@ -36,6 +36,12 @@
 #include <io_files.h>
 #include <signal.h>
 
+#if !defined(_MSC_VER)
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 #include "../vrml_parser/Structs.h"
 #include "../main/headers.h"
 #include "../main/MainLoop.h" /* for fwl_replaceWorldNeededRes() */
@@ -135,16 +141,118 @@ void goToViewpoint(char *vp) {
 }
 
 #if !defined(_MSC_VER) && !defined(ANDROIDNDK)
+/* Split a BROWSER command line into argv in place, without a shell.
+   Whitespace separates arguments; single or double quotes group text and are
+   removed; a backslash escapes the next character (except inside single quotes).
+   Returns the argument count, or -1 for too many arguments or an unterminated quote. */
+static int split_browser_command(char *buf, char **argv, int max) {
+	char *r = buf;
+	char *w = buf;
+	int argc = 0;
+
+	for (;;) {
+		int more;
+
+		while (*r == ' ' || *r == '\t') r++;
+		if (*r == '\0') break;
+		if (argc >= max) return -1;
+		argv[argc++] = w;
+		while (*r != '\0' && *r != ' ' && *r != '\t') {
+			if (*r == '\'') {
+				r++;
+				while (*r != '\0' && *r != '\'') *w++ = *r++;
+				if (*r == '\0') return -1;
+				r++;
+			} else if (*r == '"') {
+				r++;
+				while (*r != '\0' && *r != '"') {
+					if (*r == '\\' && r[1] != '\0') r++;
+					*w++ = *r++;
+				}
+				if (*r == '\0') return -1;
+				r++;
+			} else {
+				if (*r == '\\' && r[1] != '\0') r++;
+				*w++ = *r++;
+			}
+		}
+		more = (*r != '\0');
+		*w++ = '\0';
+		if (more) r++;
+	}
+	return argc;
+}
+
+static void launch_browser(const char *browser, const char *url) {
+	pid_t pid;
+	const char *c;
+	char *browser_copy;
+	char *argv[64];
+	int argc;
+
+	/* Reject unsafe URLs: must not start with '-' or contain control characters */
+	if (url[0] == '-') {
+		ConsoleMessage("Error: URL cannot start with '-'");
+		return;
+	}
+	for (c = url; *c != '\0'; c++) {
+		if ((unsigned char)*c < 32 || (unsigned char)*c == 127) {
+			ConsoleMessage("Error: URL contains control characters");
+			return;
+		}
+	}
+
+	/* Build argv before forking: FreeWRL is multithreaded, so the children
+	   must only call async-signal-safe functions (no malloc). */
+	browser_copy = strdup(browser);
+	if (!browser_copy) {
+		ConsoleMessage("Error: out of memory when launching browser");
+		return;
+	}
+	argc = split_browser_command(browser_copy, argv, 62);
+	if (argc <= 0) {
+		ConsoleMessage("Error: invalid or empty browser command");
+		free(browser_copy);
+		return;
+	}
+	argv[argc++] = (char *)url;
+	argv[argc] = NULL;
+
+	pid = fork();
+	if (pid < 0) {
+		ConsoleMessage("Error: fork failed when launching browser");
+		free(browser_copy);
+		return;
+	}
+
+	if (pid == 0) {
+		/* Child process */
+		pid_t grand_pid = fork();
+		if (grand_pid < 0) {
+			static const char msg[] = "FreeWRL: failed to fork browser process\n";
+			(void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
+			_exit(1);
+		}
+		if (grand_pid == 0) {
+			/* Grandchild process */
+			static const char msg[] = "FreeWRL: failed to execute browser\n";
+			execvp(argv[0], argv);
+			/* If execvp returns, it failed */
+			(void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
+			_exit(1);
+		}
+		/* Child exits immediately, leaving grandchild orphaned (init will reap it) */
+		_exit(0);
+	} else {
+		/* Parent process */
+		int status;
+		waitpid(pid, &status, 0);
+		free(browser_copy);
+	}
+}
+
 void startNewHTMLWindow(char *url) {
 	const char *browser;
-#define LINELEN 4000
-#define ERRLINELEN 4200
-	char sysline[LINELEN];
-	int sysReturnCode;
-	char syslineFailed[ERRLINELEN];
-	int testlen;
-
-	browser = NULL;
 
 // OLD_IPHONE_AQUA #ifdef AQUA
 // OLD_IPHONE_AQUA 	if (RUNNINGASPLUGIN) {
@@ -159,31 +267,8 @@ void startNewHTMLWindow(char *url) {
 		return;
 	}
 		
-	/* bounds check here */
-	testlen = 0;
-	if (browser) testlen = (int) strlen(browser);
+	launch_browser(browser, url);
 
-	testlen += (int) strlen(url) + 10; 
-	if (testlen > LINELEN) {
-		ConsoleMessage ("Anchor: combination of browser name and file name too long.");
-	} else {
-			
-		if (browser) strcpy (sysline, browser);
-		else strcpy (sysline, browser);
-		strcat (sysline, " ");
-		strcat (sysline, url);
-		strcat (sysline, " &");
-		freewrlSystem (sysline);
-	}
-		
-
-	if (browser) sprintf(sysline, "%s %s &", browser, url);
-	else sprintf(sysline, "open %s &",  url);
-	sysReturnCode = system (sysline);
-	if (sysReturnCode < 0) {
-		sprintf(syslineFailed ,"ERR %s %d system call failed, returned %d. Was: %s\n",__FILE__,__LINE__,sysReturnCode,sysline);
-		ConsoleMessage (syslineFailed);
-	}
 // OLD_IPHONE_AQUA #ifdef AQUA
 // OLD_IPHONE_AQUA 
 // OLD_IPHONE_AQUA 	}
