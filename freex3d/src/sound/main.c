@@ -392,8 +392,8 @@ void process_command () {
 
 int main(int argc,char **argv) {
 
-	/* FIXME: argc is minimum 1 since argv[0] contains program's name */
-	if (argc <1) {
+	/* Handle edge cases where argc is 0 or argv[0] is NULL */
+	if (argc < 1 || argv[0] == NULL) {
 		printf ("Server: too few args\n");
 		exit(1);
 	}
