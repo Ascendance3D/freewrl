@@ -4,8 +4,7 @@
  * payload-freeing deletes, and the circular doubly linked cd_list_t.
  * These record current behavior; they are not a specification of what it should be.
  *
- * cd_list_t has no users in the engine. cdl_insert into a non-empty list is not covered
- * here: it corrupts the forward links (see known_defects/cdl_insert.c).
+ * cd_list_t has no users in the engine.
  */
 #include <stdlib.h>
 
@@ -501,6 +500,36 @@ static void t_cdl_insert_empty(void)
 	cdl_delete_all(h);
 }
 
+/* cdl_insert puts the item before 'point'; the head changes only when 'point' is the head */
+static void t_cdl_insert(void)
+{
+	static const int mid[] = { 0, 3, 1, 2 }, head_first[] = { 4, 0, 3, 1, 2 },
+		before_last[] = { 4, 0, 3, 1, 5, 2 };
+	cd_list_t *h = cdl_build(3);
+	cd_list_t *old = h;
+	h = cdl_insert(h, cdl_get(h, 1), cdl_new(&V[3])); /* middle: head unchanged */
+	CHECK(h == old);
+	CHECK(cdl_is(h, mid, 4) && cdl_count(h) == 4);
+	h = cdl_insert(h, h, cdl_new(&V[4])); /* before the head: the item becomes the head */
+	CHECK(h != old && cdl_elem(h) == &V[4] && cdl_next(h) == old);
+	CHECK(cdl_is(h, head_first, 5) && cdl_count(h) == 5);
+	h = cdl_insert(h, cdl_last(h), cdl_new(&V[5])); /* before the last item */
+	CHECK(cdl_is(h, before_last, 6) && cdl_count(h) == 6);
+	CHECK(cdl_elem(cdl_last(h)) == &V[2]);
+	cdl_delete_all(h);
+	/* a NULL point means the head, as in the single-item ring */
+	h = cdl_build(1);
+	h = cdl_insert(h, NULL, cdl_new(&V[6]));
+	CHECK(cdl_elem(h) == &V[6] && cdl_count(h) == 2);
+	cdl_delete_all(h);
+	h = cdl_build(1);
+	cd_list_t *second = cdl_new(&V[7]);
+	h = cdl_insert(h, h, second); /* ring of two: V[7] becomes the head */
+	CHECK(h == second && cdl_count(h) == 2);
+	CHECK(cdl_next(h) != h && cdl_next(cdl_next(h)) == h && cdl_prev(h) == cdl_next(h));
+	cdl_delete_all(h);
+}
+
 static void t_cdl_find(void)
 {
 	cd_list_t *h = cdl_build(3);
@@ -574,6 +603,7 @@ static const ct_case cdl_cases[] = {
 	{ "cdl_count", t_cdl_count },
 	{ "cdl_append (forward/backward links)", t_cdl_append },
 	{ "cdl_insert into an empty list", t_cdl_insert_empty },
+	{ "cdl_insert (middle, before head, before last, NULL point)", t_cdl_insert },
 	{ "cdl_find", t_cdl_find },
 	{ "cdl_find_elem", t_cdl_find_elem },
 	{ "cdl_get", t_cdl_get },
