@@ -130,7 +130,7 @@ Then rerun every check in [section 1](#1-check-an-existing-environment).
 | Jules source | `sources/github/Ascendance3D/freewrl` |
 | Base branch | **`master`** (canonical trunk; `develop` is retired) |
 | Task branches | `fix-*` / `feature-*` from `master` (see `CLAUDE.md` › Git workflow) |
-| CI on PRs | CodeQL analysis and a CodeRabbit review on every PR. **No build or test workflow.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only |
+| CI on PRs | CodeQL analysis and a CodeRabbit review on every PR. **No build or test workflow runs on PRs.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only |
 | Local verification | Linux autotools build and tests (see `CLAUDE.md` › Build), plus the macOS Xcode build where the change touches it |
 | Merge method | Merge commit (`gh pr merge --merge`) |
 | Review worktrees | `~/Projects/cybertown/.worktrees/freewrl/<lane>` |
@@ -205,7 +205,7 @@ Read every plan (`plan <id>` or `jules_get_plan`) against the issue before appro
 
 - **Already covered:** if a plan says a case is already covered, read the named test first.
 - **Can't be built:** if a plan flags that a case cannot be built, verify that yourself before correcting it.
-- **Corrections:** approve, then send them with `message <id> "<text>"` (`jules_send_message`).
+- **Corrections:** send them with `message <id> "<text>"` (`jules_send_message`) while the plan is pending. Read the revised plan, and approve it only when it matches the issue.
 
 ### 3.5 PR review
 

@@ -46,7 +46,9 @@ GitHub Actions is a release-validation system, not a development test system.
   `.github/workflows/macos.yml` (macOS Release Validation, `workflow_dispatch`).
 - Post-merge check: after a PR that touches macOS code merges, an agent may start `macos.yml` once
   on `master` with the merge commit as `expected_sha`. A failure there means a fix-up PR, not a
-  rerun. See `docs/automation/JULES_DISPATCH.md`.
+  rerun. See `docs/automation/JULES_DISPATCH.md`. `check-ci-run.sh` does not check who started a
+  run, so a successful post-merge run is also valid release evidence for that SHA. Ryan still
+  chooses the release SHA and starts the draft release workflow.
 - Release validation runs from `master` for **one exact expected SHA** (`expected_sha`, 40 hex
   characters). The run fails at once if it is not on `master` or if `github.sha` differs from
   `expected_sha`.
