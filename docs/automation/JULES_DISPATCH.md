@@ -130,11 +130,23 @@ Then rerun every check in [section 1](#1-check-an-existing-environment).
 | Jules source | `sources/github/Ascendance3D/freewrl` | `sources/github/Ascendance3D/wrlforge` |
 | Base branch | **`master`** (canonical trunk; `develop` is retired) | `main` |
 | Task branches | `fix-*` / `feature-*` from `master` (see `CLAUDE.md` › Git workflow) | `jules-<issue>-<slug>` |
-| CI on PRs | **None automatic.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only | ubuntu, windows and macOS Node tests on every PR |
+| CI on PRs | CodeQL analysis and a CodeRabbit review on every PR. **No build or test workflow.** `macos.yml` and `release-macos.yml` are `workflow_dispatch` only | ubuntu, windows and macOS Node tests on every PR |
 | Local verification | Linux autotools build and tests (see `CLAUDE.md` › Build), plus the macOS Xcode build where the change touches it | `npm run check`; `cargo +1.95.0 test` for Rust crates, which CI does not run |
+| Merge method | Merge commit (`gh pr merge --merge`) | Squash (`gh pr merge --squash`) |
+| Review worktrees | `~/Projects/cybertown/.worktrees/freewrl/<lane>` | `~/Projects/cybertown/.worktrees/wrlforge/<lane>` |
 | Wrapper | `jules-dispatch-freewrl` | `jules-dispatch-wrlforge` |
 
-FreeWRL PRs get no automatic checks, so the reviewer's local build and test run is the only gate. When a change touches macOS code, run `macos.yml` manually (`gh workflow run macos.yml --ref <branch>`) and wait for it to finish. A PR with no checks is not a passing PR.
+FreeWRL PRs get no automatic build or test checks. CodeQL and CodeRabbit do not build or run FreeWRL, so the reviewer's local build and test run is the only pre-merge gate. A PR with only CodeQL and CodeRabbit passes is not a tested PR.
+
+`macos.yml` cannot test a PR branch: its first step fails unless the run is on `master` and `github.sha` equals `expected_sha`. When a merged PR touched macOS code, start it once on `master` with the merge commit, then watch it:
+
+```bash
+gh workflow run macos.yml --repo Ascendance3D/freewrl --ref master -f expected_sha=<full merge sha>
+gh run list --repo Ascendance3D/freewrl --workflow macos.yml --limit 1
+gh run watch <run-id> --repo Ascendance3D/freewrl --exit-status
+```
+
+Start it only if `master` still points at that merge commit. If the run fails, open a fix-up PR. Do not rerun the run.
 
 ## 3. Dispatch and review
 
@@ -197,7 +209,7 @@ Read every plan (`plan <id>` or `jules_get_plan`) against the issue before appro
 
 ### 3.5 PR review
 
-Review every PR in its own git worktree, outside the main checkout so its dirty state is untouched. Fetch `pull/<N>/head:refs/remotes/pr/<N>` first.
+Review every PR in its own git worktree, outside the main checkout so its dirty state is untouched. Put it at the path in [Per-repository settings](#per-repository-settings), and remove it with `git worktree remove` when the review ends. Fetch `pull/<N>/head:refs/remotes/pr/<N>` first.
 
 1. **Diff against the description.** Jules PR descriptions have claimed changes that were not in the diff. Confirm every claim with `git diff origin/master...refs/remotes/pr/<N>` and a targeted `rg`.
 2. **Scope.** Check `git diff --stat`. Revert formatter churn in unrelated files and production code, and delete any stray patch or helper files.
@@ -211,9 +223,18 @@ Send findings back to the same session. If a session fails a fix round, either s
 
 Merge only with owner authorization:
 
-1. Wait until the checks are **complete** on the final head: CI where it runs automatically, otherwise your local run (and any manual workflow run). For repositories with required checks, merging or announcing before they finish gets blocked by branch policy.
+1. Wait until the checks are **complete** on the final head: CI where it runs automatically, otherwise your local run. For FreeWRL, also wait for CodeQL and the CodeRabbit review. For repositories with required checks, merging or announcing before they finish gets blocked by branch policy.
 2. Resolve any open review threads. Branch rules may require thread resolution, and CodeRabbit threads count.
-3. Run these. Where the repository requires DCO sign-off (WRL Forge does), end the merge body with the owner's `Signed-off-by` trailer:
+3. Run these, with the merge method from [Per-repository settings](#per-repository-settings). Where the repository requires DCO sign-off (WRL Forge does), end the merge body with the owner's `Signed-off-by` trailer.
+
+FreeWRL (merge commit):
+
+```bash
+gh pr ready <N>
+gh pr merge <N> --merge --match-head-commit <full-sha> --subject "Merge PR #<N>: ..." --body "Fixes #<issue>. ..."
+```
+
+WRL Forge (squash, with DCO):
 
 ```bash
 gh pr ready <N>
