@@ -181,7 +181,7 @@ void RenderFuncs_init(struct tRenderFuncs *t){
 //at least one in the use-use pair needs to hold a pointer to the other node to use as a lookup 
 void usehit_add(struct X3D_Node * node, double *modelviewmatrix){
 	//called from render_hier when/each-use-time a VF_USE node is hit
-	usehit uhit;
+	usehit uhit = {0};
 	ppRenderFuncs p = (ppRenderFuncs)gglobal()->RenderFuncs.prv;
 	uhit.node = node;
 	memcpy(uhit.mvm,modelviewmatrix,16*sizeof(double)); //deep copy
@@ -190,7 +190,7 @@ void usehit_add(struct X3D_Node * node, double *modelviewmatrix){
 }
 void usehit_add2(struct X3D_Node * node, double *modelviewmatrix, void *userdata){
 	//called from render_hier when/each-use-time a VF_USE node is hit
-	usehit uhit;
+	usehit uhit = {0};
 	ppRenderFuncs p = (ppRenderFuncs)gglobal()->RenderFuncs.prv;
 	uhit.node = node;
 	memcpy(uhit.mvm,modelviewmatrix,16*sizeof(double)); //deep copy
@@ -240,7 +240,7 @@ void usehit_clear(){
 // (sorry - I just copied the useHit functions above, normally I refactor but short on time -dug9 dec31,2016)
 void usehitB_add(struct X3D_Node * node, double *modelviewmatrix){
 	//called from render_hier when/each-use-time a VF_USE node is hit
-	usehit uhit;
+	usehit uhit = {0};
 	ppRenderFuncs p = (ppRenderFuncs)gglobal()->RenderFuncs.prv;
 	uhit.node = node;
 	memcpy(uhit.mvm,modelviewmatrix,16*sizeof(double)); //deep copy
@@ -249,7 +249,7 @@ void usehitB_add(struct X3D_Node * node, double *modelviewmatrix){
 }
 void usehitB_add2(struct X3D_Node * node, double *modelviewmatrix, void *userdata){
 	//called from render_hier when/each-use-time a VF_USE node is hit
-	usehit uhit;
+	usehit uhit = {0};
 	ppRenderFuncs p = (ppRenderFuncs)gglobal()->RenderFuncs.prv;
 	uhit.node = node;
 	memcpy(uhit.mvm,modelviewmatrix,16*sizeof(double)); //deep copy
