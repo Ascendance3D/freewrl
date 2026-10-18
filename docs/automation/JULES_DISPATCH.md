@@ -16,7 +16,8 @@ Jules is an external, paid service. Dispatch only work the owner has approved, a
 |---|---|---|
 | `jules-dispatch` CLI | [`@yuuqq/jules-dispatch`](https://github.com/Yuuqq/jules-dispatch) (tested with 1.3.2). Batch dispatch, status, plans, messages, and an MCP server. | `npm install -g --prefix ~/.local`, giving `~/.local/bin/jules-dispatch` |
 | Per-repo wrapper | A small script that loads **only** `JULES_API_KEY` from the repo's untracked `.env.local`, sets the default source and branch, and then runs the CLI. | `~/.local/bin/jules-dispatch-<repo>` (mode `700`) |
-| MCP server | The wrapper run as `<wrapper> mcp`, registered for Claude Code and Codex. Exposes `jules_get_plan`, `jules_approve_plan`, `jules_send_message`, `jules_status`, and others. | User-scope MCP config of each client |
+| Account wrapper | Like the per-repo wrapper, but it unsets `JULES_DEFAULT_SOURCE` and `JULES_DEFAULT_BRANCH`, so every task must name its own `source` and `branch`. The MCP server uses this one. | `~/.local/bin/jules-dispatch-account` (mode `700`) |
+| MCP server | `jules-dispatch-account mcp`, registered for Claude Code and Codex. Exposes `jules_get_plan`, `jules_approve_plan`, `jules_send_message`, `jules_status`, and others. The key covers the whole Jules account, so the server sees every repository's sessions. | User-scope MCP config of each client |
 | Skill | Agent instructions for using the tools. | `~/.claude/skills/jules-dispatch/`, `~/.codex/skills/jules-dispatch/` |
 | API key | `JULES_API_KEY`, created at <https://jules.google.com/settings>. | The repo's `.env.local`, ignored by `.gitignore` (`.env*.local`). Never in MCP config. |
 | Jules GitHub app | Must have access to the repo, so it appears as a Jules **source**. | Jules settings, GitHub app installation |
@@ -102,14 +103,14 @@ Use the absolute checkout path for `ENV_FILE`. The defaults only apply when a ta
 
 ### 2.4 Register the MCP server
 
-The registered wrapper only supplies the key and the defaults; each task still names its own `source` and `branch`.
+Register the account wrapper, not a per-repo one. One MCP server serves every repository, and a per-repo default source would silently send a task that omits `source` to the wrong repository. The account wrapper is the per-repo wrapper with the two `JULES_DEFAULT_*` exports replaced by `unset JULES_DEFAULT_SOURCE JULES_DEFAULT_BRANCH`.
 
 ```bash
-claude mcp add -s user jules-dispatch -- ~/.local/bin/jules-dispatch-freewrl mcp
-codex mcp add jules-dispatch -- ~/.local/bin/jules-dispatch-freewrl mcp
+claude mcp add -s user jules-dispatch -- ~/.local/bin/jules-dispatch-account mcp
+codex mcp add jules-dispatch -- ~/.local/bin/jules-dispatch-account mcp
 ```
 
-If `jules-dispatch` is already registered with another repository's wrapper, it works as is, provided that wrapper loads the same account's key. Restart the client after you register the server.
+Remove any older registration that points at a per-repo wrapper first (`claude mcp remove jules-dispatch -s user`). Restart the client after you register the server.
 
 ### 2.5 Install the skill
 
@@ -134,7 +135,7 @@ Then rerun every check in [section 1](#1-check-an-existing-environment).
 | Local verification | Linux autotools build and tests (see `CLAUDE.md` › Build), plus the macOS Xcode build where the change touches it |
 | Merge method | Merge commit (`gh pr merge --merge`) |
 | Review worktrees | `~/Projects/cybertown/.worktrees/freewrl/<lane>` |
-| Wrapper | `jules-dispatch-freewrl` |
+| Wrapper | `jules-dispatch-freewrl` (CLI); `jules-dispatch-account` (MCP) |
 
 FreeWRL PRs get no automatic build or test checks. CodeQL and CodeRabbit do not build or run FreeWRL, so the reviewer's local build and test run is the only pre-merge gate. A PR with only CodeQL and CodeRabbit passes is not a tested PR.
 
@@ -199,6 +200,8 @@ The CLI's `wait` (and `jules_monitor`) can return 404 for brand-new sessions. Po
 
 The states that need action are `AWAITING_PLAN_APPROVAL`, `AWAITING_USER_FEEDBACK`, `COMPLETED` (PR ready) and `FAILED`.
 
+**`cancel` deletes the session.** The CLI's `cancel` and the MCP `jules_cancel_session` send `DELETE /sessions/<id>`. The session, its plan and its activity log are gone afterwards (`get` returns 404). To stop a session, send it a message instead (`message <id> "Stop. Do not push or open a PR."`). Cancel only with the owner's approval.
+
 ### 3.4 Plan review
 
 Read every plan (`plan <id>` or `jules_get_plan`) against the issue before approving it.
@@ -234,6 +237,15 @@ gh pr merge <N> --merge --match-head-commit <full-sha> --subject "Merge PR #<N>:
 
 Then message the session: "PR merged. This task is complete. Do not push further commits or open new PRs." Sessions often briefly reactivate after this message. Check that the PR head did not change.
 
+4. Delete the head branch. GitHub deletes it automatically only for a merged PR, so check after every merge **and** every close:
+
+```bash
+git ls-remote --heads origin <branch>      # expect no output after a merge
+git push origin --delete <branch>          # needed after a close; first confirm the PR is MERGED or CLOSED
+```
+
+5. Check again after the session goes quiet. A Jules session can push its branch again after the PR is merged or closed. If the branch is back, send the session the stop message again and delete the branch again. The PR keeps its commits under `refs/pull/<N>/head`, so nothing is lost.
+
 ## Pitfalls already hit
 
 | Symptom | Cause | What to do |
@@ -245,6 +257,10 @@ Then message the session: "PR merged. This task is complete. Do not push further
 | A test passes against the old code | A swallowed assertion, a vacuous fixture, or a blanket skip | Run a mutation check (restore the old code; the test must fail) |
 | `gh pr edit` fails (Projects classic deprecation) | A GraphQL deprecation in `gh` | `gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@file` |
 | Merge "prohibited by base branch policy" | CI still running, or an unresolved review thread | Wait for CI; resolve threads |
+| A session or PR exists with no `JULES-NNN` issue; its prompt starts `## Task:` with `File:`, `Description:` and `Rationale:` | Not started by this flow: the dispatch CLI and MCP do not produce that prompt. It matches Jules's own TODO-comment suggestions in the web UI. | Treat the PR like any other: review it per §3.5, or close it. Do not merge without an issue. |
+| Closed PR's branch still on `origin` | Auto-delete covers merged PRs only, and sessions can push again | §3.6 steps 4–5 |
+| A session, plan or log is gone (404) | It was cancelled: `cancel` is a `DELETE` | Stop sessions by message, not `cancel` |
+| `jules_list_sessions` result is too large for the MCP client | Each session carries its full prompt | Use the CLI `status --json` with `jq`, or a small `pageSize` |
 
 ## Security
 
