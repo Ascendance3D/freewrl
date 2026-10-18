@@ -1,0 +1,20 @@
+# GitLab security scans for the private mirror gitlab.com/ascendance3d/freewrl (GitHub master is
+# the source; GitLab only mirrors it). Secret Detection and SAST from GitLab's own templates, run
+# on GitLab's hosted runners. With Ultimate the findings go to the project's Vulnerability
+# report; on Free they are only the jobs' gl-*-report.json artifacts.
+# Pipelines run only from a pipeline schedule or by hand (Build > Pipelines > Run pipeline);
+# mirror pushes start nothing, so no compute minutes go to ordinary commits.
+# This is not PR QA, which stays local. The gcc -fanalyzer and cppcheck scan is
+# .github/workflows/bug-scan.yml on the self-hosted runner.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+variables:
+  GITLAB_ADVANCED_SAST_ENABLED: "true"
+  SAST_EXCLUDED_PATHS: "spec, test, tests, tmp, freex3d/build-*, freex3d/projectfiles_*, Android, freex3d/src/SSR/public"
