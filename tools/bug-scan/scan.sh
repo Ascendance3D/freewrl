@@ -3,7 +3,8 @@
 # build, cppcheck over freex3d/src, and a TODO/FIXME/XXX inventory. Writes the logs and
 # findings.json (see findings.py) to OUTDIR; file_issues.py turns findings.json into issues.
 #
-# usage: scan.sh [-j jobs] [-m MB] [-o outdir]
+# usage: scan.sh [-c] [-j jobs] [-m MB] [-o outdir]
+#   -c  cppcheck only: no build, no TODO inventory, no findings.json (GitLab job, gitlab_sast.py)
 #   -j  parallel jobs for make and cppcheck  (default: nproc, capped at one job per 2.5 GB of
 #       MemAvailable: one -fanalyzer compile can take 2.4 GB, and an 8-core 6 GB runner ran out)
 #   -m  virtual memory limit per compiler process, in MB (default: none). A file whose analysis
@@ -19,13 +20,14 @@
 set -eu
 H=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$H/../.." && pwd)
-JOBS= OUT= MEM=
-while getopts "j:m:o:" opt; do
+JOBS= OUT= MEM= ONLY=
+while getopts "cj:m:o:" opt; do
 	case $opt in
+	c) ONLY=cppcheck ;;
 	j) JOBS=$OPTARG ;;
 	m) MEM=$OPTARG ;;
 	o) OUT=$OPTARG ;;
-	*) sed -n '2,18p' "$0"; exit 2 ;;
+	*) sed -n '2,19p' "$0"; exit 2 ;;
 	esac
 done
 if [ -z "$JOBS" ]; then
@@ -44,17 +46,19 @@ OUT=$(cd "$OUT" && pwd)
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/freewrl-bug-scan.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 
-echo "== gcc -fanalyzer ($JOBS jobs)"
-(cd "$ROOT/freex3d" && ./autogen.sh) > "$OUT/autogen.log" 2>&1
-(cd "$WORK" && "$ROOT/freex3d/configure" --with-target=x11 --with-javascript=duk \
-	CFLAGS="-O1 -g -fanalyzer -Wall -Wextra -fdiagnostics-plain-output") > "$OUT/configure.log" 2>&1
-rc=0
-(if [ -n "$MEM" ]; then ulimit -v $((MEM * 1024)) || exit 3; fi
-	make -C "$WORK" -k -j"$JOBS") > "$OUT/gcc.log" 2>&1 || rc=$?
-[ $rc -ne 3 ] || { echo "could not set the -m $MEM memory limit" >&2; exit 1; }
-[ $rc -eq 0 ] || echo "make failed; see gcc.log"
-oom=$(grep -cE 'virtual memory exhausted|out of memory|internal compiler error|Killed signal terminated' "$OUT/gcc.log" || :)
-[ "${oom:-0}" -eq 0 ] || echo "$oom compiles hit the memory limit or crashed (-m $MEM); see gcc.log"
+if [ -z "$ONLY" ]; then
+	echo "== gcc -fanalyzer ($JOBS jobs)"
+	(cd "$ROOT/freex3d" && ./autogen.sh) > "$OUT/autogen.log" 2>&1
+	(cd "$WORK" && "$ROOT/freex3d/configure" --with-target=x11 --with-javascript=duk \
+		CFLAGS="-O1 -g -fanalyzer -Wall -Wextra -fdiagnostics-plain-output") > "$OUT/configure.log" 2>&1
+	rc=0
+	(if [ -n "$MEM" ]; then ulimit -v $((MEM * 1024)) || exit 3; fi
+		make -C "$WORK" -k -j"$JOBS") > "$OUT/gcc.log" 2>&1 || rc=$?
+	[ $rc -ne 3 ] || { echo "could not set the -m $MEM memory limit" >&2; exit 1; }
+	[ $rc -eq 0 ] || echo "make failed; see gcc.log"
+	oom=$(grep -cE 'virtual memory exhausted|out of memory|internal compiler error|Killed signal terminated' "$OUT/gcc.log" || :)
+	[ "${oom:-0}" -eq 0 ] || echo "$oom compiles hit the memory limit or crashed (-m $MEM); see gcc.log"
+fi
 
 if command -v cppcheck > /dev/null; then
 	echo "== $(cppcheck --version)"
@@ -66,6 +70,8 @@ else
 	echo "== cppcheck not installed; skipped"
 	: > "$OUT/cppcheck.log"
 fi
+
+[ -z "$ONLY" ] || exit 0
 
 echo "== TODO/FIXME/XXX"
 git -C "$ROOT" grep -nIE '\b(TODO|FIXME|XXX)\b' -- 'freex3d/src/*.c' 'freex3d/src/*.h' 'freex3d/src/*.cpp' \

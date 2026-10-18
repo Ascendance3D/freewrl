@@ -1,0 +1,49 @@
+# GitLab security scans for the private mirror gitlab.com/ascendance3d/freewrl (GitHub master is
+# the source; GitLab only mirrors it), on GitLab's hosted runners:
+#   sast                 GitLab SAST with Advanced SAST
+#   secret_detection     GitLab Secret Detection; set SECRET_DETECTION_HISTORIC_SCAN=true on a
+#                        manual run to scan the whole git history
+#   cppcheck-sast        tools/bug-scan/scan.sh -c, converted by tools/bug-scan/gitlab_sast.py
+# With Ultimate the findings go to the project's Vulnerability report; on Free they are only the
+# jobs' gl-*-report.json artifacts.
+# Pipelines run only from a pipeline schedule, by hand (Build > Pipelines > Run pipeline) or
+# through the API;
+# mirror pushes start nothing, so no compute minutes go to ordinary commits.
+# This is not PR QA, which stays local. The gcc -fanalyzer scan that files GitHub issues is
+# .github/workflows/bug-scan.yml on the self-hosted runner.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+variables:
+  GITLAB_ADVANCED_SAST_ENABLED: "true"
+  # The Advanced SAST job rebuilds its exclusions from DEFAULT_SAST_EXCLUDED_PATHS, so set both.
+  DEFAULT_SAST_EXCLUDED_PATHS: "spec, test, tests, tmp, freex3d/build-*, freex3d/projectfiles_*, Android, freex3d/src/SSR/public"
+  SAST_EXCLUDED_PATHS: $DEFAULT_SAST_EXCLUDED_PATHS
+  SECRET_DETECTION_HISTORIC_SCAN:
+    value: "false"
+    description: Set to true to scan the whole git history for secrets
+
+cppcheck-sast:
+  stage: test
+  image: ubuntu:24.04
+  timeout: 45m
+  script:
+    - apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cppcheck python3 git > /dev/null
+    - start=$(date -u +%Y-%m-%dT%H:%M:%S)
+    - tools/bug-scan/scan.sh -c -o bug-scan
+    - python3 -I tools/bug-scan/gitlab_sast.py bug-scan/cppcheck.log gl-sast-cppcheck-report.json "$start" "$(date -u +%Y-%m-%dT%H:%M:%S)"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - bug-scan/cppcheck.log
+      - gl-sast-cppcheck-report.json
+    reports:
+      sast: gl-sast-cppcheck-report.json
