@@ -34,6 +34,10 @@ if [ -z "$JOBS" ]; then
 	[ "${mem:-1}" -lt "$JOBS" ] && JOBS=$mem
 	[ "$JOBS" -ge 1 ] || JOBS=1
 fi
+case $MEM in
+''|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
+*) echo "-m needs a size in MB, 1 to 99999" >&2; exit 2 ;;
+esac
 OUT=${OUT:-bug-scan-out}
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
@@ -44,9 +48,9 @@ echo "== gcc -fanalyzer ($JOBS jobs)"
 (cd "$ROOT/freex3d" && ./autogen.sh) > "$OUT/autogen.log" 2>&1
 (cd "$WORK" && "$ROOT/freex3d/configure" --with-target=x11 --with-javascript=duk \
 	CFLAGS="-O1 -g -fanalyzer -Wall -Wextra -fdiagnostics-plain-output") > "$OUT/configure.log" 2>&1
-(if [ -n "$MEM" ]; then ulimit -v $((MEM * 1024)); fi
+(if [ -n "$MEM" ]; then ulimit -v $((MEM * 1024)) || exit 1; fi
 	make -C "$WORK" -k -j"$JOBS") > "$OUT/gcc.log" 2>&1 || echo "make failed; see gcc.log"
-oom=$(grep -cE 'virtual memory exhausted|out of memory|internal compiler error' "$OUT/gcc.log" || :)
+oom=$(grep -cE 'virtual memory exhausted|out of memory|internal compiler error|Killed signal terminated' "$OUT/gcc.log" || :)
 [ "${oom:-0}" -eq 0 ] || echo "$oom compiles hit the memory limit or crashed (-m $MEM); see gcc.log"
 
 if command -v cppcheck > /dev/null; then

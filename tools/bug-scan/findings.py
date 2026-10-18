@@ -19,7 +19,7 @@ import collections, hashlib, json, os, re, sys
 GCC = re.compile(r"^(?P<file>[^\s:]+):(?P<line>\d+):\d+: (?P<sev>warning|error): (?P<msg>.*?) \[-W(?P<rule>[\w=+-]+)\]$")
 CPPCHECK = re.compile(r"^(?P<file>[^\s:]+):(?P<line>\d+):\d+: (?P<sev>\w+): (?P<msg>.*) \[(?P<rule>\w+)\]$")
 TODO = re.compile(r"^(?P<file>[^:]+):\d+:")
-OOM = re.compile(r"virtual memory exhausted|out of memory|internal compiler error")
+OOM = re.compile(r"virtual memory exhausted|out of memory|internal compiler error|Killed signal terminated")
 SIGNAL = {"incompatible-pointer-types", "misleading-indentation", "sequence-point", "maybe-uninitialized",
 	"uninitialized", "format-truncation=", "format-overflow=", "format=", "stringop-truncation",
 	"stringop-overflow=", "sizeof-pointer-memaccess", "overflow", "dangling-else", "logical-not-parentheses",
