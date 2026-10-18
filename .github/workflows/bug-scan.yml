@@ -1,0 +1,62 @@
+name: Bug Scan
+# Scheduled static bug scan (tools/bug-scan): gcc -fanalyzer and warnings over the Linux X11
+# build, cppcheck, and a TODO/FIXME/XXX inventory. New findings become GitHub issues labeled
+# bug-scan and queued-for-owner-review, deduplicated against every earlier bug-scan issue (open
+# or closed). Issues are reports only: Jules is dispatched only from an owner-approved JULES-NNN
+# issue (docs/automation/JULES_DISPATCH.md section 3.1). This is not PR QA; PR QA stays local.
+# Triggers: the weekly schedule and workflow_dispatch only. Never add pull_request or
+# pull_request_target: the job runs on the self-hosted Linux runner (runner group public-ci).
+# The runner needs the FreeWRL X11 build dependencies, autotools, gcc 13+, cppcheck and python3;
+# the preflight step lists anything missing.
+on:
+  schedule:
+    - cron: '17 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      max_new:
+        description: Most new issues to file in this run
+        default: '10'
+        type: string
+      dry_run:
+        description: Scan and report only; file no issues
+        default: false
+        type: boolean
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: bug-scan
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: [self-hosted, Linux, linux-proxmox]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Preflight
+        run: |
+          missing=
+          for t in autoreconf libtool pkg-config make gcc cppcheck python3 git; do
+            command -v $t > /dev/null || missing="$missing $t"
+          done
+          [ -z "$missing" ] || { echo "::error::missing on runner:$missing"; exit 1; }
+          gcc --version | head -n 1
+      - name: Scan
+        run: tools/bug-scan/scan.sh -o "$RUNNER_TEMP/bug-scan"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bug-scan
+          path: ${{ runner.temp }}/bug-scan
+          retention-days: 30
+      - name: File issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MAX_NEW: ${{ github.event.inputs.max_new || '10' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: |
+          case $MAX_NEW in ''|*[!0-9]*) echo "::error::max_new must be a number"; exit 1 ;; esac
+          python3 -I tools/bug-scan/file_issues.py "$RUNNER_TEMP/bug-scan/findings.json" \
+            --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --max-new "$MAX_NEW" $DRY_RUN

@@ -164,6 +164,8 @@ Write limits as explicit rules: no dependency, workflow, licensing or security-p
 
 The issue starts as **"Queued for owner review"**. Dispatch only after the owner explicitly approves it.
 
+The weekly bug scan (`.github/workflows/bug-scan.yml`, `tools/bug-scan/`) files `bug-scan` issues labeled `queued-for-owner-review`. They are candidates, not tasks: many are false positives. To hand one to Jules, the owner writes a `JULES-NNN` issue that cites it, and the flow above applies. Closing a `bug-scan` issue stops the scan from filing it again.
+
 ### 3.2 Task file
 
 Write one JSON file per task in a scratch directory, such as `/tmp/jules-review/<wave>/`:
