@@ -489,11 +489,7 @@ int movie_load_from_file(char *fname, void **opaque){
 
 							int out_samples = (int)av_rescale_rnd(swr_get_delay(swr, aCodecCtx->sample_rate) + in_samples, 44100, aCodecCtx->sample_rate, AV_ROUND_UP);
 							av_samples_alloc(&output, NULL, 2, out_samples,	AV_SAMPLE_FMT_S16, 0);
-#if LIBAVCODEC_VERSION_MAJOR >= 59
 							out_samples = swr_convert(swr, &output, out_samples, (const uint8_t **)aFrame->extended_data, aFrame->nb_samples);
-#else
-							out_samples = swr_convert(swr, &output, out_samples, aFrame->extended_data, aFrame->nb_samples);
-#endif
 							memcpy(&audio_buf[audio_buf_index],output, out_samples * 2 * 2);
 							audio_buf_index +=  out_samples * 2 * 2;
 							av_freep(&output);
@@ -549,11 +545,7 @@ int movie_load_from_file(char *fname, void **opaque){
 		av_frame_free(&pFrame);
   
 		// Close the codecs
-#if LIBAVCODEC_VERSION_MAJOR < 57
 		avcodec_free_context(&pCodecCtx);
-#else
-		avcodec_free_context(&pCodecCtx);
-#endif
 		sws_freeContext(sws_ctx);
 	}
 	//audio fin
