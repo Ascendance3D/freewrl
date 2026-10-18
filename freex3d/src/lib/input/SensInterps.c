@@ -2054,6 +2054,7 @@ void do_PlaneSensor ( void *ptr, int ev, int but1, int over) {
 // matrices - storage interpetation: elements are stored contiguously along each _row_
 
 void s_mat_multiply(float *r, float *a, int nra, int nca, float *b, int ncb){
+	if (!r || !a || !b) return;
 	for(int i = 0; i< nra; i++){
 		for(int j=0; j< ncb;j++){
 			r[i*ncb +j] = 0.0f;
@@ -2064,6 +2065,7 @@ void s_mat_multiply(float *r, float *a, int nra, int nca, float *b, int ncb){
 	}
 }
 void s_mat_transpose(float *r, float *a, int nra, int nca){
+	if (!r || !a) return;
 	for(int i=0;i<nra;i++){
 		for(int j=0;j<nca;j++){
 			r[j*nra +i] = a[i*nca +j];
@@ -2274,11 +2276,29 @@ int least_squares_similarity2D_linpack(float *v0, float *v1, int np, float *para
 	static float *a = NULL;
 	static float *B = NULL;
 
-	p1 = realloc(p1, n*sizeof(float)); // 2 points, xy each
-	a = realloc(a, nu*n*sizeof(float)); //4 unknowns, n = 2 x np observations
-	at = realloc(at, n*nu*sizeof(float)); // A transpose
-	N = realloc(N, nu*nu*sizeof(float)); //normal equation Nu = B, u = inverse(N)xB
-	B = realloc(B, nu*sizeof(float));   // B = At x b
+	float *tmp;
+
+	if (n == 0 || nu == 0) return 1;
+
+	tmp = realloc(p1, n*sizeof(float)); // 2 points, xy each
+	if (!tmp) return 1;
+	p1 = tmp;
+
+	tmp = realloc(a, nu*n*sizeof(float)); //4 unknowns, n = 2 x np observations
+	if (!tmp) return 1;
+	a = tmp;
+
+	tmp = realloc(at, n*nu*sizeof(float)); // A transpose
+	if (!tmp) return 1;
+	at = tmp;
+
+	tmp = realloc(N, nu*nu*sizeof(float)); //normal equation Nu = B, u = inverse(N)xB
+	if (!tmp) return 1;
+	N = tmp;
+
+	tmp = realloc(B, nu*sizeof(float));   // B = At x b
+	if (!tmp) return 1;
+	B = tmp;
 
 	for(int i=0;i<np;i++){
 		int j=2*i;
@@ -2615,10 +2635,19 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 
 			/* trackpoint changed */
 			int ndrag = node->_drag_count;
-			node->trackPoints_changed.p = realloc(node->trackPoints_changed.p, ndrag*(sizeof(struct SFVec3f)));
-			node->trackPoints_changed.n = ndrag;
-			node->touches_changed.p = realloc(node->touches_changed.p,ndrag*(sizeof(int)));
-			node->touches_changed.n = ndrag;
+			if (ndrag > 0) {
+				void *tmp_tp = realloc(node->trackPoints_changed.p, ndrag*(sizeof(struct SFVec3f)));
+				void *tmp_tc = realloc(node->touches_changed.p,ndrag*(sizeof(int)));
+				if (!tmp_tp || !tmp_tc) {
+					if (tmp_tp) node->trackPoints_changed.p = tmp_tp;
+					if (tmp_tc) node->touches_changed.p = tmp_tc;
+					break;
+				}
+				node->trackPoints_changed.p = tmp_tp;
+				node->trackPoints_changed.n = ndrag;
+				node->touches_changed.p = tmp_tc;
+				node->touches_changed.n = ndrag;
+			}
 
 			for(int i=0; i<ndrag; i++){
 				struct ID_point* dragp = &((struct ID_point*)node->_drag_points)[i];
@@ -2710,7 +2739,9 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 								printf("%f %f | %f %f\n",v0[k*2],v0[k*2+1], v1[k*2],v1[k*2+1]);
 							}
 							if(1){
-								least_squares_similarity2D_linpack(v0,v1,np,param);
+								if(least_squares_similarity2D_linpack(v0,v1,np,param)) {
+										break;
+									}
 							}else{
 								scale_constrained_2D(v0,v1,np,param,node->minScale.c,node->maxScale.c);
 							}
@@ -2882,7 +2913,9 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 						double2float(&p1[k*3],d,3);
 					}
 					float param[5];
-					least_squares_similarity2D_linpack(p0,p1,2,param);
+					if(least_squares_similarity2D_linpack(p0,p1,2,param)) {
+						break;
+					}
 					rot4[3] = param[2];
 					float scalex = param[0];
 					float scaley = param[1];
