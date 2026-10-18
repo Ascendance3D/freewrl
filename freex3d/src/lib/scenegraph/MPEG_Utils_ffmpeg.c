@@ -22,6 +22,8 @@
 //#include "libavutil/samplefmt.h"
 //#include "libavutil/avassert.h"
 //#include "libavutil/time.h"
+#include "libavcodec/avcodec.h"
+#include "libavutil/opt.h"
 #include "libavformat/avformat.h"
 //#include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
@@ -101,11 +103,11 @@ int movie_load_from_file(char *fname, void **opaque){
 	struct fw_movietexture fw_movie;
 	AVFormatContext *pFormatCtx;
 	int i, videoStream, audioStream;
-	AVCodecContext *pCodecCtxOrig;
 	AVCodecContext *pCodecCtx;
-	AVCodecContext  *aCodecCtxOrig;
 	AVCodecContext  *aCodecCtx;
-	AVCodec         *aCodec;
+	const AVCodec         *aCodec;
+	const AVCodec         *pCodec;
+	AVCodecParameters *aCodecPar;
 	AVFrame			*aFrame;
 	AVFrame			*aFrameB;
 	//uint8_t *audio_pkt_data = NULL;
@@ -120,7 +122,6 @@ int movie_load_from_file(char *fname, void **opaque){
 	int frameFinished;
 	AVPacket packet;
 	AVFrame *pFrame;
-	AVCodec *pCodec;
 	Stack *fw_framequeue;
 	AVFrame *pFrameRGB;
 	int nchan;
@@ -131,7 +132,9 @@ int movie_load_from_file(char *fname, void **opaque){
 	*opaque = NULL;
 	//initialize ffmpeg libs once per process
 	if(once == 0){
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(58, 9, 100)
 		av_register_all(); //register all codecs - will filter in the future for patent non-expiry
+#endif
 		once = 1;
 	}
 	pFormatCtx = NULL;
@@ -148,17 +151,16 @@ int movie_load_from_file(char *fname, void **opaque){
 	av_dump_format(pFormatCtx, 0, fname, 0);
 	//fw_movie.pFormatCtx = pFormatCtx;
 
-	pCodecCtxOrig = NULL;
 	pCodecCtx = NULL;
 
 	// Find the first video stream
 	videoStream=-1;
 	audioStream=-1;
 	for(i=0; i<pFormatCtx->nb_streams; i++){
-		if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO && videoStream < 0) {
+		if(pFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO && videoStream < 0) {
 			videoStream=i;
 		}
-		if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO && audioStream < 0) {
+		if(pFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO && audioStream < 0) {
 			audioStream=i;
 		}
 	}
@@ -175,7 +177,6 @@ int movie_load_from_file(char *fname, void **opaque){
 	fw_movie.audio_buf_size = 0;
 
 	//audio function-scope variables
-	aCodecCtxOrig = NULL;
 	aCodecCtx = NULL;
 	aCodec = NULL;
 	aFrame = NULL;
@@ -192,39 +193,26 @@ int movie_load_from_file(char *fname, void **opaque){
 	//audio prep
 	if(audioStream > -1){
 
-		aCodecCtxOrig=pFormatCtx->streams[audioStream]->codec;
-		aCodec = avcodec_find_decoder(aCodecCtxOrig->codec_id);
+		aCodecPar = pFormatCtx->streams[audioStream]->codecpar;
+		aCodec = avcodec_find_decoder(aCodecPar->codec_id);
 		if(!aCodec) {
 			fprintf(stderr, "Unsupported codec!\n");
 			return -1;
 		}
 
 		// Copy context
-		//if(avcodec_copy_context(aCodecCtx, aCodecCtxOrig) != 0) {
-		//	fprintf(stderr, "Couldn't copy codec context");
-		//	return -1; // Error copying codec context
-		//}
-		#if LIBAVCODEC_VERSION_MAJOR == 56 //ffmpeg 2.8
-		// https://ffmpeg.org/doxygen/2.8/filtering_video_8c-example.html //in open_input_file
-		aCodecCtx = aCodecCtxOrig;
-		#elif LIBAVCODEC_VERSION_MAJOR == 570  //ffmpeg 3.2
-		{
-			AVCodecParameters *aparams;
-			aCodecCtx = avcodec_alloc_context3(aCodec);
-			aparams = avcodec_parameters_alloc();
-			avcodec_parameters_from_context(aparams, aCodecCtxOrig);
-			avcodec_parameters_to_context(aCodecCtx,aparams);
-			avcodec_parameters_free(&aparams);
-		}
-		#elif LIBAVCODEC_VERSION_MAJOR >= 57 //58 //ffmpeg 4.0 and 3.2 also runs here
-		// https://ffmpeg.org/doxygen/4.0/filtering_video_8c-example.html  //in open_input_file
-		aCodecCtx = avcodec_alloc_context3(aCodecCtxOrig->codec);
-		avcodec_parameters_to_context(aCodecCtx, pFormatCtx->streams[audioStream]->codecpar);
+		aCodecCtx = avcodec_alloc_context3(aCodec);
+		avcodec_parameters_to_context(aCodecCtx, aCodecPar);
+#if LIBAVCODEC_VERSION_MAJOR >= 57
 		av_opt_set_int(aCodecCtx, "refcounted_frames", 1, 0);
-		#endif
+#endif
 
 		// Set audio settings from codec info
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
+		fw_movie.channels = aCodecCtx->ch_layout.nb_channels;
+#else
 		fw_movie.channels = aCodecCtx->channels;
+#endif
 		fw_movie.freq = aCodecCtx->sample_rate;
 		fw_movie.bits_per_channel = aCodecCtx->bits_per_raw_sample; 
 
@@ -269,6 +257,16 @@ int movie_load_from_file(char *fname, void **opaque){
 			//av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16,  0);
 			// https://www.ffmpeg.org/doxygen/3.2/group__lswr.html#details
 
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
+			swr = swr_alloc();
+			av_opt_set_chlayout(swr, "in_chlayout", &aCodecCtx->ch_layout, 0);
+			av_opt_set_int(swr, "in_sample_rate", aCodecCtx->sample_rate, 0);
+			av_opt_set_sample_fmt(swr, "in_sample_fmt", aCodecCtx->sample_fmt, 0);
+			AVChannelLayout out_ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_STEREO;
+			av_opt_set_chlayout(swr, "out_chlayout", &out_ch_layout, 0);
+			av_opt_set_int(swr, "out_sample_rate", 44100, 0);
+			av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+#else
 			swr = swr_alloc_set_opts(NULL,  // we're allocating a new context
 				AV_CH_LAYOUT_STEREO,  // out_ch_layout
 				AV_SAMPLE_FMT_S16,    // out_sample_fmt
@@ -278,6 +276,7 @@ int movie_load_from_file(char *fname, void **opaque){
 				aCodecCtx->sample_rate,   // in_sample_rate
 				0,                    // log_offset
 				NULL);                // log_ctx
+#endif
 			swr_init(swr);
 		}
 
@@ -294,36 +293,22 @@ int movie_load_from_file(char *fname, void **opaque){
 	if(videoStream > -1){
 		int numBytes;
 		int av_pix_fmt;
+		AVCodecParameters *vCodecPar;
 
-		// Get a pointer to the codec context for the video stream
-		pCodecCtxOrig = pFormatCtx->streams[videoStream]->codec;
-
+		vCodecPar = pFormatCtx->streams[videoStream]->codecpar;
 
 		// Find the decoder for the video stream
-		pCodec=avcodec_find_decoder(pCodecCtxOrig->codec_id);
+		pCodec=avcodec_find_decoder(vCodecPar->codec_id);
 		if(pCodec==NULL) {
 			fprintf(stderr, "Unsupported codec!\n");
 			return -1; // Codec not found
 		}
 		// Copy context
-		#if LIBAVCODEC_VERSION_MAJOR == 56 //ffmpeg 2.8
-		// https://ffmpeg.org/doxygen/2.8/filtering_video_8c-example.html //in open_input_file
-		pCodecCtx = pCodecCtxOrig;
-		#elif LIBAVCODEC_VERSION_MAJOR == 570  //ffmpeg 3.2
-		{
-			AVCodecParameters *vparams;		
-			pCodecCtx = avcodec_alloc_context3(pCodec);
-			vparams = avcodec_parameters_alloc();
-			avcodec_parameters_from_context(vparams, pCodecCtxOrig);
-			avcodec_parameters_to_context(pCodecCtx, vparams);
-			avcodec_parameters_free(&vparams);
-		}
-		#elif LIBAVCODEC_VERSION_MAJOR >= 57 //58 //ffmpeg 4.0 and 3.2 also runs here
-		// https://ffmpeg.org/doxygen/4.0/filtering_video_8c-example.html  //in open_input_file
-		pCodecCtx = avcodec_alloc_context3(pCodecCtxOrig->codec);
-		avcodec_parameters_to_context(pCodecCtx, pFormatCtx->streams[videoStream]->codecpar);
+		pCodecCtx = avcodec_alloc_context3(pCodec);
+		avcodec_parameters_to_context(pCodecCtx, vCodecPar);
+#if LIBAVCODEC_VERSION_MAJOR >= 57
 		av_opt_set_int(pCodecCtx, "refcounted_frames", 1, 0);
-		#endif
+#endif
 		// Open codec
 
 		if(avcodec_open2(pCodecCtx, pCodec, NULL)<0)
@@ -451,8 +436,12 @@ int movie_load_from_file(char *fname, void **opaque){
 			if(got_frame) {
 				//aFrameOut->format = aCodecCtx->sample_fmt;
 				if(aFrame->nb_samples > 0){
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
+					data_size = av_samples_get_buffer_size(NULL, aFrame->ch_layout.nb_channels,
+#else
 					data_size = av_samples_get_buffer_size(NULL, 
 											aFrame->channels, //aCodecCtx->channels,
+#endif
 											aFrame->nb_samples,
 											aFrame->format, //AV_SAMPLE_FMT_S16P, //aCodecCtx->sample_fmt,
 											1);
@@ -471,7 +460,11 @@ int movie_load_from_file(char *fname, void **opaque){
 							//http://stackoverflow.com/questions/14989397/how-to-convert-sample-rate-from-av-sample-fmt-fltp-to-av-sample-fmt-s16
 							int i,c;
 							int nb_samples = aFrame->nb_samples;
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(57, 28, 100)
+							int channels = aFrame->ch_layout.nb_channels;
+#else
 							int channels = aFrame->channels;
+#endif
 							int outputBufferLen = nb_samples * channels * 2;
 							short* outputBuffer = (short*)&audio_buf[audio_buf_index];
 
@@ -496,7 +489,7 @@ int movie_load_from_file(char *fname, void **opaque){
 
 							int out_samples = (int)av_rescale_rnd(swr_get_delay(swr, aCodecCtx->sample_rate) + in_samples, 44100, aCodecCtx->sample_rate, AV_ROUND_UP);
 							av_samples_alloc(&output, NULL, 2, out_samples,	AV_SAMPLE_FMT_S16, 0);
-							out_samples = swr_convert(swr,&output,out_samples, aFrame->extended_data, aFrame->nb_samples);  
+							out_samples = swr_convert(swr, &output, out_samples, (const uint8_t **)aFrame->extended_data, aFrame->nb_samples);
 							memcpy(&audio_buf[audio_buf_index],output, out_samples * 2 * 2);
 							audio_buf_index +=  out_samples * 2 * 2;
 							av_freep(&output);
@@ -552,8 +545,8 @@ int movie_load_from_file(char *fname, void **opaque){
 		av_frame_free(&pFrame);
   
 		// Close the codecs
-		avcodec_close(pCodecCtx);
-		avcodec_close(pCodecCtxOrig);
+		avcodec_free_context(&pCodecCtx);
+		sws_freeContext(sws_ctx);
 	}
 	//audio fin
 	if(audioStream > -1){
@@ -561,8 +554,10 @@ int movie_load_from_file(char *fname, void **opaque){
 		fw_movie.audio_buf_size = audio_buf_index;
 		fw_movie.duration = (double)(fw_movie.nframes) / 30.0; //s = frames / fps 
 
-		avcodec_close(aCodecCtxOrig);
-		avcodec_close(aCodecCtx);
+		avcodec_free_context(&aCodecCtx);
+		if(swr) swr_free(&swr);
+		av_frame_free(&aFrame);
+		av_frame_free(&aFrameB);
 	}
 
 	//audio and video fin
