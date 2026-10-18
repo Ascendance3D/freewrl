@@ -1247,6 +1247,7 @@ static void compileMultiTexture (struct X3D_MultiTexture *node) {
 	if (node->__xparams == 0) {
 		/* printf ("loadMulti, MALLOCing for params\n"); */
 		node->__xparams = MALLOC (void *, sizeof (struct multiTexParams) * rdr_caps->texture_units);
+		if (!node->__xparams) return;
 
 		 //printf ("just mallocd %ld in size for __params\n",sizeof (struct multiTexParams) * gglobal()->display.rdr_caps.texture_units);
 
@@ -1292,24 +1293,28 @@ static void compileMultiTexture (struct X3D_MultiTexture *node) {
 					char *srgb, *salpha, *b1,*b2, *splittable;
 					int modergb, modealpha;
 					splittable = strdup(smode);
-					b1 = strchr(splittable,' ');
-					b2 = strrchr(splittable,' ');
-					salpha = b2+1;
-					splittable[b1 - splittable] = '\0';
-					srgb = splittable;
-					modergb = findFieldInMULTITEXTUREMODE(srgb);
-					if(modergb == -1)
-						modergb = MTMODE_MODULATE;
-					else
-						modergb +=1; //one-based defines
-					modealpha = findFieldInMULTITEXTUREMODE(salpha);
-					if(modealpha == -1)
-						modealpha = MTMODE_MODULATE; //default
-					else
-						modealpha += 1; //one-based defines
-					free(splittable);
-					mode = modergb;
-					modea = modealpha;
+					if (splittable) {
+						b1 = strchr(splittable,' ');
+						b2 = strrchr(splittable,' ');
+						if (b1 && b2) {
+							salpha = b2+1;
+							splittable[b1 - splittable] = '\0';
+							srgb = splittable;
+							modergb = findFieldInMULTITEXTUREMODE(srgb);
+							if(modergb == -1)
+								modergb = MTMODE_MODULATE;
+							else
+								modergb +=1; //one-based defines
+							modealpha = findFieldInMULTITEXTUREMODE(salpha);
+							if(modealpha == -1)
+								modealpha = MTMODE_MODULATE; //default
+							else
+								modealpha += 1; //one-based defines
+							mode = modergb;
+							modea = modealpha;
+						}
+						free(splittable);
+					}
 				}
 			}
 			if(mode > -1){
@@ -1331,20 +1336,24 @@ static void compileMultiTexture (struct X3D_MultiTexture *node) {
 					char *srgb, *salpha, *b1,*b2, *splittable;
 					int sourcergb, sourcealpha;
 					splittable = strdup(ssource);
-					b1 = strchr(splittable,' ');
-					b2 = strrchr(splittable,' ');
-					salpha = b2+1;
-					splittable[b1 - splittable] = '\0';
-					srgb = splittable;
-					sourcergb = findFieldInMULTITEXTURESOURCE(srgb);
-					if(sourcergb == -1)
-						sourcergb = INT_ID_UNDEFINED; //default
-					else
-						sourcergb +=1; //one-based defines
-					sourcealpha = findFieldInMULTITEXTURESOURCE(salpha);
-					free(splittable);
-					source = sourcergb;
-					sourcea = sourcealpha;
+					if (splittable) {
+						b1 = strchr(splittable,' ');
+						b2 = strrchr(splittable,' ');
+						if (b1 && b2) {
+							salpha = b2+1;
+							splittable[b1 - splittable] = '\0';
+							srgb = splittable;
+							sourcergb = findFieldInMULTITEXTURESOURCE(srgb);
+							if(sourcergb == -1)
+								sourcergb = INT_ID_UNDEFINED; //default
+							else
+								sourcergb +=1; //one-based defines
+							sourcealpha = findFieldInMULTITEXTURESOURCE(salpha);
+							source = sourcergb;
+							sourcea = sourcealpha;
+						}
+						free(splittable);
+					}
 				}
 			}
 			if(source > -1){
@@ -1412,6 +1421,7 @@ void loadMultiTexture (struct X3D_MultiTexture *node) {
 
 	/* go through and get all of the textures */
 	paramPtr = (struct multiTexParams *) node->__xparams;
+	if (!paramPtr) return;
 
 #ifdef TEXVERBOSE
     printf ("loadMultiTExture, param stack:\n");
@@ -2342,6 +2352,8 @@ void new_bind_image(struct X3D_Node *node, struct multiTexParams *param) {
 	}
 
 	myTableIndex = getTableIndex(thisTexture);
+	if (!myTableIndex) return;
+
 	if (myTableIndex->status != TEX_LOADED) {
 		DEBUG_TEX("new_bind_image, I am %p, textureStackTop %d, thisTexture is %d myTableIndex %p status %s\n",
 		node,tg->RenderFuncs.textureStackTop,thisTexture,myTableIndex, texst(myTableIndex->status));
@@ -2493,5 +2505,6 @@ int get_bound_image(struct X3D_Node *node) {
 	}
 
 	myTableIndex = getTableIndex(thisTexture);
+	if (!myTableIndex) return -1;
 	return myTableIndex->OpenGLTexture;
 }
