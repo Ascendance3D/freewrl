@@ -3,9 +3,13 @@
 # build, cppcheck over freex3d/src, and a TODO/FIXME/XXX inventory. Writes the logs and
 # findings.json (see findings.py) to OUTDIR; file_issues.py turns findings.json into issues.
 #
-# usage: scan.sh [-j jobs] [-o outdir]
+# usage: scan.sh [-j jobs] [-m MB] [-o outdir]
 #   -j  parallel jobs for make and cppcheck  (default: nproc, capped at one job per 2.5 GB of
 #       MemAvailable: one -fanalyzer compile can take 2.4 GB, and an 8-core 6 GB runner ran out)
+#   -m  virtual memory limit per compiler process, in MB (default: none). A file whose analysis
+#       needs more fails alone ("virtual memory exhausted" or an internal compiler error in
+#       gcc.log, counted in the inventory); one
+#       -fanalyzer compile reached 5.3 GB on the 6 GB runner.
 #   -o  output directory                     (default: ./bug-scan-out)
 #
 # Run from anywhere in a checkout; the source tree is only read, apart from autogen.sh output.
@@ -15,12 +19,13 @@
 set -eu
 H=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$H/../.." && pwd)
-JOBS= OUT=
-while getopts "j:o:" opt; do
+JOBS= OUT= MEM=
+while getopts "j:m:o:" opt; do
 	case $opt in
 	j) JOBS=$OPTARG ;;
+	m) MEM=$OPTARG ;;
 	o) OUT=$OPTARG ;;
-	*) sed -n '2,14p' "$0"; exit 2 ;;
+	*) sed -n '2,18p' "$0"; exit 2 ;;
 	esac
 done
 if [ -z "$JOBS" ]; then
@@ -29,6 +34,10 @@ if [ -z "$JOBS" ]; then
 	[ "${mem:-1}" -lt "$JOBS" ] && JOBS=$mem
 	[ "$JOBS" -ge 1 ] || JOBS=1
 fi
+case $MEM in
+''|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
+*) echo "-m needs a size in MB, 1 to 99999" >&2; exit 2 ;;
+esac
 OUT=${OUT:-bug-scan-out}
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
@@ -39,7 +48,13 @@ echo "== gcc -fanalyzer ($JOBS jobs)"
 (cd "$ROOT/freex3d" && ./autogen.sh) > "$OUT/autogen.log" 2>&1
 (cd "$WORK" && "$ROOT/freex3d/configure" --with-target=x11 --with-javascript=duk \
 	CFLAGS="-O1 -g -fanalyzer -Wall -Wextra -fdiagnostics-plain-output") > "$OUT/configure.log" 2>&1
-make -C "$WORK" -k -j"$JOBS" > "$OUT/gcc.log" 2>&1 || echo "make failed; see gcc.log"
+rc=0
+(if [ -n "$MEM" ]; then ulimit -v $((MEM * 1024)) || exit 3; fi
+	make -C "$WORK" -k -j"$JOBS") > "$OUT/gcc.log" 2>&1 || rc=$?
+[ $rc -ne 3 ] || { echo "could not set the -m $MEM memory limit" >&2; exit 1; }
+[ $rc -eq 0 ] || echo "make failed; see gcc.log"
+oom=$(grep -cE 'virtual memory exhausted|out of memory|internal compiler error|Killed signal terminated' "$OUT/gcc.log" || :)
+[ "${oom:-0}" -eq 0 ] || echo "$oom compiles hit the memory limit or crashed (-m $MEM); see gcc.log"
 
 if command -v cppcheck > /dev/null; then
 	echo "== $(cppcheck --version)"
