@@ -13,7 +13,8 @@
 #   CParseParser.c       cParseErrorCurID, cParseErrorFieldString, with
 #   ConsoleMessage.c     fwvsnprintf, ConsoleMessage0, ConsoleMessage (world text is not a format)
 #   BVHreader.c          read_bvh_blob, the .bvh motion-capture parser (included whole)
-#   EAI_C_Field.c        X3D_newSFVec3d, X3D_getSFVec3d (real libeai X3DNode types)
+#   EAI_C_Field.c        X3D_newSFVec3d, X3D_getSFVec3d, and the SFVec3f, SFVec2f,
+#                        SFRotation and SFColorRGBA new/get pairs (real libeai X3DNode types)
 #   pluginUtils.c        split_browser_command, launch_browser (no shell, argv only)
 # The functions are copied unchanged out of the real sources by extract.awk and
 # compiled with small test doubles for what they call; nothing is reimplemented.
@@ -81,6 +82,14 @@ x plugin/pluginUtils.c split_browser_command launch_browser > "$out/pluginUtils.
 {
 	x ../libeai/EAI_C_Field.c X3D_newSFVec3d
 	x ../libeai/EAI_C_Field.c X3D_getSFVec3d
+	x ../libeai/EAI_C_Field.c X3D_newSFVec3f
+	x ../libeai/EAI_C_Field.c X3D_getSFVec3f
+	x ../libeai/EAI_C_Field.c X3D_newSFVec2f
+	x ../libeai/EAI_C_Field.c X3D_getSFVec2f
+	x ../libeai/EAI_C_Field.c X3D_newSFRotation
+	x ../libeai/EAI_C_Field.c X3D_getSFRotation
+	x ../libeai/EAI_C_Field.c X3D_newSFColorRGBA
+	x ../libeai/EAI_C_Field.c X3D_getSFColorRGBA
 } > "$out/eaifield.inc"
 
 objs=
