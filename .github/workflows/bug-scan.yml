@@ -30,7 +30,7 @@ concurrency:
 jobs:
   scan:
     runs-on: [self-hosted, Linux, linux-proxmox]
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:

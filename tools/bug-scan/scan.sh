@@ -4,7 +4,8 @@
 # findings.json (see findings.py) to OUTDIR; file_issues.py turns findings.json into issues.
 #
 # usage: scan.sh [-j jobs] [-o outdir]
-#   -j  parallel jobs for make and cppcheck  (default: nproc)
+#   -j  parallel jobs for make and cppcheck  (default: nproc, capped at one job per 2.5 GB of
+#       MemAvailable: one -fanalyzer compile can take 2.4 GB, and an 8-core 6 GB runner ran out)
 #   -o  output directory                     (default: ./bug-scan-out)
 #
 # Run from anywhere in a checkout; the source tree is only read, apart from autogen.sh output.
@@ -19,10 +20,16 @@ while getopts "j:o:" opt; do
 	case $opt in
 	j) JOBS=$OPTARG ;;
 	o) OUT=$OPTARG ;;
-	*) sed -n '2,13p' "$0"; exit 2 ;;
+	*) sed -n '2,14p' "$0"; exit 2 ;;
 	esac
 done
-JOBS=${JOBS:-$(nproc)} OUT=${OUT:-bug-scan-out}
+if [ -z "$JOBS" ]; then
+	mem=$(awk '/^MemAvailable:/ { print int($2 / 2621440) }' /proc/meminfo)
+	JOBS=$(nproc)
+	[ "${mem:-1}" -lt "$JOBS" ] && JOBS=$mem
+	[ "$JOBS" -ge 1 ] || JOBS=1
+fi
+OUT=${OUT:-bug-scan-out}
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/freewrl-bug-scan.XXXXXX")
