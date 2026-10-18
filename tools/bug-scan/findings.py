@@ -19,6 +19,7 @@ import collections, hashlib, json, os, re, sys
 GCC = re.compile(r"^(?P<file>[^\s:]+):(?P<line>\d+):\d+: (?P<sev>warning|error): (?P<msg>.*?) \[-W(?P<rule>[\w=+-]+)\]$")
 CPPCHECK = re.compile(r"^(?P<file>[^\s:]+):(?P<line>\d+):\d+: (?P<sev>\w+): (?P<msg>.*) \[(?P<rule>\w+)\]$")
 TODO = re.compile(r"^(?P<file>[^:]+):\d+:")
+OOM = re.compile(r"virtual memory exhausted|out of memory|internal compiler error")
 SIGNAL = {"incompatible-pointer-types", "misleading-indentation", "sequence-point", "maybe-uninitialized",
 	"uninitialized", "format-truncation=", "format-overflow=", "format=", "stringop-truncation",
 	"stringop-overflow=", "sizeof-pointer-memaccess", "overflow", "dangling-else", "logical-not-parentheses",
@@ -71,6 +72,10 @@ def main():
 				groups[key] = {"tool": tool, "rule": m["rule"], "file": path, "severity": sev,
 					"marker": f"<!-- bug-scan:fp={fp} -->", "items": []}
 			groups[key]["items"].append({"line": int(m["line"]), "message": m["msg"]})
+
+	oom = sum(bool(OOM.search(text)) for text in read(os.path.join(out, "gcc.log")))
+	if oom:
+		unfiled[("gcc", "memory limit or compiler crash (file not analyzed)")] = oom
 
 	todo_dirs = collections.Counter()
 	todo_lines = read(os.path.join(out, "todo.txt"))
