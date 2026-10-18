@@ -4171,9 +4171,17 @@ quat.slerp = function (out, a, b, t) {
 quat.invert = function(out, a) {
     var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
         dot = a0*a0 + a1*a1 + a2*a2 + a3*a3,
-        invDot = dot ? 1.0/dot : 0;
+        invDot;
     
-    // TODO: Would be faster to return [0,0,0,0] immediately if dot == 0
+    if (dot === 0) {
+        out[0] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        out[3] = 0;
+        return out;
+    }
+
+    invDot = 1.0/dot;
 
     out[0] = -a0*invDot;
     out[1] = -a1*invDot;
