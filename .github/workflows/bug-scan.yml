@@ -7,7 +7,7 @@ name: Bug Scan
 # Triggers: the weekly schedule and workflow_dispatch only. Never add pull_request or
 # pull_request_target: the job runs on the self-hosted Linux runner (runner group public-ci).
 # The runner needs the FreeWRL X11 build dependencies, autotools, gcc 13+, cppcheck and python3;
-# the preflight step lists anything missing.
+# the preflight step lists anything missing. The scan runs one job at a time (several hours).
 on:
   schedule:
     - cron: '17 7 * * 1'
@@ -30,7 +30,7 @@ concurrency:
 jobs:
   scan:
     runs-on: [self-hosted, Linux, linux-proxmox]
-    timeout-minutes: 60
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +44,9 @@ jobs:
           [ -z "$missing" ] || { echo "::error::missing on runner:$missing"; exit 1; }
           gcc --version | head -n 1
       - name: Scan
-        run: tools/bug-scan/scan.sh -o "$RUNNER_TEMP/bug-scan"
+        # One compile at a time, at low priority: the runner VM is shared with other runners and
+        # has about 6 GB, and one -fanalyzer compile can take 2.4 GB.
+        run: nice -n 10 tools/bug-scan/scan.sh -j 1 -o "$RUNNER_TEMP/bug-scan"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
