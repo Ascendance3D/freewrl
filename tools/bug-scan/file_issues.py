@@ -66,9 +66,9 @@ def issue_body(group, repo, sha):
 		lines.append(f"- [L{f['line']}]({link}): {f['message']}")
 	if len(group["items"]) > MAX_LINES:
 		lines.append(f"- … and {len(group['items']) - MAX_LINES} more in the scan artifact")
-	lines += ["", "Queued for owner review. This may be a false positive. To fix it with Jules, the owner "
-		"writes a `JULES-NNN` issue (docs/automation/JULES_DISPATCH.md §3.1); do not dispatch from this issue.",
-		"", group["marker"]]
+	note = ("Queued for owner review. This may be a false positive. To fix it with Jules, the owner "
+		"writes a `JULES-NNN` issue (docs/automation/JULES_DISPATCH.md §3.1); do not dispatch from this issue.")
+	lines += ["", note, "", group["marker"]]
 	return "\n".join(lines)
 
 
@@ -109,8 +109,14 @@ def main():
 		if a.dry_run:
 			print(f"  would file: {title} ({len(g['items'])} findings)")
 			continue
-		issue = request("POST", f"/repos/{a.repo}/issues", token,
-			{"title": title, "body": issue_body(g, a.repo, a.sha), "labels": [LABEL, QUEUED]})
+		try:
+			issue = request("POST", f"/repos/{a.repo}/issues", token,
+				{"title": title, "body": issue_body(g, a.repo, a.sha), "labels": [LABEL, QUEUED]})
+		except urllib.error.HTTPError as e:
+			print(f"  failed to file {title}: HTTP {e.code}", file=sys.stderr)
+			if e.code in (403, 429):  # rate limited: file the rest next run
+				break
+			continue
 		print(f"  filed #{issue['number']}: {title}")
 
 	body = inventory_body(data, a.sha)
