@@ -112,9 +112,10 @@ def main():
 		try:
 			issue = request("POST", f"/repos/{a.repo}/issues", token,
 				{"title": title, "body": issue_body(g, a.repo, a.sha), "labels": [LABEL, QUEUED]})
-		except urllib.error.HTTPError as e:
-			print(f"  failed to file {title}: HTTP {e.code}", file=sys.stderr)
-			if e.code in (403, 429):  # rate limited: file the rest next run
+		except urllib.error.URLError as e:  # HTTPError is a URLError
+			code = getattr(e, "code", None)
+			print(f"  failed to file {title}: {f'HTTP {code}' if code else e.reason}", file=sys.stderr)
+			if code in (403, 429):  # rate limited: file the rest next run
 				break
 			continue
 		print(f"  filed #{issue['number']}: {title}")
