@@ -55,8 +55,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           MAX_NEW: ${{ github.event.inputs.max_new || '10' }}
-          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'yes' || '' }}
         run: |
           case $MAX_NEW in ''|*[!0-9]*) echo "::error::max_new must be a number"; exit 1 ;; esac
           python3 -I tools/bug-scan/file_issues.py "$RUNNER_TEMP/bug-scan/findings.json" \
-            --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --max-new "$MAX_NEW" $DRY_RUN
+            --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --max-new "$MAX_NEW" ${DRY_RUN:+--dry-run}
