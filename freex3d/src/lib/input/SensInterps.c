@@ -2641,7 +2641,7 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 				if (!tmp_tp || !tmp_tc) {
 					if (tmp_tp) node->trackPoints_changed.p = tmp_tp;
 					if (tmp_tc) node->touches_changed.p = tmp_tc;
-					break;
+					return;
 				}
 				node->trackPoints_changed.p = tmp_tp;
 				node->trackPoints_changed.n = ndrag;
@@ -2740,7 +2740,10 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 							}
 							if(1){
 								if(least_squares_similarity2D_linpack(v0,v1,np,param)) {
-										break;
+										/* fallback to no transform */
+										param[0] = param[1] = 1.0f;
+										param[2] = 0.0f;
+										param[3] = param[4] = 0.0f;
 									}
 							}else{
 								scale_constrained_2D(v0,v1,np,param,node->minScale.c,node->maxScale.c);
@@ -2913,9 +2916,12 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 						double2float(&p1[k*3],d,3);
 					}
 					float param[5];
-					if(least_squares_similarity2D_linpack(p0,p1,2,param)) {
-						break;
-					}
+						if(least_squares_similarity2D_linpack(p0,p1,2,param)) {
+							/* fallback to some default */
+							param[0] = param[1] = 1.0f;
+							param[2] = 0.0f;
+							param[3] = param[4] = 0.0f;
+						}
 					rot4[3] = param[2];
 					float scalex = param[0];
 					float scaley = param[1];
