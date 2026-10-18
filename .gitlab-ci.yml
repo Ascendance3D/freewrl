@@ -23,7 +23,9 @@ include:
 
 variables:
   GITLAB_ADVANCED_SAST_ENABLED: "true"
-  SAST_EXCLUDED_PATHS: "spec, test, tests, tmp, freex3d/build-*, freex3d/projectfiles_*, Android, freex3d/src/SSR/public"
+  # The Advanced SAST job rebuilds its exclusions from DEFAULT_SAST_EXCLUDED_PATHS, so set both.
+  DEFAULT_SAST_EXCLUDED_PATHS: "spec, test, tests, tmp, freex3d/build-*, freex3d/projectfiles_*, Android, freex3d/src/SSR/public"
+  SAST_EXCLUDED_PATHS: $DEFAULT_SAST_EXCLUDED_PATHS
   SECRET_DETECTION_HISTORIC_SCAN:
     value: "false"
     description: Set to true to scan the whole git history for secrets

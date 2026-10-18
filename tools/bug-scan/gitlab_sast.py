@@ -24,9 +24,9 @@ def main():
 	with open(log, errors="replace") as fh:
 		for text in fh:
 			m = LINE.match(text.rstrip("\n"))
-			if not m or m["sev"] not in SEVERITY or (m["file"], m["line"], m["rule"]) in seen:
+			if not m or m["sev"] not in SEVERITY or m.group(0) in seen:
 				continue
-			seen.add((m["file"], m["line"], m["rule"]))
+			seen.add(m.group(0))
 			key = (m["rule"], m["file"], m["msg"])
 			count[key] = count.get(key, 0) + 1
 			vulns.append({
