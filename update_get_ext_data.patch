@@ -1,0 +1,33 @@
+--- freex3d/src/lib/scenegraph/MPEG_Utils_berkley.c
++++ freex3d/src/lib/scenegraph/MPEG_Utils_berkley.c
+@@ -1551,6 +1551,12 @@
+     /* If end of ext data buffer reached, resize data buffer. */
+
+     if (marker == size) {
++      char *tmp;
+       size += EXT_BUF_SIZE;
+-      dataPtr = (char *) realloc(dataPtr, size);
++      tmp = (char *) realloc(dataPtr, size);
++      if (!tmp) {
++          free(dataPtr);
++          return NULL;
++      }
++      dataPtr = tmp;
+     }
+@@ -1560,5 +1566,16 @@
+
+-  dataPtr = (char *) realloc(dataPtr, marker);
++  if (marker == 0) {
++      free(dataPtr);
++      return NULL;
++  }
++  {
++      char *tmp = (char *) realloc(dataPtr, marker);
++      if (!tmp) {
++          free(dataPtr);
++          return NULL;
++      }
++      dataPtr = tmp;
++  }
+
+   /* Return pointer to ext data buffer. */
