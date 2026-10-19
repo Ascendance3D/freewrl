@@ -32,7 +32,7 @@ jobs:
     runs-on: [self-hosted, Linux, linux-proxmox]
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Preflight
@@ -47,7 +47,7 @@ jobs:
         # One compile at a time, at low priority, each capped at 8 GB: the runner VM (14 GB) is shared
         # with other runners, and one -fanalyzer compile reached 5.3 GB.
         run: nice -n 10 tools/bug-scan/scan.sh -j 1 -m 8192 -o "$RUNNER_TEMP/bug-scan"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bug-scan
