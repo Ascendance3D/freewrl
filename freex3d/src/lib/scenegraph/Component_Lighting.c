@@ -225,7 +225,7 @@ void render_DirectionalLight0(struct X3D_Node* parent, struct X3D_DirectionalLig
 
 	if (node->on) {
 		//both global on VF_GlobalLight on children->render, and local on prep_sibAffectors come in here
-		usehit uhit;
+		usehit uhit = {0};
 		uhit.node = X3D_NODE(node);
 		uhit.userdata = parent;
 		fw_glGetDoublev(GL_MODELVIEW_MATRIX, uhit.mvm);
@@ -330,7 +330,7 @@ void push_headlight() {
 		// and no compile_shadowMap / no shadowmaps for headlight (shadows would be obscured anyway)
 		struct X3D_DirectionalLight* node =headlight;
 		RETURN_IF_LIGHT_STATE_NOT_US
-		usehit uhit;
+		usehit uhit = {0};
 		uhit.node = X3D_NODE(headlight);
 		matidentity4d(uhit.mvm);
 		lightTable_push(uhit);
@@ -377,7 +377,7 @@ void render_PointLight0(struct X3D_Node* parent, struct X3D_PointLight* node) {
 
 	if (node->on) {
 		//both global on VF_GlobalLight on children->render, and local on prep_sibAffectors come in here
-		usehit uhit;
+		usehit uhit = {0};
 		uhit.node = X3D_NODE(node);
 		uhit.userdata = parent;
 		fw_glGetDoublev(GL_MODELVIEW_MATRIX, uhit.mvm);
@@ -530,7 +530,7 @@ void render_SpotLight0(struct X3D_Node *parent, struct X3D_SpotLight *node) {
 
 	if(node->on) {
 		//both global on VF_GlobalLight on children->render, and local on prep_sibAffectors come in here
-		usehit uhit;
+		usehit uhit = {0};
 		uhit.node = X3D_NODE(node);
 		uhit.userdata = parent;
 		fw_glGetDoublev(GL_MODELVIEW_MATRIX, uhit.mvm);
