@@ -1240,13 +1240,11 @@ static void compileMultiTexture (struct X3D_MultiTexture *node) {
 	ttglobal tg = gglobal();
 	rdr_caps = tg->display.rdr_caps;
 
-	/*  have to regen the shape*/
-	MARK_NODE_COMPILED;
-
 	/* alloc fields, if required - only do this once, even if node changes */
 	if (node->__xparams == 0) {
 		/* printf ("loadMulti, MALLOCing for params\n"); */
 		node->__xparams = MALLOC (void *, sizeof (struct multiTexParams) * rdr_caps->texture_units);
+		/* leave the node marked as needing compile so a later call retries */
 		if (!node->__xparams) return;
 
 		 //printf ("just mallocd %ld in size for __params\n",sizeof (struct multiTexParams) * gglobal()->display.rdr_caps.texture_units);
@@ -1265,6 +1263,9 @@ static void compileMultiTexture (struct X3D_MultiTexture *node) {
 			paramPtr++;
 		}
 	}
+
+	/*  have to regen the shape*/
+	MARK_NODE_COMPILED;
 
 	/* how many textures can we use? no sense scanning those we cant use */
 	//max = node->mode.n;
@@ -2352,7 +2353,11 @@ void new_bind_image(struct X3D_Node *node, struct multiTexParams *param) {
 	}
 
 	myTableIndex = getTableIndex(thisTexture);
-	if (!myTableIndex) return;
+	if (!myTableIndex) {
+		/* keep the stack slot consistent: the caller still advances textureStackTop */
+		tg->RenderFuncs.boundTextureStack[tg->RenderFuncs.textureStackTop] = tg->Textures.defaultBlankTexture;
+		return;
+	}
 
 	if (myTableIndex->status != TEX_LOADED) {
 		DEBUG_TEX("new_bind_image, I am %p, textureStackTop %d, thisTexture is %d myTableIndex %p status %s\n",
