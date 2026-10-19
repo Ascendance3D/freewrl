@@ -1671,6 +1671,8 @@ float ShadowCalculation(in int ilight, in vec3 lightdir) \n\
 	// keep the shadow at 0.0 when outside the far_plane region of the light's frustum. \n\
 	//if (projCoords.z > 1.0) \n\
 	//	shadow = 0.0; \n\
+	if (type == 2 && (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0 || projCoords.z < 0.0 || projCoords.z > 1.0)) \n\
+		shadow = 0.0; \n\
 	return shadow; \n\
 } \n\
 #endif //SHADOW \n\

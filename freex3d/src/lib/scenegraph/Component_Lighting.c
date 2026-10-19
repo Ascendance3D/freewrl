@@ -265,7 +265,7 @@ void render_DirectionalLight0(struct X3D_Node* parent, struct X3D_DirectionalLig
 				extent6f_scale3f(eout6, e6, vecset3f(scale3, 1.01f, 1.01f, 1.01f));
 
 			}
-			int method = 1;
+			int method = 0;
 			if (method == 0) {
 				//extent6f_printf(eout6); printf("e6\n");
 				float2double(ed, eout6, 6);
