@@ -313,6 +313,13 @@ int FindSpan(int n, int p, float u, float *U)
 		return mid;
 	}
 }
+/* highest degree (order - 1) CurvePoint and SurfacePoint can evaluate: BasisFuns uses left[5]/right[5] */
+#define NURBS_MAX_DEGREE 4
+/* SurfacePoint reads control point (u*nu + v) for u < nu, v < nv: check that index range fits nc points */
+static int nurbs_surface_fits(int nu, int nv, int nc){
+	return nu > 0 && nv > 0 && (long long)(nu - 1) * (long long)nu + (long long)nv <= (long long)nc
+		&& (long long)nu * (long long)nv <= (long long)nc;
+}
 //ALGORITHM A2.2 p.70 Piegl
 int BasisFuns(int span, float u, int p, float *U, float *N){
 	/* Compute the non-vanishing Basis functions
@@ -369,6 +376,11 @@ int CurvePoint(int n, int p, float* U, float *Pw, float u, float *C )
 	int span,i,j;
 	float N[100], w;
 	float Cw[4];
+	if(p < 0 || p > NURBS_MAX_DEGREE){
+		/* BasisFuns works in left[5]/right[5]: higher degrees would overflow them */
+		for(i=0;i<3;i++) C[i] = 0.0f;
+		return 0;
+	}
 	span = FindSpan(n,p,u,U);
 	BasisFuns(span,u,p,U,N);
 	w = 1.0f;
@@ -419,6 +431,11 @@ int SurfacePoint(int n,int p,float *U,
 	int uspan, vspan, i, l, k;
 	float Nu[100], Nv[100], temp[6][4], Sw[4];
 
+	if(p < 0 || p > NURBS_MAX_DEGREE || q < 0 || q > NURBS_MAX_DEGREE){
+		/* BasisFuns works in left[5]/right[5]: higher degrees would overflow them */
+		for(i=0;i<3;i++) S[i] = 0.0f;
+		return 0;
+	}
 	uspan = FindSpan(n,p,u,U);
 	BasisFuns(uspan,u,p,U,Nu);
 	vspan = FindSpan(m,q,v,V);
@@ -893,7 +910,7 @@ int getNurbsSurfacePoint(struct X3D_Node *nurbsSurfaceNode, float *uv, float *xy
 					if(!node->_uKnot.p || !node->_vKnot.p || !node->_controlPoint.p
 						|| node->uOrder < 1 || node->vOrder < 1
 						|| node->uDimension < node->uOrder || node->vDimension < node->vOrder
-						|| (long long)node->uDimension * (long long)node->vDimension > (long long)node->_controlPoint.n)
+						|| !nurbs_surface_fits(node->uDimension,node->vDimension,node->_controlPoint.n))
 						break;
 					ret = SurfacePoint(	node->uDimension,node->uOrder-1,node->_uKnot.p, 
 										node->vDimension,node->vOrder-1,node->_vKnot.p,
@@ -2210,9 +2227,10 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			}
 			nu = node->uDimension;
 			nv = node->vDimension;
-			if(nu * nv != n) return;
-			if(nu < node->uOrder) return;
-			if(nv < node->vOrder) return;
+			if(!nurbs_surface_fits(nu,nv,n) || nu * nv != n || nu < node->uOrder || nv < node->vOrder){
+				FREE_IF_NZ(xyzw);
+				return;
+			}
 			//int knotsOK(int order, int ncontrol, int nknots, double *knots)
 			//if(node->uKnot.n && node->uKnot.n == nu + node->uOrder ){
 			if(knotsOK(node->uOrder,nu,node->uKnot.n,node->uKnot.p)){
