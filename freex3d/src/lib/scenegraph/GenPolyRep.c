@@ -469,6 +469,11 @@ static void checkTriangleFanSetFields (struct X3D_TriangleFanSet *node) {
 	yy=0; zz=0;
 	for (xx=0; xx<(node->fanCount).n; xx++) {
 		/* printf ("fanCount %d is %d  \n",xx,(node->fanCount).p[xx]); */
+		if ((node->fanCount).p[xx] < 3) {
+			/* no triangles, but the fan still uses its coordinates */
+			if ((node->fanCount).p[xx] > 0) zz += (node->fanCount).p[xx];
+			continue;
+		}
 		fanVertex = zz;
 		zz ++;
 		for (yy=0; yy< ((node->fanCount).p[xx]-2); yy++) {
@@ -626,6 +631,11 @@ static void checkTriangleStripSetFields (struct X3D_TriangleStripSet *node) {
 	for (xx=0; xx<(node->stripCount).n; xx++) {
 		windingOrder=0;
 		/* printf ("stripCount %d is %d  \n",xx,(node->stripCount).p[xx]);  */
+		if ((node->stripCount).p[xx] < 3) {
+			/* no triangles, but the strip still uses its coordinates */
+			if ((node->stripCount).p[xx] > 0) zz += (node->stripCount).p[xx];
+			continue;
+		}
 		for (yy=0; yy< ((node->stripCount).p[xx]-2); yy++) {
 			if (windingOrder==0) {
 				/* printf ("fcwo0 %d tris %d %d %d -1\n", xx, zz, zz+1, zz+2); */
