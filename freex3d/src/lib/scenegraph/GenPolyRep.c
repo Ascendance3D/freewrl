@@ -1179,10 +1179,6 @@ void make_genericfaceset(struct X3D_IndexedFaceSet *node) {
 	cindex = rep_->cindex = MALLOC(GLuint *, sizeof(*(rep_->cindex))*3*(ntri));
 	colindex = rep_->colindex = MALLOC(GLuint *, sizeof(*(rep_->colindex))*3*(ntri));
 	norindex = rep_->norindex = MALLOC(GLuint *,sizeof(*(rep_->norindex))*3*ntri);
-	
-	/* zero the indexes */
-	bzero (colindex,sizeof(*(rep_->colindex))*3*(ntri));
-	bzero (norindex,sizeof(*(rep_->colindex))*3*(ntri));
 
     FREE_IF_NZ(rep_->normal);
 	/* if we calculate normals, we use a normal per point, NOT per triangle */
@@ -1199,6 +1195,24 @@ void make_genericfaceset(struct X3D_IndexedFaceSet *node) {
 
 	/* Concave faces - use the OpenGL Triangulator to give us the triangles */
 	tess_vs=MALLOC(int *, sizeof(*(tess_vs))*(ntri)*3);
+	if (!cindex || !colindex || !norindex || !rep_->normal || !tcindex || !tess_vs) {
+		/* out of memory (ntri >= 1, so no size is zero): no triangles */
+		rep_->ntri = 0;
+		FREE_IF_NZ(rep_->cindex);
+		FREE_IF_NZ(rep_->colindex);
+		FREE_IF_NZ(rep_->norindex);
+		FREE_IF_NZ(rep_->normal);
+		FREE_IF_NZ(rep_->tcindex);
+		FREE_IF_NZ(tess_vs);
+		FREE_IF_NZ(facenormals);
+		FREE_IF_NZ(faceok);
+		FREE_IF_NZ(pointfaces);
+		return;
+	}
+
+	/* zero the indexes */
+	bzero (colindex,sizeof(*(rep_->colindex))*3*(ntri));
+	bzero (norindex,sizeof(*(rep_->colindex))*3*(ntri));
 
 	this_coord = 0;
 	i = 0;
