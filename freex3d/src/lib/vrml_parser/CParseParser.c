@@ -1278,10 +1278,14 @@ static BOOL parser_importStatement(struct VRMLParser* me) {
     /* we should have a "." then an integer supportLevel */
     if (!lexer_point(me->lexer)) {
         CPARSE_ERROR_CURID("expected period in IMPORT statement")
-            return TRUE;
+        FREE_IF_NZ (inlineNodeName);
+        return TRUE;
     }
 
-    if(!lexer_setCurID(me->lexer)) return TRUE; /* true, because this IS an IMPORT statement... */
+    if(!lexer_setCurID(me->lexer)) {
+        FREE_IF_NZ (inlineNodeName);
+        return TRUE; /* true, because this IS an IMPORT statement... */
+    }
     ASSERT(me->lexer->curID);
 
     /* ok, now, we should have the nodeToImport name... */
@@ -1289,13 +1293,21 @@ static BOOL parser_importStatement(struct VRMLParser* me) {
     FREE_IF_NZ(me->lexer->curID);
 
     /* get the next token */
-    if(!lexer_setCurID(me->lexer)) return TRUE; /* true, because this Is an IMPORT statement...*/
+    if(!lexer_setCurID(me->lexer)) {
+        FREE_IF_NZ (inlineNodeName);
+        FREE_IF_NZ (nodeToImport);
+        return TRUE; /* true, because this Is an IMPORT statement...*/
+    }
     ASSERT(me->lexer->curID);
 
     /* do we have an "AS" statement? */
     if (strcmp("AS",me->lexer->curID) == 0) {
         FREE_IF_NZ(me->lexer->curID);
-        if(!lexer_setCurID(me->lexer)) return TRUE; /* true, because this Is an IMPORT statement...*/
+        if(!lexer_setCurID(me->lexer)) {
+            FREE_IF_NZ (inlineNodeName);
+            FREE_IF_NZ (nodeToImport);
+            return TRUE; /* true, because this Is an IMPORT statement...*/
+        }
         ASSERT(me->lexer->curID);
         alias = STRDUP(me->lexer->curID);
         FREE_IF_NZ(me->lexer->curID);
@@ -1370,7 +1382,10 @@ static BOOL parser_unitStatement(struct VRMLParser* me) {
     categoryname = STRDUP(me->lexer->curID);
     FREE_IF_NZ(me->lexer->curID);
 
-    if(!lexer_setCurID(me->lexer)) return TRUE; /* true, because this Is a UNIT statement...*/
+    if(!lexer_setCurID(me->lexer)) {
+        FREE_IF_NZ(categoryname);
+        return TRUE; /* true, because this Is a UNIT statement...*/
+    }
     ASSERT(me->lexer->curID);
 
     unitname = STRDUP(me->lexer->curID);
