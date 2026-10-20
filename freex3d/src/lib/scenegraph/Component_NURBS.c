@@ -1968,8 +1968,9 @@ void do_NurbsPositionInterpolator (void *node) {
 				}
 				//nk = 0;
 			}
-			if(!knots){
-				//malformed order or failed allocation: leave the interpolator not OK
+			if(!knots || px->order - 1 > NURBS_MAX_DEGREE){
+				//malformed or unsupported order, or failed allocation: leave the interpolator not OK
+				FREE_IF_NZ(knots);
 				FREE_IF_NZ(px->_xyzw.p);
 				px->_xyzw.n = 0;
 				return;
@@ -2069,8 +2070,9 @@ void do_NurbsOrientationInterpolator (void *node) {
 				}
 				//nk = 0;
 			}
-			if(!knots){
-				//malformed order or failed allocation: leave the interpolator not OK
+			if(!knots || px->order - 1 > NURBS_MAX_DEGREE){
+				//malformed or unsupported order, or failed allocation: leave the interpolator not OK
+				FREE_IF_NZ(knots);
 				FREE_IF_NZ(px->_xyzw.p);
 				px->_xyzw.n = 0;
 				return;
@@ -2227,7 +2229,9 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			}
 			nu = node->uDimension;
 			nv = node->vDimension;
-			if(!nurbs_surface_fits(nu,nv,n) || nu * nv != n || nu < node->uOrder || nv < node->vOrder){
+			if(!nurbs_surface_fits(nu,nv,n) || nu * nv != n || nu < node->uOrder || nv < node->vOrder
+				|| node->uOrder < 1 || node->vOrder < 1
+				|| node->uOrder - 1 > NURBS_MAX_DEGREE || node->vOrder - 1 > NURBS_MAX_DEGREE){
 				FREE_IF_NZ(xyzw);
 				return;
 			}
