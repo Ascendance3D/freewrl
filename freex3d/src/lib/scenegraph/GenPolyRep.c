@@ -165,14 +165,26 @@ int checkX3DElevationGridFields (struct X3D_ElevationGrid *this_, float **points
 	/* make up points array */
 	/* a point is a vertex and consists of 3 floats (x,y,z) */
 	newpoints = MALLOC (float *, sizeof (float) * nz * nx * 3);
+	cindexptr = MALLOC (int *, sizeof(int) * nquads * 5);
+	if (!newpoints || !cindexptr || (!(this_->texCoord) && !tcoord)) {
+		/* out of memory: nx, nz >= 2 here, so no size is zero */
+		printf ("ElevationGrid: out of memory for %d x %d grid\n", nx, nz);
+		FREE_IF_NZ(newpoints);
+		FREE_IF_NZ(cindexptr);
+		if (tcoord) {
+			/* tcoord is rep->GeneratedTexCoords[0] */
+			rep->GeneratedTexCoords[0] = NULL;
+			FREE_IF_NZ(tcoord);
+		}
+		return FALSE;
+	}
 	 
 	FREE_IF_NZ(rep->actualCoord);
 	rep->actualCoord = (float *)newpoints;
 
 	/* make up coord index */
 	if (this_->_coordIndex.n > 0) {FREE_IF_NZ(this_->_coordIndex.p);}
-	this_->_coordIndex.p = MALLOC (int *, sizeof(int) * nquads * 5);
-	cindexptr = this_->_coordIndex.p;
+	this_->_coordIndex.p = cindexptr;
 
 	this_->_coordIndex.n = nquads * 5;
 	/* return the newpoints array to the caller */
@@ -198,7 +210,7 @@ int checkX3DElevationGridFields (struct X3D_ElevationGrid *this_, float **points
 
 	/* tex coords These need to be streamed now; that means for each quad, each vertex needs its tex coords. */
 	/* if the texCoord node exists, let render_TextureCoordinate (or whatever the node is) do our work for us */
-	if (!(this_->texCoord)) {
+	if (tcoord) {
 		for (j = 0; j < (nz -1); j++) {
 			for (i=0; i < (nx-1) ; i++) {
 				/* first triangle, 3 vertexes */
@@ -266,6 +278,12 @@ static void checkIndexedTriangleStripSetFields (struct X3D_IndexedTriangleStripS
 	}
 
 	newIndex = MALLOC (int *, sizeof(int) * IndexSize);
+	if (!newIndex) {
+		/* empty index (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.p = NULL;
+		node->_coordIndex.n = 0;
+		return;
+	}
 
 	/* now calculate the indexes */
 	xx=0;
@@ -330,6 +348,12 @@ static void checkIndexedTriangleFanSetFields (struct X3D_IndexedTriangleFanSet *
 	}
 
 	newIndex = MALLOC (int *, sizeof(int) * IndexSize);
+	if (!newIndex) {
+		/* empty index (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.p = NULL;
+		node->_coordIndex.n = 0;
+		return;
+	}
 	/* now calculate the indexes */
 
 	xx=0;
@@ -383,6 +407,12 @@ static void checkIndexedTriangleSetFields (struct X3D_IndexedTriangleSet *node) 
 	}
 
 	newIndex = MALLOC (int *, sizeof(int) * IndexSize);
+	if (!newIndex) {
+		/* empty index (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.p = NULL;
+		node->_coordIndex.n = 0;
+		return;
+	}
 	zz = 0; yy=0;
 	/* printf ("index: "); */
 	for (xx = 0; xx < node->index.n; xx++) {
@@ -420,7 +450,7 @@ static void checkTriangleFanSetFields (struct X3D_TriangleFanSet *node) {
 	/* calculate the size of the Index array */
 	for (xx=0; xx<(node->fanCount).n; xx++) {
 		/* printf ("fanCount %d is %d  \n",xx,(node->fanCount).p[xx]); */
-		IndexSize += ((node->fanCount).p[xx]-2) * 4;
+		if ((node->fanCount).p[xx] >= 3) IndexSize += ((node->fanCount).p[xx]-2) * 4;
 		/* bounds checking... */
 		if ((node->fanCount).p[xx] < 3) {
 			printf ("TriangleFanSet, fanCount index %d is less than 3\n", (node->fanCount).p[xx]);
@@ -430,6 +460,11 @@ static void checkTriangleFanSetFields (struct X3D_TriangleFanSet *node) {
 	/* printf ("IndexSize is %d\n",IndexSize); */
 	node->_coordIndex.p = MALLOC (int *, sizeof(int) * IndexSize);
 	node->_coordIndex.n = IndexSize;
+	if (!node->_coordIndex.p) {
+		/* empty (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.n = 0;
+		return;
+	}
 	IndexSize = 0; /* for assigning the indexes */
 
 	/* now calculate the indexes */
@@ -471,6 +506,12 @@ static void checkIndexedQuadSetFields (struct X3D_IndexedQuadSet *node) {
     // as we make this into an IndexedFaceSet, with each Quad being a "face"
     
 	newIndex = MALLOC (int *, sizeof(int) * IndexSize * 5 / 4);
+	if (!newIndex) {
+		/* empty index (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.p = NULL;
+		node->_coordIndex.n = 0;
+		return;
+	}
 	newIndexPtr = newIndex; 
     yy=0;
 	/* printf ("index: "); */
@@ -522,6 +563,11 @@ static void checkQuadSetFields(struct X3D_QuadSet *node) {
     //printf ("IndexSize is %d\n",IndexSize);
 	node->_coordIndex.p = MALLOC (int *, sizeof(int) * IndexSize);
 	node->_coordIndex.n = IndexSize;
+	if (!node->_coordIndex.p) {
+		/* empty (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.n = 0;
+		return;
+	}
     
 	IndexSize = 0; /* for assigning the indexes */
     
@@ -559,7 +605,7 @@ static void checkTriangleStripSetFields (struct X3D_TriangleStripSet *node) {
 	/* calculate the size of the Index array */
 	for (xx=0; xx<(node->stripCount).n; xx++) {
 		 /* printf ("stripCount %d is %d  \n",xx,(node->stripCount).p[xx]); */
-		IndexSize += ((node->stripCount).p[xx]-2) * 4;
+		if ((node->stripCount).p[xx] >= 3) IndexSize += ((node->stripCount).p[xx]-2) * 4;
 		/* bounds checking... */
 		if ((node->stripCount).p[xx] < 3) {
 			printf ("TriangleStripSet, index %d is less than 3\n",
@@ -570,6 +616,11 @@ static void checkTriangleStripSetFields (struct X3D_TriangleStripSet *node) {
 	/* printf ("IndexSize is %d\n",IndexSize); */
 	node->_coordIndex.p = MALLOC (int *, sizeof(int) * IndexSize);
 	node->_coordIndex.n = IndexSize;
+	if (!node->_coordIndex.p) {
+		/* empty (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.n = 0;
+		return;
+	}
 	IndexSize = 0; /* for assigning the indexes */
 			
 	/* now calculate the indexes */
@@ -625,6 +676,11 @@ static void checkTriangleSetFields (struct X3D_TriangleSet *node) {
 	/* printf ("IndexSize is %d\n",IndexSize); */
 	node->_coordIndex.p = MALLOC (int *, sizeof(int) * IndexSize);
 	node->_coordIndex.n = IndexSize;
+	if (!node->_coordIndex.p) {
+		/* empty (IndexSize 0) or out of memory: no faces */
+		node->_coordIndex.n = 0;
+		return;
+	}
 
 	IndexSize = 0; /* for assigning the indexes */
 			
@@ -1043,6 +1099,10 @@ void make_genericfaceset(struct X3D_IndexedFaceSet *node) {
 
 	/* count the faces in this polyrep and allocate memory. */
 	faceok = MALLOC(struct facepar *, sizeof(struct facepar)*(cin/2+1));
+	if (!faceok) {
+		rep_->ntri = 0;
+		return;
+	}
 	faces = count_IFS_faces (cin,orig_coordIndex,faceok);
 	#ifdef VERBOSE
 	printf ("faces %d, cin %d npoints %d\n",faces,cin,npoints);
@@ -1064,6 +1124,13 @@ void make_genericfaceset(struct X3D_IndexedFaceSet *node) {
 	//facenormals = MALLOC(struct point_XYZ *, sizeof(struct point_XYZ)*faces); // sizeof(*facenormals)
 	facenormals = MALLOC(struct SFVec3f *, sizeof(struct SFVec3f)*faces); // sizeof(*facenormals)
 	pointfaces = MALLOC(int *, sizeof(int)*npoints*POINT_FACES); /* save max x points */ //sizeof(*pointfaces)
+	if (!facenormals || !pointfaces) {
+		rep_->ntri=0;
+		FREE_IF_NZ (facenormals);
+		FREE_IF_NZ (faceok);
+		FREE_IF_NZ (pointfaces);
+		return;
+	}
 
 	/* generate the face-normals table, so for each face, we know the normal
 	   and for each point, we know the faces that it is in */
@@ -1578,6 +1645,7 @@ void stream_extrusion_texture_coords (struct X3D_PolyRep *rep_,
 	rep_->GeneratedTexCoords[0] = MALLOC (float *, sizeof(float) * 2 * 3 * rep_->ntri);
 
 	nc = rep_->GeneratedTexCoords[0];
+	if (!nc) return; /* no triangles, or out of memory */
 
 	/* go through - note now that the "span" is 2 floats per vertex, while the old
 	   method (used when the extrusion code was written) was to use 3 floats, but
