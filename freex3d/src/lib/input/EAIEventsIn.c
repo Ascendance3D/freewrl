@@ -403,6 +403,10 @@ void EAI_core_commands () {
 	/* output buffer - start off with it this size */
 	th->outBufferLen = EAIREADSIZE;
 	th->outBuffer = MALLOC(char *, th->outBufferLen);
+	if (th->outBuffer == NULL) {
+		ConsoleMessage ("EAI_core_commands: cannot allocate outBuffer\n");
+		return;
+	}
 	th->outBuffer[0] = 0;
 
 	if (EAI_BUFFER_CUR> 0) {
@@ -563,7 +567,7 @@ void EAI_core_commands () {
 
 				/*format int seq# COMMAND  int node#   string fieldname   string direction*/
 
-				retint=sscanf (&EAI_BUFFER_CUR,"%d %s %s",&xtmp, ctmp,dtmp);
+				retint=sscanf (&EAI_BUFFER_CUR,"%d %8191s %8191s",&xtmp, ctmp,dtmp);
 				if (eaiverbose) { printf ("\n"); } /* need to fix the dangling printf before the case statement */
 				if (eaiverbose) {	
 					printf ("GETFIELDTYPE cptr %d %s %s\n",xtmp, ctmp, dtmp);
@@ -701,7 +705,7 @@ However, nowadays we do not read any sockets directly....
 
 				/*format int seq# COMMAND  int node#   ParentNode field ChildNode*/
 
-				retint=sscanf (&EAI_BUFFER_CUR,"%d %d %s %d",&ra,&rb,ctmp,&rc);
+				retint=sscanf (&EAI_BUFFER_CUR,"%d %d %8191s %d",&ra,&rb,ctmp,&rc);
 
 				node = getEAINodeFromTable(ra,rb);
 				address = getEAIMemoryPointer (ra,rb);
@@ -733,11 +737,11 @@ printf ("REGLISTENER, calling getEAINodeFromTable(%d, %d)\n",tmp_a,tmp_b);
 				node = getEAINodeFromTable(tmp_a, tmp_b);
 printf ("REGLISTENER, calling getEAIActualOffset(%d, %d)\n",tmp_a,tmp_b);
 				offset = getEAIActualOffset(tmp_a, tmp_b);
-printf ("REGLISTENER, have node %p, offset %d (%s)\n",node,offset, stringNodeType(node->_nodeType));
+if (node != NULL) printf ("REGLISTENER, have node %p, offset %d (%s)\n",node,offset, stringNodeType(node->_nodeType));
 printf ("REGLISTENER, ctmp tells us that type is %c\n",ctmp[0]);
 
 				/* is this a script node? if so, get the actual string name in the table for this one */
-				if (node->_nodeType == NODE_Script) {
+				if (node != NULL && node->_nodeType == NODE_Script) {
 					struct Shader_Script * sp;
 
 					/* we send along the script number, not the node pointer */
@@ -769,7 +773,11 @@ printf ("REGLISTENER, ctmp tells us that type is %c\n",ctmp[0]);
 
 				// encode field type, node id, and field offset id here
 				struct EAI_Extra_Data *ed = MALLOC(struct EAI_Extra_Data *,sizeof(struct EAI_Extra_Data));
-				ed->field_type = mapEAItypeToFieldType(ctmp[0]);
+				if (ed == NULL) {
+						ConsoleMessage ("EAI_core_commands: cannot allocate EAI_Extra_Data\n");
+						break;
+					}
+					ed->field_type = mapEAItypeToFieldType(ctmp[0]);
 				ed->listener_id = count;
 				ed->field_id = tmp_b;
 				ed-> node_id = tmp_a;
@@ -810,7 +818,7 @@ printf ("registering, field_id %d, node_id %d, field_type %d, listener_id %d\n",
 				node = getEAINodeFromTable(tmp_a,tmp_b);
 				offset = getEAIActualOffset(tmp_a,tmp_b);
 
-				if (node->_nodeType == NODE_Script) {
+				if (node != NULL && node->_nodeType == NODE_Script) {
 					struct Shader_Script * sp;
 
 					/* we send along the script number, not the node pointer */
@@ -1082,7 +1090,7 @@ static void handleGETNODE (char *bufptr, int repno) {
 
 	UNUSED(retint); // for compiler warnings
 
-	retint=sscanf (bufptr," %s",ctmp);
+	retint=sscanf (bufptr," %199s",ctmp);
 
 	if (eaiverbose) {	
 		printf ("GETNODE %s\n",ctmp); 
@@ -1273,7 +1281,8 @@ static void handleRoute (char command, char *bufptr, int repno) {
         x = fieldTemp; ftlen = 0;
 
 	/* skip to the beginning of the field name */
-        while (*bufptr != ' ') bufptr++; while (*bufptr == ' ') bufptr++;
+        while (*bufptr != ' ') bufptr++;
+	while (*bufptr == ' ') bufptr++;
 
 	/* copy the field over */
         while ((*bufptr > ' ') && (ftlen <1000)) { *x = *bufptr;      x++; bufptr++; ftlen++;}
@@ -1284,7 +1293,8 @@ static void handleRoute (char command, char *bufptr, int repno) {
 
 
 	/* skip past the first field, to get ready for the next one */
-	while (*bufptr != ' ') bufptr++; while (*bufptr == ' ') bufptr++;
+	while (*bufptr != ' ') bufptr++;
+	while (*bufptr == ' ') bufptr++;
 
 	/* ------- now, the route to section -------- */
 	/* get the to Node */
@@ -1295,7 +1305,8 @@ static void handleRoute (char command, char *bufptr, int repno) {
         x = fieldTemp; ftlen = 0;
 
 	/* skip to the beginning of the field name */
-        while (*bufptr != ' ') bufptr++; while (*bufptr == ' ') bufptr++;
+        while (*bufptr != ' ') bufptr++;
+	while (*bufptr == ' ') bufptr++;
 
 	/* copy the field over */
         while ((*bufptr > ' ') && (ftlen <1000)) { *x = *bufptr;      x++; bufptr++; ftlen++;}
@@ -1490,7 +1501,9 @@ void createLoadURL(char *bufptr) {
 		spbrk = strstr(bufptr,strbrk);
 		if (spbrk!=NULL) *spbrk='\0';
 
-		p->EAI_AnchorNode.url.p[count] = newASCIIString(bufptr);
+		if (p->EAI_AnchorNode.url.p != NULL) {
+				p->EAI_AnchorNode.url.p[count] = newASCIIString(bufptr);
+			}
 
 		if (spbrk!=NULL) bufptr = spbrk;
 	}
