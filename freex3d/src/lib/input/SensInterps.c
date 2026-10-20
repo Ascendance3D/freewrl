@@ -2647,6 +2647,9 @@ void do_MultiTouchSensor ( void *ptr, int ev, int but1, int over) {
 				node->trackPoints_changed.n = ndrag;
 				node->touches_changed.p = tmp_tc;
 				node->touches_changed.n = ndrag;
+			} else {
+				node->trackPoints_changed.n = 0;
+				node->touches_changed.n = 0;
 			}
 
 			for(int i=0; i<ndrag; i++){
