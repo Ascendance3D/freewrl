@@ -1667,7 +1667,11 @@ void stream_extrusion_texture_coords (struct X3D_PolyRep *rep_,
 	rep_->GeneratedTexCoords[0] = MALLOC (float *, sizeof(float) * 2 * 3 * rep_->ntri);
 
 	nc = rep_->GeneratedTexCoords[0];
-	if (!nc) return; /* no triangles, or out of memory */
+	if (!nc) {
+		/* no triangles, or out of memory: stream nothing rather than untextured triangles */
+		rep_->ntri = 0;
+		return;
+	}
 
 	/* go through - note now that the "span" is 2 floats per vertex, while the old
 	   method (used when the extrusion code was written) was to use 3 floats, but
