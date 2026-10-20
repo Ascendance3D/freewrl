@@ -273,6 +273,7 @@ void render_DirectionalLight0(struct X3D_Node* parent, struct X3D_DirectionalLig
 				mesa_Ortho(ed[1], ed[0], ed[3], ed[2], .1, ed[4], lightrep->matproj);
 
 				set_debug_quad_near_farplane(eout6[4], eout6[5]);
+					matidentity4d(uhit.extra);
 			}
 			else if (method == 1) {
 				//convert extent in lightview space into an equivalent transform
