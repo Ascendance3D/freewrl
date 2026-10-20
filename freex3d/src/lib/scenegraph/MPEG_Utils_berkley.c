@@ -1315,14 +1315,22 @@ ExecuteTexture(vid_stream)
   int hsize;
   int tmpvv;
   int blockSize;
+  int targetSize;
   char *tmpptr;
 
   // v_size = height, h_size = width (vertical, horizontal) 
   static GLubyte *Image = NULL;
   static int lastsize = 0;
 	blockSize = sizeof(GLubyte) * 3 * vid_stream->v_size * vid_stream->h_size;
-  if(Image == NULL || blockSize != lastsize)
-	Image = realloc(Image,blockSize);
+  if (blockSize == 0) return;
+  if (Image == NULL || blockSize != lastsize) {
+	GLubyte *tmp = realloc(Image, blockSize);
+	if (!tmp) {
+		return;
+	}
+	Image = tmp;
+	lastsize = blockSize;
+  }
   //GLubyte Image[vid_stream->v_size][vid_stream->h_size][3];
 
   // if the hsize is a power of 2. 
@@ -1351,7 +1359,14 @@ ExecuteTexture(vid_stream)
 
   	//blockSize = sizeof(GLubyte) * 3 * vid_stream->v_size * vid_stream->h_size;
 
-        dataPointer = realloc(dataPointer,blockSize * (*frameCount));
+	targetSize = blockSize * (*frameCount);
+	if (targetSize == 0) return;
+	tmpptr = realloc(dataPointer, targetSize);
+	if (!tmpptr) {
+		return;
+	}
+	dataPointer = tmpptr;
+
 	tmpptr = dataPointer + (blockSize * ((*frameCount)-1));
 
         memcpy (tmpptr, Image, blockSize);
@@ -1544,14 +1559,31 @@ char *get_ext_data (vid_stream)
     /* If end of ext data buffer reached, resize data buffer. */
 
     if (marker == size) {
+      char *tmp;
       size += EXT_BUF_SIZE;
-      dataPtr = (char *) realloc(dataPtr, size);
+      tmp = (char *) realloc(dataPtr, size);
+      if (!tmp) {
+          free(dataPtr);
+          return NULL;
+      }
+      dataPtr = tmp;
     }
   }
 
   /* Realloc data buffer to free any extra space. */
 
-  dataPtr = (char *) realloc(dataPtr, marker);
+  if (marker == 0) {
+      free(dataPtr);
+      return NULL;
+  }
+  {
+      char *tmp = (char *) realloc(dataPtr, marker);
+      if (!tmp) {
+          free(dataPtr);
+          return NULL;
+      }
+      dataPtr = tmp;
+  }
 
   /* Return pointer to ext data buffer. */
   return dataPtr;
@@ -1747,7 +1779,14 @@ mpeg_VidStream *vid_stream;
 
     if (marker == size) {
       size += EXT_BUF_SIZE;
-      dataPtr = (char *) realloc(dataPtr, size);
+      {
+      char *tmp = (char *) realloc(dataPtr, size);
+      if (!tmp) {
+          free(dataPtr);
+          return NULL;
+      }
+      dataPtr = tmp;
+      }
     }
 
     /* Get next flag bit. */
@@ -1755,7 +1794,14 @@ mpeg_VidStream *vid_stream;
   }
 
   /* Reallocate buffer to free extra space. */
-  dataPtr = (char *) realloc(dataPtr, marker);
+  {
+      char *tmp = (char *) realloc(dataPtr, marker);
+      if (!tmp) {
+          free(dataPtr);
+          return NULL;
+      }
+      dataPtr = tmp;
+  }
 
   /* Return pointer to extra bit info buffer. */
   return dataPtr;
