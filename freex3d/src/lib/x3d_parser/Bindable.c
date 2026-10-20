@@ -143,7 +143,7 @@ bindablestack* getBindableStacksByLayer(ttglobal tg, int layerId )
 	bstack = NULL; // vector_get(bindablestack*,tg->Bindable.bstacks,0); //default
 	for(i=0;i<vectorSize(tg->Bindable.bstacks);i++){
 		bstacktmp = vector_get(bindablestack*,tg->Bindable.bstacks,i);
-		if(bstacktmp->layerId == layerId){
+		if(bstacktmp && bstacktmp->layerId == layerId){
 			bstack = bstacktmp;
 			break;
 		}
@@ -358,20 +358,27 @@ void send_bind_to(struct X3D_Node *node, int value) {
 	int layerId;
 	ttglobal tg = gglobal();
 	//printf ("\n%lf: send_bind_to, nodetype %s node %p value %d\n",TickTime(),stringNodeType(node->_nodeType),node,value);  
+	bindablestack* bstack;
 
 	layerId = layerFromBindable(node);
 	switch (node->_nodeType) {
 	case NODE_Background:  {
 		struct X3D_Background *bg = (struct X3D_Background *) node;
 		bg->set_bind = value;
-		bind_node (node, getBindableStacksByLayer(tg,bg->_layerId)->background); //tg->Bindable.background_stack
+		bstack = getBindableStacksByLayer(tg,bg->_layerId);
+		if (bstack) {
+			bind_node (node, bstack->background); //tg->Bindable.background_stack
+		}
 		break;
 		}
 
 	case NODE_TextureBackground: {
 		struct X3D_TextureBackground *tbg = (struct X3D_TextureBackground *) node;
 		tbg->set_bind = value;
-		bind_node (node, getBindableStacksByLayer(tg,tbg->_layerId)->background);
+		bstack = getBindableStacksByLayer(tg,tbg->_layerId);
+		if (bstack) {
+			bind_node (node, bstack->background);
+		}
 		break;
 		}
 
@@ -380,8 +387,11 @@ void send_bind_to(struct X3D_Node *node, int value) {
 		ovp->set_bind = value;
 		//ovp->set_bind = ovp->_reachablethispass ? value : 0;
 		setMenuStatusVP (ovp->description->strptr);
-		bind_node (node, getBindableStacksByLayer(tg,ovp->_layerId)->viewpoint);
-		if (value == 1) { //ovp->set_bind > 0) {
+		bstack = getBindableStacksByLayer(tg,ovp->_layerId);
+		if (bstack) {
+			bind_node (node, bstack->viewpoint);
+		}
+		if (value == 1 && bstack) { //ovp->set_bind > 0) {
 			bind_OrthoViewpoint(ovp);
 		}
 		break;
@@ -391,8 +401,11 @@ void send_bind_to(struct X3D_Node *node, int value) {
 		struct X3D_Viewpoint* vp = (struct X3D_Viewpoint*)node;
 		vp->set_bind = value;
 		setMenuStatusVP (vp->description->strptr);
-		bind_node(node, getBindableStacksByLayer(tg, vp->_layerId)->viewpoint);
-		if (value == 1) {
+		bstack = getBindableStacksByLayer(tg, vp->_layerId);
+		if (bstack) {
+			bind_node(node, bstack->viewpoint);
+		}
+		if (value == 1 && bstack) {
 			bind_Viewpoint(vp);
 		}
 		break;
@@ -402,8 +415,11 @@ void send_bind_to(struct X3D_Node *node, int value) {
 		struct X3D_GeoViewpoint* gvp = (struct X3D_GeoViewpoint*)node;
 		gvp->set_bind = value;
 		setMenuStatusVP(gvp->description->strptr);
-		bind_node(node, getBindableStacksByLayer(tg, gvp->_layerId)->viewpoint);
-		if (value == 1) {
+		bstack = getBindableStacksByLayer(tg, gvp->_layerId);
+		if (bstack) {
+			bind_node(node, bstack->viewpoint);
+		}
+		if (value == 1 && bstack) {
 			bind_GeoViewpoint(gvp);
 		}
 		break;
@@ -413,8 +429,11 @@ void send_bind_to(struct X3D_Node *node, int value) {
 	case NODE_Fog:  {
 		struct X3D_Fog *fg = (struct X3D_Fog *) node;
 		fg->set_bind = value;
-		bind_node (node, getBindableStacksByLayer(tg,fg->_layerId)->fog);
-		if(value==1){
+		bstack = getBindableStacksByLayer(tg,fg->_layerId);
+		if (bstack) {
+			bind_node (node, bstack->fog);
+		}
+		if(value==1 && bstack){
 			bind_Fog(fg);
 		}
 		break;
@@ -423,8 +442,11 @@ void send_bind_to(struct X3D_Node *node, int value) {
 	case NODE_NavigationInfo:  {
 		struct X3D_NavigationInfo *nv = (struct X3D_NavigationInfo *) node;
 		nv->set_bind = value;
-		bind_node (node, getBindableStacksByLayer(tg,nv->_layerId)->navigation);
-		if (value==1) set_naviinfo(nv);
+		bstack = getBindableStacksByLayer(tg,nv->_layerId);
+		if (bstack) {
+			bind_node (node, bstack->navigation);
+		}
+		if (value==1 && bstack) set_naviinfo(nv);
 		break;
 		}
 
@@ -661,8 +683,10 @@ void render_Fog_OLD (struct X3D_Fog *node) {
 
 	/* check the set_bind eventin to see if it is TRUE or FALSE */
 	if (node->set_bind < 100) {
+		bindablestack* bstack = getActiveBindableStacks(tg);
+		if (!bstack) return;
 
-		bind_node (X3D_NODE(node), getActiveBindableStacks(tg)->fog);
+		bind_node (X3D_NODE(node), bstack->fog);
 
 		/* if we do not have any more nodes on top of stack, disable fog */
 		glDisable(GL_FOG);
@@ -1145,7 +1169,7 @@ static void recalculateBackgroundVectors(struct X3D_Background *node) {
 		*quadcount = 0;
 		if (node->_nodeType == NODE_Background) {
 			MARK_NODE_COMPILED
-		} else {
+		} else if (tbnode) {
 			tbnode->_ichange = tbnode->_change; /* mimic MARK_NODE_COMPILED */
 		}
 		return;
@@ -1183,6 +1207,14 @@ static void recalculateBackgroundVectors(struct X3D_Background *node) {
 	float *s_angle = MALLOC (float *, sizeof (float) * (s_vdiv+1));
 	struct SFColor * g_color = MALLOC(struct SFColor*,sizeof(struct SFColor)*(g_vdiv+1) );
 	struct SFColor * s_color = MALLOC(struct SFColor*,sizeof(struct SFColor)*(s_vdiv+1) );
+
+	if (!g_angle || !s_angle || !g_color || !s_color) {
+		FREE_IF_NZ(g_angle);
+		FREE_IF_NZ(s_angle);
+		FREE_IF_NZ(g_color);
+		FREE_IF_NZ(s_color);
+		return;
+	}
 
 	g_angle[0] = 0.0f;
 	if(g_vdiv)
@@ -1413,6 +1445,14 @@ static void recalculateTextureBackgroundVectors(struct X3D_TextureBackground* no
 	struct SFColor* g_color = MALLOC(struct SFColor*, sizeof(struct SFColor) * (g_vdiv + 1));
 	struct SFColor* s_color = MALLOC(struct SFColor*, sizeof(struct SFColor) * (s_vdiv + 1));
 
+	if (!g_angle || !s_angle || !g_color || !s_color) {
+		FREE_IF_NZ(g_angle);
+		FREE_IF_NZ(s_angle);
+		FREE_IF_NZ(g_color);
+		FREE_IF_NZ(s_color);
+		return;
+	}
+
 	g_angle[0] = 0.0f;
 	if (g_vdiv)
 		for (int i = 0; i < g_vdiv + 1; i++) {
@@ -1589,14 +1629,16 @@ void render_Background_OLD (struct X3D_Background *node) {
 
 	/* printf ("RBG, num %d node %d ib %d sb %d gepvp\n",node->__BGNumber, node,node->isBound,node->set_bind);    */
 	/* check the set_bind eventin to see if it is TRUE or FALSE */
+	bindablestack* bstack = getActiveBindableStacks(tg);
+	if (!bstack) return;
 	if (node->set_bind < 100) {
-		bind_node (X3D_NODE(node), getActiveBindableStacks(tg)->background);
+		bind_node (X3D_NODE(node), bstack->background);
 	}
 
 	/* don't even bother going further if this node is not bound on the top */
 	if(!node->isBound) return;
 
-	if (vectorSize(getActiveBindableStacks(tg)->fog) >0) glDisable(GL_FOG);
+	if (vectorSize(bstack->fog) >0) glDisable(GL_FOG);
 
 	/* Cannot start_list() because of moving center, so we do our own list later */
 	moveBackgroundCentre();
@@ -1660,7 +1702,7 @@ void render_Background_OLD (struct X3D_Background *node) {
 	FW_GL_POP_MATRIX();
 
 	/* is fog enabled? if so, disable it right now */
-	if (vectorSize(getActiveBindableStacks(tg)->fog) >0) glEnable(GL_FOG);
+	if (bstack && vectorSize(bstack->fog) >0) glEnable(GL_FOG);
 }
 //void prep_Background (struct X3D_Background *node) {
 //	ttglobal tg = gglobal();
@@ -1721,7 +1763,9 @@ void render_prepped_Background(struct X3D_Background *node){
 	ttglobal tg = gglobal();
 	X3D_Viewer *viewer = Viewer();
 
-	if (vectorSize(getActiveBindableStacks(tg)->fog) >0) glDisable(GL_FOG);
+	bindablestack* bstack = getActiveBindableStacks(tg);
+	if (!bstack) return;
+	if (vectorSize(bstack->fog) >0) glDisable(GL_FOG);
 
 	/* Cannot start_list() because of moving center, so we do our own list later */
 
@@ -1870,7 +1914,7 @@ void render_prepped_Background(struct X3D_Background *node){
 	FW_GL_POP_MATRIX();
 
 	/* is fog enabled? if so, disable it right now */
-	if (vectorSize(getActiveBindableStacks(tg)->fog) >0) glEnable(GL_FOG);
+	if (vectorSize(bstack->fog) >0) glEnable(GL_FOG);
 }
 
 
@@ -1884,8 +1928,10 @@ void render_TextureBackground_OLD (struct X3D_TextureBackground *node) {
 
 	/* printf ("RTBG, node %d ib %d sb %d gepvp\n",node,node->isBound,node->set_bind);  */
 	/* check the set_bind eventin to see if it is TRUE or FALSE */
+	bindablestack* bstack = getActiveBindableStacks(tg);
+	if (!bstack) return;
 	if (node->set_bind < 100) {
-		bind_node (X3D_NODE(node), getActiveBindableStacks(tg)->background);
+		bind_node (X3D_NODE(node), bstack->background);
 	}
 
 	/* don't even bother going further if this node is not bound on the top */
@@ -1944,7 +1990,7 @@ void render_TextureBackground_OLD (struct X3D_TextureBackground *node) {
 	/* pushes are done in moveBackgroundCentre */
 	FW_GL_POP_MATRIX();
 
-	if (vectorSize(getActiveBindableStacks(tg)->fog) >0) glEnable (GL_FOG);
+	if (vectorSize(bstack->fog) >0) glEnable (GL_FOG);
 }
 
 //void prep_TextureBackground (struct X3D_TextureBackground *node) {
@@ -1967,7 +2013,9 @@ void render_prepped_TextureBackground(struct X3D_TextureBackground *node) {
 	ttglobal tg = gglobal();
 	X3D_Viewer* viewer = Viewer();
 
-	if (vectorSize(getActiveBindableStacks(tg)->fog) > 0) glDisable(GL_FOG);
+	bindablestack* bstack = getActiveBindableStacks(tg);
+	if (!bstack) return;
+	if (vectorSize(bstack->fog) > 0) glDisable(GL_FOG);
 
 	/* Cannot start_list() because of moving center, so we do our own list later */
 
@@ -2120,7 +2168,7 @@ void render_prepped_TextureBackground(struct X3D_TextureBackground *node) {
 	FW_GL_POP_MATRIX();
 
 	/* is fog enabled? if so, disable it right now */
-	if (vectorSize(getActiveBindableStacks(tg)->fog) > 0) glEnable(GL_FOG);
+	if (vectorSize(bstack->fog) > 0) glEnable(GL_FOG);
 }
 
 void render_bound_background(){
@@ -2128,8 +2176,10 @@ void render_bound_background(){
 	// - so can turn off gl depth and don't need to scale it up - can be unit sphere, unit cube
 
 	ttglobal tg = gglobal();
-	if (vectorSize(getActiveBindableStacks(tg)->background) >0){
-		struct X3D_Node * node = vector_back(struct X3D_Node *,getActiveBindableStacks(tg)->background);
+	bindablestack* bstack = getActiveBindableStacks(tg);
+	if (!bstack) return;
+	if (vectorSize(bstack->background) >0){
+		struct X3D_Node * node = vector_back(struct X3D_Node *,bstack->background);
 		switch(node->_nodeType){
 			case NODE_Background: 
 				render_prepped_Background((struct X3D_Background*)node); 
