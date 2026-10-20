@@ -562,7 +562,7 @@ static GLfloat *newUniformKnotVector(int order, int ncontrol, int *nknots){
 int knotsOK(int order, int ncontrol, int nknots, double *knots){
 	int ok = TRUE;
 
-	if(nknots < 2 || nknots != ncontrol + order ) 
+	if(!knots || order < 1 || ncontrol < order || nknots < 2 || nknots != ncontrol + order )
 		ok = FALSE;
 	if(ok){
 		int i,nconsec = 1;
@@ -583,7 +583,7 @@ int knotsOK(int order, int ncontrol, int nknots, double *knots){
 int knotsOKf(int order, int ncontrol, int nknots, float *knots){
 	int ok = TRUE;
 
-	if(nknots < 2 || nknots != ncontrol + order ) 
+	if(!knots || order < 1 || ncontrol < order || nknots < 2 || nknots != ncontrol + order )
 		ok = FALSE;
 	if(ok){
 		int i, nconsec = 1;
@@ -614,6 +614,7 @@ void compile_ContourPolyline2D(struct X3D_ContourPolyline2D *node){
 
 void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 	MARK_NODE_COMPILED
+	node->__numPoints = 0;
 	{
 		int i,j, n, nk;
 		GLfloat *xyzw, *knots;
@@ -888,6 +889,12 @@ int getNurbsSurfacePoint(struct X3D_Node *nurbsSurfaceNode, float *uv, float *xy
 				{
 					struct X3D_NurbsTextureCoordinate *node = (struct X3D_NurbsTextureCoordinate *)PPX(nurbsSurfaceNode);
 					if(NNC(node)) compile_NurbsTextureCoordinate(node);
+					/* bad order or out of memory leaves NULL buffers; a short controlPoint list is too small for the grid */
+					if(!node->_uKnot.p || !node->_vKnot.p || !node->_controlPoint.p
+						|| node->uOrder < 1 || node->vOrder < 1
+						|| node->uDimension < node->uOrder || node->vDimension < node->vOrder
+						|| (long long)node->uDimension * (long long)node->vDimension > (long long)node->_controlPoint.n)
+						break;
 					ret = SurfacePoint(	node->uDimension,node->uOrder-1,node->_uKnot.p, 
 										node->vDimension,node->vOrder-1,node->_vKnot.p,
 										(float *)node->_controlPoint.p,uv[0],uv[1],xyz);
@@ -1180,7 +1187,8 @@ void convert_strips_to_polyrep(struct Vector * strips,struct X3D_NurbsTrimmedSur
 			xyz[1] = tcoord[i*2 + 0]; //don't know why but I have to swap xy to match octaga
 			xyz[2] = 0.0f;
 			xyz[3] = tcoord[i*2 + 3];
-			getNurbsSurfacePoint(node->texCoord, xyz, stru);
+			if(!getNurbsSurfacePoint(node->texCoord, xyz, stru))
+				continue; /* keep the generated texture coordinate */
 			//memcpy(&tcoord[i*2],stru,2*sizeof(float));
 			tcoord[i*2 + 0] = stru[0];
 			tcoord[i*2 + 1] = stru[1];
@@ -1692,12 +1700,22 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 								nc2d = (struct X3D_NurbsCurve2D *)ctr;
 								dim = 2;
 								nk = nc2d->controlPoint.n + nc2d->order;
-								if(nk == nc2d->knot.n)
-
-								cknot = MALLOC(void *, nk * sizeof(GLfloat));
+								if(knotsOK(nc2d->order,nc2d->controlPoint.n,nc2d->knot.n,nc2d->knot.p)){
+									cknot = MALLOC(void *, nk * sizeof(GLfloat));
+									if(cknot)
+										for(j=0;j<nk;j++)
+											cknot[j] = (float)nc2d->knot.p[j];
+								}else{
+									cknot = newUniformKnotVector(nc2d->order,nc2d->controlPoint.n,&nk);
+								}
+								if(!cknot){
+									ConsoleMessage("NurbsCurve2D trim: bad order or out of memory, skipping");
+									break;
+								}
 								if(nc2d->weight.n){ // == 3){
 									dim = 3;
 									cweight = MALLOC(void *, nc2d->controlPoint.n * sizeof(GLfloat));
+									if(!cweight) break;
 									if(nc2d->weight.n == nc2d->controlPoint.n){
 										for(j=0;j<nc2d->weight.n;j++) cweight[j] = (float)nc2d->weight.p[j];
 									}else{
@@ -1705,6 +1723,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 									}
 								}
 								ctrl = MALLOC(void *, nc2d->controlPoint.n * dim*sizeof(GLfloat));
+								if(!ctrl) break;
 								for(j=0;j<nc2d->controlPoint.n;j++) {
 									for(k=0;k<2;k++){
 										ctrl[j*dim + k] = (float)nc2d->controlPoint.p[j].c[k];
@@ -1712,22 +1731,9 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 										}
 									if(dim == 3) ctrl[j*dim + dim-1] = (float)cweight[j];
 								}
-								if(knotsOK(nc2d->order,nc2d->controlPoint.n,nc2d->knot.n,nc2d->knot.p)){
-								//if(nk == nc2d->knot.n){
-									for(j=0;j<nc2d->knot.n;j++)
-										cknot[j] = (float)nc2d->knot.p[j];
-								}else{
-									generateUniformKnotVector(nc2d->order,nc2d->controlPoint.n,cknot);
-									printf("replacing nurbscurve2D knotvector with:\n");
-									for(j=0;j<nk;j++){
-										printf("%f ",cknot[j]);
-									}
-									printf("\n");
-
-								}
 								if(DEBGC) {
-									printf("knot %d ={",nc2d->knot.n);
-									for(j=0;j<nc2d->knot.n;j++){
+									printf("knot %d ={",nk);
+									for(j=0;j<nk;j++){
 										printf("%f ",cknot[j]);
 									}
 									printf("}\n");
