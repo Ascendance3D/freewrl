@@ -1045,6 +1045,24 @@ static void parseUnit(void *ud, char **atts) {
 	handleUnitDataStringString(ec,category, name, conversionFactor);
 }
 void deleteMallocedFieldValue(int type,union anyVrml *fieldPtr);
+/* replace a field's value with the parsed svalue. An SFString is parsed into scratch
+   storage first: when the parse fails (out of memory) the old string is kept and
+   FALSE is returned, instead of leaving the field with a NULL sfstring. */
+static int replaceFieldValueFromString_B(union anyVrml *value, int type, const char *svalue){
+	if(type == FIELDTYPE_SFString){
+		union anyVrml tmp;
+		tmp.sfstring = NULL;
+		Parser_scanStringValueToMem_B(&tmp, type, svalue, TRUE);
+		if(!tmp.sfstring)
+			return FALSE;
+		deleteMallocedFieldValue(type, value);
+		value->sfstring = tmp.sfstring;
+		return TRUE;
+	}
+	deleteMallocedFieldValue(type, value);
+	Parser_scanStringValueToMem_B(value, type, svalue, TRUE);
+	return TRUE;
+}
 static void parseFieldValue_B(void *ud, char **atts) {
 	int i, type, kind, iifield, builtIn, ok;
 	const char *fname, *svalue, *cname;
@@ -1064,8 +1082,7 @@ static void parseFieldValue_B(void *ud, char **atts) {
 		ok = getFieldFromNodeAndNameC(node,fname,&type,&kind,&iifield,&builtIn,&value,&cname);
 	}
 	if(cname && value && svalue){
-		deleteMallocedFieldValue(type,value);
-		Parser_scanStringValueToMem_B(value,type,svalue,TRUE);
+		replaceFieldValueFromString_B(value,type,svalue);
 	}
 	if(cname && (node->_nodeType == NODE_Proto) && !builtIn){
 		//for protoInstances, whether or not you have a value, 
@@ -1512,8 +1529,8 @@ void startProto_B(void* ud, const char* name, struct X3D_Proto* nodetype, const 
 						ok = getFieldFromNodeAndNameC(node, fname, &type, &kind, &iifield, &builtIn, &value, &cname);
 					}
 					if (cname && value && svalue) {
-						deleteMallocedFieldValue(type, value);
-						Parser_scanStringValueToMem_B(value, type, svalue, TRUE);
+						if (!replaceFieldValueFromString_B(value, type, svalue))
+							continue; /* parse failed: keep the old value, not alreadySet */
 					}
 					if (cname && (node->_nodeType == NODE_Proto) && !builtIn) {
 						struct X3D_Proto* pnode;
@@ -1616,8 +1633,8 @@ static void parseAttributes_B(void *ud, char **atts) {
 		if(findFieldInARR(name,ignore,3) == INT_ID_UNDEFINED){
 			cname = NULL;
 			if(getFieldFromNodeAndNameU(node,name,&type,&kind,&iifield,&builtIn,&value,&iunca,&cname)){
-				deleteMallocedFieldValue(type,value);
-				Parser_scanStringValueToMem_B(value, type,svalue, TRUE);
+				if(!replaceFieldValueFromString_B(value, type, svalue))
+					continue; /* parse failed: keep the old value, skip units */
 				//apply unit conversionFactor to parsed literal field 
 				// (vs above in endBuiltin_B applyUnitsToNode)
 				if(isunits)
