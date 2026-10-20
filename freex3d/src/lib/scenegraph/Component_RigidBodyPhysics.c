@@ -635,7 +635,7 @@ void setTransformsAndGeom_E(dSpaceID space, void *csensor, struct X3D_Node* pare
 					//printf("handle collidable shape\n");
 					if(!cshape->_geom){
 						struct X3D_Shape *shape = (struct X3D_Shape*)cshape->shape;
-						dGeomID shapegid;
+						dGeomID shapegid = 0; //no shape or geometry: empty transform
 						gid = dCreateGeomTransform (space); //dSpaceID space);
 						dGeomTransformSetCleanup (gid,1);
 
