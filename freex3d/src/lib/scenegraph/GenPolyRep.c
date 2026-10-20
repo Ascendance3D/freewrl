@@ -1980,7 +1980,7 @@ void make_Extrusion(struct X3D_Extrusion *node) {
 		beginVals = MALLOC(float *, sizeof(float) * 2 * (nsec+1)*100);
 		endVals = MALLOC(float *, sizeof(float) * 2 * (nsec+1)*100);
 
-	if (!crossSection || !cindex || !coord || !rep_->normal || !rep_->norindex || !facenormals || !pointfaces
+	if (rep_->ntri == 0 || !crossSection || !cindex || !coord || !rep_->normal || !rep_->norindex || !facenormals || !pointfaces
 		|| !defaultface || !SCP || !tcoord || !tcindex || !beginVals || !endVals) {
 		/* no triangles (ntri 0 gives zero sizes) or out of memory: empty extrusion */
 		FREE_IF_NZ(cindex);
