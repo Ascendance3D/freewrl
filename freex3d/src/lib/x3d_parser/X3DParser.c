@@ -1064,7 +1064,7 @@ static int replaceFieldValueFromString_B(union anyVrml *value, int type, const c
 	return TRUE;
 }
 static void parseFieldValue_B(void *ud, char **atts) {
-	int i, type, kind, iifield, builtIn, ok;
+	int i, type, kind, iifield, builtIn, ok, parsed;
 	const char *fname, *svalue, *cname;
 	union anyVrml *value;
 	struct X3D_Node *node = getNode(ud,TOP);
@@ -1081,10 +1081,11 @@ static void parseFieldValue_B(void *ud, char **atts) {
 	if(fname){
 		ok = getFieldFromNodeAndNameC(node,fname,&type,&kind,&iifield,&builtIn,&value,&cname);
 	}
+	parsed = TRUE;
 	if(cname && value && svalue){
-		replaceFieldValueFromString_B(value,type,svalue);
+		parsed = replaceFieldValueFromString_B(value,type,svalue);
 	}
-	if(cname && (node->_nodeType == NODE_Proto) && !builtIn){
+	if(parsed && cname && (node->_nodeType == NODE_Proto) && !builtIn){
 		//for protoInstances, whether or not you have a value, 
 		//if you declare a field then you are saying you declare the value null or 0 or default at least.
 		//so for SFNode fields where <fieldValue><a node></fieldValue> and we get the node later
