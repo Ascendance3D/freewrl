@@ -562,6 +562,11 @@ void Parser_scanStringValueToMem(struct X3D_Node *node, size_t coffset, indexT c
 				v++;
 			}
 			mfstringtmp = (char *)MALLOC(void *, strlen(value)+nq+1);
+			if (!mfstringtmp) {
+				lexer_forceStringCleanup(parser->lexer);
+				parser->parsingX3DfromXML = oldXMLflag;
+				return;
+			}
 			v = value;
 			pv = NULL;
 			mv = mfstringtmp;
@@ -571,7 +576,7 @@ void Parser_scanStringValueToMem(struct X3D_Node *node, size_t coffset, indexT c
 					if(!(pv && *pv == '\\')){
 						*mv = '\\';
 						mv++;
-					}
+				}
 				}
 				*mv = *v;
 				mv++;
@@ -786,6 +791,11 @@ void Parser_scanStringValueToMem_B(union anyVrml* any, indexT ctype, char *value
 				v++;
 			}
 			mfstringtmp = (char *)MALLOC(void *, strlen(value)+nq+1);
+			if (!mfstringtmp) {
+				lexer_forceStringCleanup(parser->lexer);
+				parser->parsingX3DfromXML = oldXMLflag;
+				return;
+			}
 			v = value;
 			pv = NULL;
 			mv = mfstringtmp;
@@ -795,7 +805,7 @@ void Parser_scanStringValueToMem_B(union anyVrml* any, indexT ctype, char *value
 					if(!(pv && *pv == '\\')){
 						*mv = '\\';
 						mv++;
-					}
+				}
 				}
 				*mv = *v;
 				mv++;
@@ -1007,6 +1017,11 @@ void Parser_scanStringValueToMem_C0(struct VRMLParser *parser, union anyVrml* an
 				v++;
 			}
 			mfstringtmp = (char *)MALLOC(void *, strlen(value)+nq+1);
+			if (!mfstringtmp) {
+				lexer_forceStringCleanup(parser->lexer);
+				parser->parsingX3DfromXML = oldXMLflag;
+				return;
+			}
 			v = value;
 			pv = NULL;
 			mv = mfstringtmp;
@@ -1016,7 +1031,7 @@ void Parser_scanStringValueToMem_C0(struct VRMLParser *parser, union anyVrml* an
 					if(!(pv && *pv == '\\')){
 						*mv = '\\';
 						mv++;
-					}
+				}
 				}
 				*mv = *v;
 				mv++;

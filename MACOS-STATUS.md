@@ -3,7 +3,7 @@
 Fork: https://github.com/Ascendance3D/freewrl. The Apple Silicon port is on the maintained `master` trunk (the single canonical branch; the old `develop` integration line was retired).
 Base: upstream SourceForge `develop` @ `b3254b11e` (2024-04-20, "Version 6.7", FreeWRL 6.7.0).
 Reference: branch `macos-arm64` ([PR #1](https://github.com/Ascendance3D/freewrl/pull/1)), the Mac port of upstream `master` @ `e99ab4a00`.
-Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation runs on the GitHub `macos-15` runner only and is manual only (see below). Last updated 2026-10-03.
+Development and QA machine: physical MacBook Pro M1 (8 GB, Retina), macOS 27.0.1, Xcode 27.0. Pull requests that can affect macOS get local runtime QA on this machine before they merge: Release and Debug arm64 builds, the standalone package and `verify.py`, strict code-signature verification, the smoke suite, the LaunchServices suite and the host bounds tests. Formal release validation runs on the GitHub `macos-15` runner only and is manual only (see below). Last updated 2026-10-19.
 
 Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verified · ⛔ unsupported on macOS · ❔ unresolved · ❌ broken
 
@@ -21,13 +21,13 @@ Legend: ✅ verified (with evidence) · 🟡 changed or implemented, not verifie
 
 Earlier development targeted macOS 13, then macOS 14. On 2026-10-02 the owner raised the minimum to macOS 15 Sequoia; release validation runs on the `macos-15` runner. Everything is built with `MACOSX_DEPLOYMENT_TARGET=15.0`; no binary is patched to claim an older macOS.
 
-## Current status (2026-09-30)
+## Current status (2026-10-19)
 
 | | item | evidence |
 | --- | --- | --- |
 | ✅ | Canonical trunk | `master` is the single maintained branch; the Apple Silicon work is merged into it |
 | ✅ | Runtime gate (PR #15) | PASS on the CI runtime gate |
-| 🟡 | AddressSanitizer | CI gate total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean). The 2026-10-01 physical-Mac release validation of `5b9b2d682` found 4 reports on the picking path, which CI never ran (no pointer): heap-use-after-free in `do_SphereSensor` (sensors kept in `SensorEvents` and the touch state after world replacement freed them) and a heap-buffer-overflow in `pop_ray` (pop before read). Fixed on `fix/macos-asan-picking-lifetime`, pending review: every node free path unregisters the node from the picking state (`unRegisterSensitiveNode`; container nodes such as the old scene root through `freeContainerNode`); `suite.sh` drives the pointer (`RELOAD_POINTER`) over `sensor_replace.wrl` and fails when a cycle replaced nothing or the harness faulted; `sensor-proof.sh` proves the SphereSensor handler path on `10.wrl` |
+| 🟡 | AddressSanitizer | CI gate total 0 reports (PROTO lifetime, frustum-extent stack, vector, GLCore client attributes all clean). The 2026-10-01 physical-Mac release validation of `5b9b2d682` found 4 reports on the picking path, which CI never ran (no pointer): heap-use-after-free in `do_SphereSensor` (sensors kept in `SensorEvents` and the touch state after world replacement freed them) and a heap-buffer-overflow in `pop_ray` (pop before read). PR #51 (picking lifetime, `pop_ray`) and PR #52 are merged; kept 🟡 until a physical-Mac ASan run is recorded |
 | — | macOS 14 runtime | no longer supported (minimum raised to macOS 15 on 2026-10-02); last PASS on the GitHub Actions arm64 runner |
 | ✅ | macOS 15 runtime | PASS (GitHub Actions arm64 runner) |
 | 🟡 | Package static verify | `verify.py --macos 15.0`, pending the first macOS 15-minimum validation run |
@@ -216,4 +216,13 @@ PR1 of the SDL3 program adds test hooks and records the native behaviour. It add
 - [ ] Directional light shadows outside the shadow map (upstream)
 - [x] Publish a public macOS prerelease (`v6.7.0-macos-beta.1` and `v6.7.0-macos-beta.2`)
 - [ ] Sign, notarize, validate, tag and publish the first desktop release `v6.7.0` (see [`RELEASING.md`](RELEASING.md))
-- [ ] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+ (MovieTexture)
+- [x] Port `MPEG_Utils_ffmpeg.c` to ffmpeg 5+ (MovieTexture). Ported by PR #128 (Linux-only; the macOS app does not link FFmpeg and `MOVIETEXTURE_FFMPEG` stays off).
+
+### Road to leaving beta
+
+- [ ] Developer ID signed/notarized/stapled `v6.7.0` package
+- [ ] First `macos.yml` run on the macOS 15 minimum (package static verify)
+- [ ] Audio output check of `tests/50.wrl`
+- [ ] Metal backend design (see the Metal design issue)
+
+See [`RELEASING.md`](RELEASING.md).
