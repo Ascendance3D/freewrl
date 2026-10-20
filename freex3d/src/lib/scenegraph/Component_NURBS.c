@@ -1934,6 +1934,11 @@ void do_NurbsPositionInterpolator (void *node) {
 			if(px->weight.n == n)
 				weight = px->weight.p;
 			px->_xyzw.p = MALLOC(struct SFVec4f*,control->point.n * sizeof(struct SFVec4f));
+			if(!px->_xyzw.p){
+				//no control points or out of memory: leave the interpolator not OK
+				px->_xyzw.n = 0;
+				return;
+			}
 			px->_xyzw.n = n;
 			for(i=0;i<control->point.n;i++){
 				float xyzw[4], wt;
@@ -2036,6 +2041,11 @@ void do_NurbsOrientationInterpolator (void *node) {
 			if(px->weight.n == n)
 				weight = px->weight.p;
 			px->_xyzw.p = MALLOC(struct SFVec4f*,control->point.n * sizeof(struct SFVec4f));
+			if(!px->_xyzw.p){
+				//no control points or out of memory: leave the interpolator not OK
+				px->_xyzw.n = 0;
+				return;
+			}
 			px->_xyzw.n = n;
 			for(i=0;i<control->point.n;i++){
 				float xyzw[4], wt;
