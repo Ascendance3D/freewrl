@@ -313,6 +313,13 @@ int FindSpan(int n, int p, float u, float *U)
 		return mid;
 	}
 }
+/* highest degree (order - 1) CurvePoint and SurfacePoint can evaluate: BasisFuns uses left[5]/right[5] */
+#define NURBS_MAX_DEGREE 4
+/* SurfacePoint reads control point (u*nu + v) for u < nu, v < nv: check that index range fits nc points */
+static int nurbs_surface_fits(int nu, int nv, int nc){
+	return nu > 0 && nv > 0 && (long long)(nu - 1) * (long long)nu + (long long)nv <= (long long)nc
+		&& (long long)nu * (long long)nv <= (long long)nc;
+}
 //ALGORITHM A2.2 p.70 Piegl
 int BasisFuns(int span, float u, int p, float *U, float *N){
 	/* Compute the non-vanishing Basis functions
@@ -369,6 +376,11 @@ int CurvePoint(int n, int p, float* U, float *Pw, float u, float *C )
 	int span,i,j;
 	float N[100], w;
 	float Cw[4];
+	if(p < 0 || p > NURBS_MAX_DEGREE){
+		/* BasisFuns works in left[5]/right[5]: higher degrees would overflow them */
+		for(i=0;i<3;i++) C[i] = 0.0f;
+		return 0;
+	}
 	span = FindSpan(n,p,u,U);
 	BasisFuns(span,u,p,U,N);
 	w = 1.0f;
@@ -419,6 +431,11 @@ int SurfacePoint(int n,int p,float *U,
 	int uspan, vspan, i, l, k;
 	float Nu[100], Nv[100], temp[6][4], Sw[4];
 
+	if(p < 0 || p > NURBS_MAX_DEGREE || q < 0 || q > NURBS_MAX_DEGREE){
+		/* BasisFuns works in left[5]/right[5]: higher degrees would overflow them */
+		for(i=0;i<3;i++) S[i] = 0.0f;
+		return 0;
+	}
 	uspan = FindSpan(n,p,u,U);
 	BasisFuns(uspan,u,p,U,Nu);
 	vspan = FindSpan(m,q,v,V);
@@ -532,6 +549,7 @@ int generateUniformKnotVector(int order, int ncontrol, float *knots){
 	//number of knots == ncontrol + order
 	int j,k,m;
 	float uniform;
+	if(!knots || order < 1 || ncontrol < order) return -1;
 	m = ncontrol - order;
 	k = 0;
 	uniform = 1.0f/(float)(m + 1);
@@ -546,10 +564,22 @@ int generateUniformKnotVector(int order, int ncontrol, float *knots){
 	}
 	return m;
 }
+/* MALLOC and fill a pinned uniform knot vector of ncontrol + order floats.
+   Returns NULL with *nknots = 0 for a malformed order/ncontrol (from the world file) or a failed allocation. */
+static GLfloat *newUniformKnotVector(int order, int ncontrol, int *nknots){
+	GLfloat *knots;
+	*nknots = 0;
+	if(order < 1 || ncontrol < order) return NULL;
+	knots = MALLOC(GLfloat *, (ncontrol + order) * sizeof(GLfloat));
+	if(!knots) return NULL;
+	generateUniformKnotVector(order, ncontrol, knots);
+	*nknots = ncontrol + order;
+	return knots;
+}
 int knotsOK(int order, int ncontrol, int nknots, double *knots){
 	int ok = TRUE;
 
-	if(nknots < 2 || nknots != ncontrol + order ) 
+	if(!knots || order < 1 || ncontrol < order || nknots < 2 || nknots != ncontrol + order )
 		ok = FALSE;
 	if(ok){
 		int i,nconsec = 1;
@@ -570,7 +600,7 @@ int knotsOK(int order, int ncontrol, int nknots, double *knots){
 int knotsOKf(int order, int ncontrol, int nknots, float *knots){
 	int ok = TRUE;
 
-	if(nknots < 2 || nknots != ncontrol + order ) 
+	if(!knots || order < 1 || ncontrol < order || nknots < 2 || nknots != ncontrol + order )
 		ok = FALSE;
 	if(ok){
 		int i, nconsec = 1;
@@ -601,6 +631,7 @@ void compile_ContourPolyline2D(struct X3D_ContourPolyline2D *node){
 
 void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 	MARK_NODE_COMPILED
+	node->__numPoints = 0;
 	{
 		int i,j, n, nk;
 		GLfloat *xyzw, *knots;
@@ -612,7 +643,8 @@ void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 				mfd = &((struct X3D_CoordinateDouble *)(node->controlPoint))->point;
 				n = mfd->n;
 				xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-				for(i=0;i<mfd->n;i++){
+				if(!xyzw) n = 0;
+				for(i=0;i<n;i++){
 					for(j=0;j<3;j++){
 						xyzw[i*4 + j] = (float) mfd->p[i].c[j];
 					}
@@ -622,7 +654,8 @@ void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 				mff = &((struct X3D_Coordinate *)(node->controlPoint))->point;
 				n = mff->n;
 				xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-				for(i=0;i<mff->n;i++){
+				if(!xyzw) n = 0;
+				for(i=0;i<n;i++){
 					for(j=0;j<3;j++){
 						xyzw[i*4 + j] = mff->p[i].c[j];
 					}
@@ -648,6 +681,7 @@ void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 
 			nk = node->knot.n;
 			knots = MALLOC(void *, nk * sizeof(GLfloat));
+			if(!knots) nk = 0;
 			for(i=0;i<nk;i++){
 				knots[i] = (GLfloat)node->knot.p[i];
 			}
@@ -658,10 +692,7 @@ void compile_NurbsCurve(struct X3D_NurbsCurve *node){
 		}else{
 			static int once = 0;
 			//generate uniform knot vector 
-			nk = n + node->order ;
-			//caller: please malloc knots = malloc( (ncontrol + order ) * sizeof(float))
-			knots = MALLOC(void *, nk *sizeof(GLfloat));
-			generateUniformKnotVector(node->order,n, knots);
+			knots = newUniformKnotVector(node->order,n,&nk);
 			if(!once){
 				int ii;
 				printf("bad knot vector, replacing with:\n");
@@ -772,7 +803,8 @@ void compile_NurbsTextureCoordinate(struct X3D_NurbsTextureCoordinate *node){
 	mff = &node->controlPoint;
 	nc = mff->n;
 	xyzw = MALLOC(void *, nc * 4 * sizeof(GLfloat));
-	for(i=0;i<mff->n;i++){
+	if(!xyzw) nc = 0;
+	for(i=0;i<nc;i++){
 		for(j=0;j<2;j++){
 			xyzw[i*4 + j] = mff->p[i].c[j];
 		}
@@ -802,6 +834,7 @@ void compile_NurbsTextureCoordinate(struct X3D_NurbsTextureCoordinate *node){
 		//could do another check: knot values == or ascending
 		nku = node->uKnot.n;
 		knotsu = MALLOC(void *, nku * sizeof(GLfloat));
+		if(!knotsu) nku = 0;
 		for(i=0;i<nku;i++){
 			knotsu[i] = (GLfloat)node->uKnot.p[i];
 		}
@@ -815,10 +848,7 @@ void compile_NurbsTextureCoordinate(struct X3D_NurbsTextureCoordinate *node){
 	}else{
 		//generate uniform knot vector 
 		static int once = 0;
-		nku = nu + node->uOrder ;
-		//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-		knotsu = MALLOC(void *, nku *sizeof(GLfloat));
-		generateUniformKnotVector(node->uOrder,nu, knotsu);
+		knotsu = newUniformKnotVector(node->uOrder,nu,&nku);
 		if(!once){
 			int ii;
 			printf("bad u knot vector given, replacing with:\n");
@@ -833,6 +863,7 @@ void compile_NurbsTextureCoordinate(struct X3D_NurbsTextureCoordinate *node){
 	//if(node->vKnot.n && node->vKnot.n == nv + node->vOrder ){
 		nkv = node->vKnot.n;
 		knotsv = MALLOC(void *, nkv * sizeof(GLfloat));
+		if(!knotsv) nkv = 0;
 		for(i=0;i<nkv;i++){
 			knotsv[i] = (GLfloat)node->vKnot.p[i];
 		}
@@ -846,10 +877,7 @@ void compile_NurbsTextureCoordinate(struct X3D_NurbsTextureCoordinate *node){
 	}else{
 		static int once = 0;
 		//generate uniform knot vector 
-		nkv = nv + node->vOrder ;
-		//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-		knotsv = MALLOC(void *, nkv *sizeof(GLfloat));
-		generateUniformKnotVector(node->vOrder,nv, knotsv);
+		knotsv = newUniformKnotVector(node->vOrder,nv,&nkv);
 		if(!once){
 			int ii;
 			printf("bad v knot vector given, replacing with:\n");
@@ -878,6 +906,12 @@ int getNurbsSurfacePoint(struct X3D_Node *nurbsSurfaceNode, float *uv, float *xy
 				{
 					struct X3D_NurbsTextureCoordinate *node = (struct X3D_NurbsTextureCoordinate *)PPX(nurbsSurfaceNode);
 					if(NNC(node)) compile_NurbsTextureCoordinate(node);
+					/* bad order or out of memory leaves NULL buffers; a short controlPoint list is too small for the grid */
+					if(!node->_uKnot.p || !node->_vKnot.p || !node->_controlPoint.p
+						|| node->uOrder < 1 || node->vOrder < 1
+						|| node->uDimension < node->uOrder || node->vDimension < node->vOrder
+						|| !nurbs_surface_fits(node->uDimension,node->vDimension,node->_controlPoint.n))
+						break;
 					ret = SurfacePoint(	node->uDimension,node->uOrder-1,node->_uKnot.p, 
 										node->vDimension,node->vOrder-1,node->_vKnot.p,
 										(float *)node->_controlPoint.p,uv[0],uv[1],xyz);
@@ -1170,7 +1204,8 @@ void convert_strips_to_polyrep(struct Vector * strips,struct X3D_NurbsTrimmedSur
 			xyz[1] = tcoord[i*2 + 0]; //don't know why but I have to swap xy to match octaga
 			xyz[2] = 0.0f;
 			xyz[3] = tcoord[i*2 + 3];
-			getNurbsSurfacePoint(node->texCoord, xyz, stru);
+			if(!getNurbsSurfacePoint(node->texCoord, xyz, stru))
+				continue; /* keep the generated texture coordinate */
 			//memcpy(&tcoord[i*2],stru,2*sizeof(float));
 			tcoord[i*2 + 0] = stru[0];
 			tcoord[i*2 + 1] = stru[1];
@@ -1250,7 +1285,8 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 				mfd = &((struct X3D_CoordinateDouble *)(node->controlPoint))->point;
 				n = mfd->n;
 				xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-				for(i=0;i<mfd->n;i++){
+				if(!xyzw) n = 0;
+				for(i=0;i<n;i++){
 					for(j=0;j<3;j++){
 						xyzw[i*4 + j] = (float)mfd->p[i].c[j];
 					}
@@ -1260,7 +1296,8 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 				mff = &((struct X3D_Coordinate *)(node->controlPoint))->point;
 				n = mff->n;
 				xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-				for(i=0;i<mff->n;i++){
+				if(!xyzw) n = 0;
+				for(i=0;i<n;i++){
 					for(j=0;j<3;j++){
 						xyzw[i*4 + j] = mff->p[i].c[j];
 					}
@@ -1290,6 +1327,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 			//could do another check: knot values == or ascending
 			nku = node->uKnot.n;
 			knotsu = MALLOC(void *, nku * sizeof(GLfloat));
+			if(!knotsu) nku = 0;
 			for(i=0;i<nku;i++){
 				knotsu[i] = (GLfloat)node->uKnot.p[i];
 			}
@@ -1303,10 +1341,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 		}else{
 			//generate uniform knot vector 
 			static int once = 0;
-			nku = nu + node->uOrder ;
-			//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-			knotsu = MALLOC(void *, nku *sizeof(GLfloat));
-			generateUniformKnotVector(node->uOrder,nu, knotsu);
+			knotsu = newUniformKnotVector(node->uOrder,nu,&nku);
 			if(!once){
 				int ii;
 				printf("bad u knot vector given, replacing with:\n");
@@ -1321,6 +1356,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 		//if(node->vKnot.n && node->vKnot.n == nv + node->vOrder ){
 			nkv = node->vKnot.n;
 			knotsv = MALLOC(void *, nkv * sizeof(GLfloat));
+			if(!knotsv) nkv = 0;
 			for(i=0;i<nkv;i++){
 				knotsv[i] = (GLfloat)node->vKnot.p[i];
 			}
@@ -1334,10 +1370,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 		}else{
 			static int once = 0;
 			//generate uniform knot vector 
-			nkv = nv + node->vOrder ;
-			//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-			knotsv = MALLOC(void *, nkv *sizeof(GLfloat));
-			generateUniformKnotVector(node->vOrder,nv, knotsv);
+			knotsv = newUniformKnotVector(node->vOrder,nv,&nkv);
 			if(!once){
 				int ii;
 				printf("bad v knot vector given, replacing with:\n");
@@ -1684,12 +1717,22 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 								nc2d = (struct X3D_NurbsCurve2D *)ctr;
 								dim = 2;
 								nk = nc2d->controlPoint.n + nc2d->order;
-								if(nk == nc2d->knot.n)
-
-								cknot = MALLOC(void *, nk * sizeof(GLfloat));
+								if(knotsOK(nc2d->order,nc2d->controlPoint.n,nc2d->knot.n,nc2d->knot.p)){
+									cknot = MALLOC(void *, nk * sizeof(GLfloat));
+									if(cknot)
+										for(j=0;j<nk;j++)
+											cknot[j] = (float)nc2d->knot.p[j];
+								}else{
+									cknot = newUniformKnotVector(nc2d->order,nc2d->controlPoint.n,&nk);
+								}
+								if(!cknot){
+									ConsoleMessage("NurbsCurve2D trim: bad order or out of memory, skipping");
+									break;
+								}
 								if(nc2d->weight.n){ // == 3){
 									dim = 3;
 									cweight = MALLOC(void *, nc2d->controlPoint.n * sizeof(GLfloat));
+									if(!cweight) break;
 									if(nc2d->weight.n == nc2d->controlPoint.n){
 										for(j=0;j<nc2d->weight.n;j++) cweight[j] = (float)nc2d->weight.p[j];
 									}else{
@@ -1697,6 +1740,7 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 									}
 								}
 								ctrl = MALLOC(void *, nc2d->controlPoint.n * dim*sizeof(GLfloat));
+								if(!ctrl) break;
 								for(j=0;j<nc2d->controlPoint.n;j++) {
 									for(k=0;k<2;k++){
 										ctrl[j*dim + k] = (float)nc2d->controlPoint.p[j].c[k];
@@ -1704,22 +1748,9 @@ void compile_NurbsSurface(struct X3D_NurbsPatchSurface *node, struct Multi_Node 
 										}
 									if(dim == 3) ctrl[j*dim + dim-1] = (float)cweight[j];
 								}
-								if(knotsOK(nc2d->order,nc2d->controlPoint.n,nc2d->knot.n,nc2d->knot.p)){
-								//if(nk == nc2d->knot.n){
-									for(j=0;j<nc2d->knot.n;j++)
-										cknot[j] = (float)nc2d->knot.p[j];
-								}else{
-									generateUniformKnotVector(nc2d->order,nc2d->controlPoint.n,cknot);
-									printf("replacing nurbscurve2D knotvector with:\n");
-									for(j=0;j<nk;j++){
-										printf("%f ",cknot[j]);
-									}
-									printf("\n");
-
-								}
 								if(DEBGC) {
-									printf("knot %d ={",nc2d->knot.n);
-									for(j=0;j<nc2d->knot.n;j++){
+									printf("knot %d ={",nk);
+									for(j=0;j<nk;j++){
 										printf("%f ",cknot[j]);
 									}
 									printf("}\n");
@@ -1903,6 +1934,11 @@ void do_NurbsPositionInterpolator (void *node) {
 			if(px->weight.n == n)
 				weight = px->weight.p;
 			px->_xyzw.p = MALLOC(struct SFVec4f*,control->point.n * sizeof(struct SFVec4f));
+			if(!px->_xyzw.p){
+				//no control points or out of memory: leave the interpolator not OK
+				px->_xyzw.n = 0;
+				return;
+			}
 			px->_xyzw.n = n;
 			for(i=0;i<control->point.n;i++){
 				float xyzw[4], wt;
@@ -1916,6 +1952,7 @@ void do_NurbsPositionInterpolator (void *node) {
 
 				nk = px->knot.n;
 				knots = MALLOC(void *, nk * sizeof(GLfloat));
+				if(!knots) nk = 0;
 				for(i=0;i<nk;i++){
 					knots[i] = (GLfloat)px->knot.p[i];
 				}
@@ -1926,10 +1963,7 @@ void do_NurbsPositionInterpolator (void *node) {
 			}else{
 				static int once = 0;
 				//generate uniform knot vector 
-				nk = n + px->order ;
-				//caller: please malloc knots = malloc( (ncontrol + order ) * sizeof(float))
-				knots = MALLOC(void *, nk *sizeof(GLfloat));
-				generateUniformKnotVector(px->order,n, knots);
+				knots = newUniformKnotVector(px->order,n,&nk);
 				if(!once){
 					int ii;
 					printf("bad knot vector, replacing with:\n");
@@ -1938,6 +1972,13 @@ void do_NurbsPositionInterpolator (void *node) {
 					once = 1;
 				}
 				//nk = 0;
+			}
+			if(!knots || px->order - 1 > NURBS_MAX_DEGREE){
+				//malformed or unsupported order, or failed allocation: leave the interpolator not OK
+				FREE_IF_NZ(knots);
+				FREE_IF_NZ(px->_xyzw.p);
+				px->_xyzw.n = 0;
+				return;
 			}
 			px->_knot.p = knots;
 			px->_knot.n = nk;
@@ -2000,6 +2041,11 @@ void do_NurbsOrientationInterpolator (void *node) {
 			if(px->weight.n == n)
 				weight = px->weight.p;
 			px->_xyzw.p = MALLOC(struct SFVec4f*,control->point.n * sizeof(struct SFVec4f));
+			if(!px->_xyzw.p){
+				//no control points or out of memory: leave the interpolator not OK
+				px->_xyzw.n = 0;
+				return;
+			}
 			px->_xyzw.n = n;
 			for(i=0;i<control->point.n;i++){
 				float xyzw[4], wt;
@@ -2013,6 +2059,7 @@ void do_NurbsOrientationInterpolator (void *node) {
 
 				nk = px->knot.n;
 				knots = MALLOC(void *, nk * sizeof(GLfloat));
+				if(!knots) nk = 0;
 				for(i=0;i<nk;i++){
 					knots[i] = (GLfloat)px->knot.p[i];
 				}
@@ -2023,10 +2070,7 @@ void do_NurbsOrientationInterpolator (void *node) {
 			}else{
 				static int once = 0;
 				//generate uniform knot vector 
-				nk = n + px->order ;
-				//caller: please malloc knots = malloc( (ncontrol + order ) * sizeof(float))
-				knots = MALLOC(void *, nk *sizeof(GLfloat));
-				generateUniformKnotVector(px->order,n, knots);
+				knots = newUniformKnotVector(px->order,n,&nk);
 				if(!once){
 					int ii;
 					printf("bad knot vector, replacing with:\n");
@@ -2035,6 +2079,13 @@ void do_NurbsOrientationInterpolator (void *node) {
 					once = 1;
 				}
 				//nk = 0;
+			}
+			if(!knots || px->order - 1 > NURBS_MAX_DEGREE){
+				//malformed or unsupported order, or failed allocation: leave the interpolator not OK
+				FREE_IF_NZ(knots);
+				FREE_IF_NZ(px->_xyzw.p);
+				px->_xyzw.n = 0;
+				return;
 			}
 			px->_knot.p = knots;
 			px->_knot.n = nk;
@@ -2152,7 +2203,8 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 					mfd = &((struct X3D_CoordinateDouble *)(node->controlPoint))->point;
 					n = mfd->n;
 					xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-					for(i=0;i<mfd->n;i++){
+					if(!xyzw) n = 0;
+					for(i=0;i<n;i++){
 						for(j=0;j<3;j++){
 							xyzw[i*4 + j] = (float)mfd->p[i].c[j];
 						}
@@ -2162,7 +2214,8 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 					mff = &((struct X3D_Coordinate *)(node->controlPoint))->point;
 					n = mff->n;
 					xyzw = MALLOC(void *, n * 4 * sizeof(GLfloat));
-					for(i=0;i<mff->n;i++){
+					if(!xyzw) n = 0;
+					for(i=0;i<n;i++){
 						for(j=0;j<3;j++){
 							xyzw[i*4 + j] = mff->p[i].c[j];
 						}
@@ -2186,9 +2239,12 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			}
 			nu = node->uDimension;
 			nv = node->vDimension;
-			if(nu * nv != n) return;
-			if(nu < node->uOrder) return;
-			if(nv < node->vOrder) return;
+			if(!nurbs_surface_fits(nu,nv,n) || nu * nv != n || nu < node->uOrder || nv < node->vOrder
+				|| node->uOrder < 1 || node->vOrder < 1
+				|| node->uOrder - 1 > NURBS_MAX_DEGREE || node->vOrder - 1 > NURBS_MAX_DEGREE){
+				FREE_IF_NZ(xyzw);
+				return;
+			}
 			//int knotsOK(int order, int ncontrol, int nknots, double *knots)
 			//if(node->uKnot.n && node->uKnot.n == nu + node->uOrder ){
 			if(knotsOK(node->uOrder,nu,node->uKnot.n,node->uKnot.p)){
@@ -2196,6 +2252,7 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 				//could do another check: knot values == or ascending
 				nku = node->uKnot.n;
 				knotsu = MALLOC(void *, nku * sizeof(GLfloat));
+				if(!knotsu) nku = 0;
 				for(i=0;i<nku;i++){
 					knotsu[i] = (GLfloat)node->uKnot.p[i];
 				}
@@ -2209,10 +2266,7 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			}else{
 				//generate uniform knot vector 
 				static int once = 0;
-				nku = nu + node->uOrder ;
-				//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-				knotsu = MALLOC(void *, nku *sizeof(GLfloat));
-				generateUniformKnotVector(node->uOrder,nu, knotsu);
+				knotsu = newUniformKnotVector(node->uOrder,nu,&nku);
 				if(!once){
 					int ii;
 					printf("bad u knot vector given, replacing with:\n");
@@ -2227,6 +2281,7 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			//if(node->vKnot.n && node->vKnot.n == nv + node->vOrder ){
 				nkv = node->vKnot.n;
 				knotsv = MALLOC(void *, nkv * sizeof(GLfloat));
+				if(!knotsv) nkv = 0;
 				for(i=0;i<nkv;i++){
 					knotsv[i] = (GLfloat)node->vKnot.p[i];
 				}
@@ -2240,10 +2295,7 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 			}else{
 				static int once = 0;
 				//generate uniform knot vector 
-				nkv = nv + node->vOrder ;
-				//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-				knotsv = MALLOC(void *, nkv *sizeof(GLfloat));
-				generateUniformKnotVector(node->vOrder,nv, knotsv);
+				knotsv = newUniformKnotVector(node->vOrder,nv,&nkv);
 				if(!once){
 					int ii;
 					printf("bad v knot vector given, replacing with:\n");
@@ -2252,6 +2304,12 @@ void do_NurbsSurfaceInterpolator (void *_node) {
 					once = 1;
 				}
 				//nk = 0;
+			}
+			if(!xyzw || !knotsu || !knotsv){
+				FREE_IF_NZ(xyzw);
+				FREE_IF_NZ(knotsu);
+				FREE_IF_NZ(knotsv);
+				return;
 			}
 			node->_controlPoint.p = (struct SFVec4f*)xyzw;
 			node->_controlPoint.n = n;
@@ -2339,6 +2397,7 @@ void compile_NurbsSwungSurface(struct X3D_NurbsSwungSurface *node){
 	xyzp = (double*)profileyz->controlPoint.p;
 	xyzt = (double*)trajectoryxz->controlPoint.p;
 	xyz = MALLOC(float*,(size_t)nt * (size_t)np * 3 * sizeof(float));
+	if(!xyz) return;
 	controlPoint->point.p = (struct SFVec3f*)xyz;
 	controlPoint->point.n = nt * np;
 	ic = 0;
@@ -2438,6 +2497,7 @@ void compute_knotvector(int order, int ncontrol, int nknots, double *knots, int 
 		//could do another check: knot values == or ascending
 		nku = nknots;
 		knotsu = MALLOC(void *, nku * sizeof(GLfloat));
+		if(!knotsu) nku = 0;
 		for(i=0;i<nku;i++){
 			knotsu[i] = (GLfloat)knots[i];
 		}
@@ -2451,10 +2511,7 @@ void compute_knotvector(int order, int ncontrol, int nknots, double *knots, int 
 	}else{
 		//generate uniform knot vector 
 		static int once = 0;
-		nku = ncontrol + order ;
-		//caller: please malloc knots = MALLOC(void *,  (ncontrol + order ) * sizeof(float))
-		knotsu = MALLOC(void *, nku *sizeof(GLfloat));
-		generateUniformKnotVector(order,ncontrol, knotsu);
+		knotsu = newUniformKnotVector(order,ncontrol,&nku);
 		if(!once){
 			printf("bad u knot vector given, replacing with:\n");
 			for(ii=0;ii<nku;ii++)
@@ -2464,6 +2521,13 @@ void compute_knotvector(int order, int ncontrol, int nknots, double *knots, int 
 		*newknots = knotsu;
 		*newnknots= nku;
 		//nk = 0;
+	}
+	if(!knotsu){
+		//malformed order or failed allocation: caller checks *newknots
+		*newknots = NULL;
+		*newnknots = 0;
+		range[0] = range[1] = 0.0f;
+		return;
 	}
 	range[0] = knotsu[0];
 	range[1] = knotsu[nku-1];
@@ -2479,6 +2543,8 @@ void compute_weightedcontrol(double *xyz, int dim, int nc, int nweight, double *
 	float *xyzw;
 
 	xyzw = MALLOC(float *, nc * 4 * sizeof(GLfloat));
+	*cxyzw = xyzw;
+	if(!xyzw) return;
 	for(i=0;i<nc;i++)
 		xyzw[i*4 +0] = xyzw[i*4 +1] =xyzw[i*4 +2] =xyzw[i*4 +3] = 0.0f;
 	for(i=0;i<nc;i++){
@@ -2820,6 +2886,14 @@ void compile_NurbsSweptSurface(struct X3D_NurbsSweptSurface *node){
 		compute_knotvector(trajectory->order,nt,trajectory->knot.n,trajectory->knot.p,&nkv,&knotsv,vrange);
 		compute_weightedcontrol(xyzt,3,nt, trajectory->weight.n, trajectory->weight.p, &xyzwv);
 		compute_weightedcontrol(xyzx,2,np, xsection->weight.n, xsection->weight.p, &xyzwu);
+		if(!knotsu || !knotsv || !xyzwu || !xyzwv){
+			ConsoleMessage("NurbsSweptSurface: bad order or out of memory, skipping");
+			FREE_IF_NZ(knotsu);
+			FREE_IF_NZ(knotsv);
+			FREE_IF_NZ(xyzwu);
+			FREE_IF_NZ(xyzwv);
+			return;
+		}
 		DBGSW = FALSE;
 		if(DBGSW){
 			int i;
