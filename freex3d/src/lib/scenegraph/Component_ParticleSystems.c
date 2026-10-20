@@ -902,6 +902,16 @@ void compile_PolylineEmitter(struct X3D_Node *node){
 	float *segs = NULL;
 	//e->_method = POLYLINEEMITTER_METHODA;
 	e->_method = POLYLINEEMITTER_METHODB;
+	//recompile: release the previous arrays; they are registered with the node gc, which frees them with the node
+	if(e->_segs){
+		unregister_node_gc(node,e->_segs);
+		FREE_IF_NZ(e->_segs);
+	}
+	if(e->_portions){
+		unregister_node_gc(node,e->_portions);
+		FREE_IF_NZ(e->_portions);
+	}
+	e->_nseg = 0;
 	if(e->coord && e->coordIndex.n > 1){
 		//convert IndexedLineSet to pairs of coordinates
 		int i,k,ind, n,nseg = 0;
@@ -909,9 +919,10 @@ void compile_PolylineEmitter(struct X3D_Node *node){
 		struct X3D_Coordinate *coord = (struct X3D_Coordinate *)e->coord;
 		n = e->coordIndex.n;
 		segs = MALLOC(void*,2*3*sizeof(float) *n*2 ); //2 vertices per lineseg, and 1 lineseg per coordindex should be more than enough
+		if(!segs) n = 0;
 		k = 0;
 		nseg = 0;
-		for(i=0;i<e->coordIndex.n;i++){
+		for(i=0;i<n;i++){
 			ind = e->coordIndex.p[i];
 			if( ind == -1) {
 				k = 0;
@@ -927,13 +938,21 @@ void compile_PolylineEmitter(struct X3D_Node *node){
 				k = 1;
 			}
 		}
+		if(segs) register_node_gc(node,segs);
 		e->_segs = segs;
 		e->_nseg = nseg;
 	}
-	if(e->_method == POLYLINEEMITTER_METHODB){
+	if(e->_method == POLYLINEEMITTER_METHODB && e->_nseg > 0){
 		int i;
 		float *portions, totaldist, dist, delta[3];
 		portions = MALLOC(float *,e->_nseg * sizeof(float));
+		if(!portions){
+			//out of memory: no segments to emit from
+			e->_nseg = 0;
+			MARK_NODE_COMPILED
+			return;
+		}
+		register_node_gc(node,portions);
 		e->_portions = portions;
 		totaldist = 0.0f;
 		for(i=0;i<e->_nseg;i++){
@@ -943,6 +962,7 @@ void compile_PolylineEmitter(struct X3D_Node *node){
 			portions[i] = dist;
 			totaldist += dist;
 		}
+		if(totaldist > 0.0f)
 		for(i=0;i<e->_nseg;i++){
 			portions[i] = portions[i]/totaldist;
 			//printf("portion %d %f\n",i,portions[i]);
@@ -1238,9 +1258,19 @@ void apply_MapEmitter(particle* pp, struct X3D_Node* emitter) {
 					//make a 2D box around each emitter color area, so we don't have to 
 					// search the whole image pixel by pixel on each frame
 					printf("start classifying emitter..\n");
-					e->eboxes.p = malloc(e->emitterColor.n * sizeof(struct SFVec4f));
+					struct SFVec4f* eb = MALLOC(struct SFVec4f *, e->emitterColor.n * sizeof(struct SFVec4f));
+					struct SFVec4f* ib = MALLOC(struct SFVec4f *, e->emitterColor.n * sizeof(struct SFVec4f));
+					if (!eb || !ib) {
+						FREE_IF_NZ(eb);
+						FREE_IF_NZ(ib);
+						return;
+					}
+					//reclassifying (classified set FALSE again): release the previous boxes
+					FREE_IF_NZ(e->eboxes.p);
+					FREE_IF_NZ(e->iboxes.p);
+					e->eboxes.p = eb;
 					e->eboxes.n = e->emitterColor.n;
-					e->iboxes.p = malloc(e->emitterColor.n * sizeof(struct SFVec4f));
+					e->iboxes.p = ib;
 					e->iboxes.n = e->emitterColor.n;
 					for (int i = 0; i < e->eboxes.n; i++) {
 						extent4f_clear(e->eboxes.p[i].c);
