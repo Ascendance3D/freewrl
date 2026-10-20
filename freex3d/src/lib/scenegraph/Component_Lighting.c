@@ -270,10 +270,12 @@ void render_DirectionalLight0(struct X3D_Node* parent, struct X3D_DirectionalLig
 				//extent6f_printf(eout6); printf("e6\n");
 				float2double(ed, eout6, 6);
 				//projOrtho(ed[1],ed[0],ed[3],ed[2], .1, ed[4], lightrep->matproj); only half or 1/4 the area
-				mesa_Ortho(ed[1], ed[0], ed[3], ed[2], .1, ed[4], lightrep->matproj);
+				//the light sits at its local origin, so scene geometry can lie behind it (z > 0):
+				//cover the scene's whole light-view depth range, z = zmax..zmin (near = -zmax, far = -zmin)
+				mesa_Ortho(ed[1], ed[0], ed[3], ed[2], -ed[4], -ed[5], lightrep->matproj);
 
 				set_debug_quad_near_farplane(eout6[4], eout6[5]);
-					matidentity4d(uhit.extra);
+				matidentity4d(uhit.extra);
 			}
 			else if (method == 1) {
 				//convert extent in lightview space into an equivalent transform
