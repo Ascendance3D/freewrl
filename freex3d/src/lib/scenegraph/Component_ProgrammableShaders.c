@@ -196,7 +196,6 @@ struct myArgs {
 
 int strcmproot(char* a, char* b) {
 	char* brackets = strstr(a, "[0]");
-	printf("a=%s b=%s brackets =%s\n", a, b, brackets);
 	if (brackets)
 		return strncmp(a, b, brackets - a);
 	else
@@ -976,7 +975,7 @@ static void *thread_compile_ComposedShader(void *args) {
 	/* an array of text pointers, should contain shader source */
 	GLchar **vertShaderSource;
 	GLchar **fragShaderSource;
-	int i;
+	int i, nparts;
 	struct myArgs *inArgs;
 
 	/* do we have anything to compile? */
@@ -1008,8 +1007,18 @@ static void *thread_compile_ComposedShader(void *args) {
 		return NULL;
 	}
 
-	vertShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * node->parts.n); 
-	fragShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * node->parts.n);
+	nparts = node->parts.n;
+	vertShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * nparts); 
+	fragShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * nparts);
+	if (nparts && (!vertShaderSource || !fragShaderSource)) {
+		ConsoleMessage ("out of memory compiling ComposedShader - can not run");
+		FREE_IF_NZ(vertShaderSource);
+		FREE_IF_NZ(fragShaderSource);
+		node->isValid = FALSE;
+		MARK_NODE_COMPILED
+		ZERO_THREAD(node->_shaderLoadThread);
+		return NULL;
+	}
 	
 	/* set this up... set it to FALSE if there are problems */
 	node->isValid = TRUE;
@@ -1021,7 +1030,7 @@ static void *thread_compile_ComposedShader(void *args) {
 	//LOCATE_SHADER_PARTS(ShaderPart,parts)
 
 	//#define LOCATE_SHADER_PARTS(myNodeType, myField) 
-	for (i=0; i<node->parts.n; i++) { 
+	for (i=0; i<nparts; i++) { 
 		struct X3D_ShaderPart *prog; 
 		prog = (struct X3D_ShaderPart *) node->parts.p[i]; 
 		vertShaderSource[i] = NULL; 
@@ -1080,7 +1089,7 @@ static void *thread_compile_ComposedShader(void *args) {
 
 	if (node->isValid) {
 		//ConsoleMessage ("shader node is Valid and shaderUserNumber is %d",node->_shaderUserNumber);
-		sendShaderTextToEngine(node->_shaderUserNumber,node->parts.n,vertShaderSource,fragShaderSource);
+		sendShaderTextToEngine(node->_shaderUserNumber,nparts,vertShaderSource,fragShaderSource);
 	} else {
 		ConsoleMessage ("shader node is NOT valid");
 		FREE_IF_NZ(vertShaderSource);
@@ -1135,6 +1144,15 @@ static void *thread_compile_ProgramShader (void *args){
 
 	vertShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * node->programs.n); 
 	fragShaderSource = MALLOC(GLchar **, sizeof(GLchar*) * node->programs.n);
+	if (node->programs.n && (!vertShaderSource || !fragShaderSource)) {
+		ConsoleMessage ("out of memory compiling ProgramShader - can not run");
+		FREE_IF_NZ(vertShaderSource);
+		FREE_IF_NZ(fragShaderSource);
+		node->isValid = FALSE;
+		MARK_NODE_COMPILED
+		ZERO_THREAD(node->_shaderLoadThread);
+		return NULL;
+	}
 	
 	/* set this up... set it to FALSE if there are problems */
 	node->isValid = FALSE; //TRUE;
@@ -1373,6 +1391,7 @@ void compile_ComposedShader (struct X3D_ComposedShader *node) {
 	if(shaderprograms_loaded_but_not_compiled(&node->parts)){ //if all the program parts are downloaded and loaded but not compiled yet
 		//set_shaderprograms_compiled(&node->parts);
 		args = MALLOC(struct myArgs *, sizeof (struct myArgs));
+		if (!args) return;
 		args->node  = X3D_NODE(node);
 		args->tg  = tg;
 		//before sept 22, 2016 - got both async and sync working, but if problems in future with uniforms not setting,
@@ -1397,6 +1416,7 @@ void compile_ProgramShader (struct X3D_ProgramShader *node) {
 	if(shaderprograms_loaded_but_not_compiled(&node->programs)){ //if all the program parts are downloaded and loaded
 		set_shaderprograms_compiled(&node->programs);
 		args = MALLOC(struct myArgs *, sizeof (struct myArgs));
+		if (!args) return;
 		args->node  = X3D_NODE(node);
 		args->tg  = tg;
 		if(1){
@@ -1404,11 +1424,12 @@ void compile_ProgramShader (struct X3D_ProgramShader *node) {
 			if (TEST_NULL_THREAD(node->_shaderLoadThread)) {
 				pthread_create (&(node->_shaderLoadThread), NULL,
 								&thread_compile_ProgramShader, (void *)args);
+			} else {
+				FREE_IF_NZ(args); //a compile thread is already running
 			}
 		}else{
 			//synchronous - doesn't work
-			thread_compile_ProgramShader(args);
-            FREE_IF_NZ(args);
+			thread_compile_ProgramShader(args); //frees args
         }
 	}
 }
