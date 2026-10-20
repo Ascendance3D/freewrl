@@ -151,13 +151,8 @@ int checkX3DElevationGridFields (struct X3D_ElevationGrid *this_, float **points
 
 	/* any texture coordinates passed in? if so, DO NOT generate any texture coords here. */
 	if (!(this_->texCoord)) {
-		/* allocate memory for texture coords */
-		FREE_IF_NZ(rep->GeneratedTexCoords[0]);
-
 		/* 6 vertices per quad each vertex has a 2-float tex coord mapping */
-		tcoord = rep->GeneratedTexCoords[0] = MALLOC (float *, sizeof (float) * nquads * 12); 
-
-		rep->tcindex=0; /* we will generate our own mapping */
+		tcoord = MALLOC (float *, sizeof (float) * nquads * 12);
 	} else {
 		ConsoleMessage ("even though we have a texCoord node here, we need to generate");
 	}
@@ -171,12 +166,15 @@ int checkX3DElevationGridFields (struct X3D_ElevationGrid *this_, float **points
 		printf ("ElevationGrid: out of memory for %d x %d grid\n", nx, nz);
 		FREE_IF_NZ(newpoints);
 		FREE_IF_NZ(cindexptr);
-		if (tcoord) {
-			/* tcoord is rep->GeneratedTexCoords[0] */
-			rep->GeneratedTexCoords[0] = NULL;
-			FREE_IF_NZ(tcoord);
-		}
+		FREE_IF_NZ(tcoord);
 		return FALSE;
+	}
+
+	/* all allocations succeeded: replace the old arrays */
+	if (tcoord) {
+		FREE_IF_NZ(rep->GeneratedTexCoords[0]);
+		rep->GeneratedTexCoords[0] = tcoord;
+		rep->tcindex=0; /* we will generate our own mapping */
 	}
 	 
 	FREE_IF_NZ(rep->actualCoord);
