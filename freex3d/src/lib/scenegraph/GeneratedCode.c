@@ -3867,10 +3867,12 @@ struct X3D_Virt virt_Group = { (void *)prep_Group,NULL,(void *)child_Group,NULL,
 
 struct X3D_Virt virt_HAnimDisplacer = { NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL};
 
+void prep_HAnimHumanoid(struct X3D_HAnimHumanoid *);
 void render_HAnimHumanoid(struct X3D_HAnimHumanoid *);
 void child_HAnimHumanoid(struct X3D_HAnimHumanoid *);
+void fin_HAnimHumanoid(struct X3D_HAnimHumanoid *);
 void compile_HAnimHumanoid(struct X3D_HAnimHumanoid *);
-struct X3D_Virt virt_HAnimHumanoid = { NULL,(void *)render_HAnimHumanoid,(void *)child_HAnimHumanoid,NULL,NULL,NULL,NULL,NULL,NULL,(void *)compile_HAnimHumanoid};
+struct X3D_Virt virt_HAnimHumanoid = { (void *)prep_HAnimHumanoid,(void *)render_HAnimHumanoid,(void *)child_HAnimHumanoid,(void *)fin_HAnimHumanoid,NULL,NULL,NULL,NULL,NULL,(void *)compile_HAnimHumanoid};
 
 void prep_HAnimJoint(struct X3D_HAnimJoint *);
 void render_HAnimJoint(struct X3D_HAnimJoint *);
@@ -6961,6 +6963,12 @@ const int OFFSETS_HAnimHumanoid[] = {
 	(int) FIELDNAMES_jointBindingScales, (int) offsetof (struct X3D_HAnimHumanoid, jointBindingScales),  (int) FIELDTYPE_MFVec3f, (int) KW_inputOutput, (int) (SPEC_X3D40), (int) UNCA_NONE,
 	(int) FIELDNAMES_skinBindingCoords, (int) offsetof (struct X3D_HAnimHumanoid, skinBindingCoords),  (int) FIELDTYPE_SFNode, (int) KW_inputOutput, (int) (SPEC_X3D40), (int) UNCA_NONE,
 	(int) FIELDNAMES_skinBindingNormals, (int) offsetof (struct X3D_HAnimHumanoid, skinBindingNormals),  (int) FIELDTYPE_SFNode, (int) KW_inputOutput, (int) (SPEC_X3D40), (int) UNCA_NONE,
+	(int) FIELDNAMES___do_center, (int) offsetof (struct X3D_HAnimHumanoid, __do_center),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
+	(int) FIELDNAMES___do_trans, (int) offsetof (struct X3D_HAnimHumanoid, __do_trans),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
+	(int) FIELDNAMES___do_rotation, (int) offsetof (struct X3D_HAnimHumanoid, __do_rotation),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
+	(int) FIELDNAMES___do_scaleO, (int) offsetof (struct X3D_HAnimHumanoid, __do_scaleO),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
+	(int) FIELDNAMES___do_scale, (int) offsetof (struct X3D_HAnimHumanoid, __do_scale),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
+	(int) FIELDNAMES___do_anything, (int) offsetof (struct X3D_HAnimHumanoid, __do_anything),  (int) FIELDTYPE_SFInt32, (int) KW_initializeOnly, (int) 0, (int) 0,
 	-1, -1, -1, -1, -1, -1};
 
 const int OFFSETS_HAnimJoint[] = {
@@ -13888,6 +13896,12 @@ void *createNewX3DNode0 (int nt) {
 			tmp2->jointBindingScales.n=0; tmp2->jointBindingScales.p=0;
 			tmp2->skinBindingCoords = NULL;
 			tmp2->skinBindingNormals = NULL;
+			tmp2->__do_center = FALSE;
+			tmp2->__do_trans = FALSE;
+			tmp2->__do_rotation = FALSE;
+			tmp2->__do_scaleO = FALSE;
+			tmp2->__do_scale = FALSE;
+			tmp2->__do_anything = FALSE;
 			tmp2->_defaultContainer = 0;
 		break;
 		}

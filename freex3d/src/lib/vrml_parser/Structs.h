@@ -7325,6 +7325,12 @@ struct X3D_HAnimHumanoid {
 	struct Multi_Vec3f jointBindingScales;
 	struct X3D_Node *skinBindingCoords;
 	struct X3D_Node *skinBindingNormals;
+	int __do_center;
+	int __do_trans;
+	int __do_rotation;
+	int __do_scaleO;
+	int __do_scale;
+	int __do_anything;
 };
 extern struct X3D_Virt virt_HAnimHumanoid;
 /***********************/

@@ -3299,6 +3299,13 @@ NODE_SOURCE = (
         ("jointBindingScales", "MFVec3f", (), "inputOutput", "(SPEC_X3D40)", "UNCA_NONE"),
         ("skinBindingCoords", "SFNode", "NULL", "inputOutput", "(SPEC_X3D40)", "UNCA_NONE"),
         ("skinBindingNormals", "SFNode", "NULL", "inputOutput", "(SPEC_X3D40)", "UNCA_NONE"),
+        # fields for reducing redundant calls (prep_HAnimHumanoid)
+        ("__do_center", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
+        ("__do_trans", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
+        ("__do_rotation", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
+        ("__do_scaleO", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
+        ("__do_scale", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
+        ("__do_anything", "SFInt32", "FALSE", "initializeOnly", "0", "0"),
     ), "X3DChildNode"),
 
     ("HAnimPermuter", "HAnimPermuter", (
