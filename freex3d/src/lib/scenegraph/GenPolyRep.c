@@ -1808,6 +1808,11 @@ void make_Extrusion(struct X3D_Extrusion *node) {
 		int increment, currentlocn;
 
 		crossSection     = MALLOC(struct SFVec2f *, sizeof(crossSection)*nsec*2);
+		if (!crossSection) {
+			/* out of memory (nsec >= 1 here) */
+			rep_->ntri=0;
+			return;
+		}
 
 
 		currentlocn = 0;
@@ -1974,6 +1979,28 @@ void make_Extrusion(struct X3D_Extrusion *node) {
 		/* keep around cross section info for tex coord mapping */
 		beginVals = MALLOC(float *, sizeof(float) * 2 * (nsec+1)*100);
 		endVals = MALLOC(float *, sizeof(float) * 2 * (nsec+1)*100);
+
+	if (!crossSection || !cindex || !coord || !rep_->normal || !rep_->norindex || !facenormals || !pointfaces
+		|| !defaultface || !SCP || !tcoord || !tcindex || !beginVals || !endVals) {
+		/* no triangles (ntri 0 gives zero sizes) or out of memory: empty extrusion */
+		FREE_IF_NZ(cindex);
+		FREE_IF_NZ(coord);
+		rep_->cindex = NULL;
+		rep_->actualCoord = NULL;
+		rep_->ntri = 0;
+		FREE_IF_NZ(rep_->normal);
+		FREE_IF_NZ(rep_->norindex);
+		FREE_IF_NZ(crossSection);
+		FREE_IF_NZ(facenormals);
+		FREE_IF_NZ(pointfaces);
+		FREE_IF_NZ(defaultface);
+		FREE_IF_NZ(SCP);
+		FREE_IF_NZ(tcoord);
+		FREE_IF_NZ(tcindex);
+		FREE_IF_NZ(beginVals);
+		FREE_IF_NZ(endVals);
+		return;
+	}
 
 		memset((void *)tcindex,0,tcindexsize*sizeof(*(rep_->tcindex)));
 		/* printf ("zeroing tcindex\n");*/
