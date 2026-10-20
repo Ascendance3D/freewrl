@@ -591,6 +591,7 @@ GenPolyRepC = _names((
 #  but not the children.
 
 PrepC = _names((
+    "HAnimHumanoid",
     "HAnimJoint",
     "HAnimSite",
     "Viewpoint",
@@ -642,6 +643,7 @@ FinC = _names((
     "Billboard",
     "HAnimSite",
     "HAnimJoint",
+    "HAnimHumanoid",
     "GeoTransform",
     "CADPart",
     "TextureProjector",

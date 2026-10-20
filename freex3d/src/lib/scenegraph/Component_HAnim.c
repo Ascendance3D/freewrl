@@ -1058,6 +1058,19 @@ void compile_HAnimHumanoid(struct X3D_HAnimHumanoid* node) {
 	}
 	struct X3D_HanimRep* hr = (struct X3D_HanimRep*)node->_intern;
 	hr->itype = 9; 
+
+	//the Humanoid's own transform fields, applied like a Transform in prep_HAnimHumanoid
+	node->__do_center = verify_translate ((GLfloat *)node->center.c);
+	node->__do_trans = verify_translate ((GLfloat *)node->translation.c);
+	node->__do_scale = verify_scale ((GLfloat *)node->scale.c);
+	node->__do_rotation = verify_rotate ((GLfloat *)node->rotation.c);
+	node->__do_scaleO = verify_rotate ((GLfloat *)node->scaleOrientation.c);
+
+	node->__do_anything = (node->__do_center ||
+			node->__do_trans ||
+			node->__do_scale ||
+			node->__do_rotation ||
+			node->__do_scaleO);
 	static int oncegpu = 0;
 	if (!oncegpu) {
 		char* smeth = "GPU";
@@ -1170,6 +1183,81 @@ void compile_HAnimHumanoid(struct X3D_HAnimHumanoid* node) {
 
 }
 
+/* the Humanoid transforms its skeleton, skin, sites and viewpoints like a Transform.
+   child_HAnimHumanoid takes HHMatrix from the modelview after this, so skinned
+   vertices stay in Humanoid space and the transform is applied once */
+void prep_HAnimHumanoid (struct X3D_HAnimHumanoid *node) {
+	COMPILE_IF_REQUIRED
+
+	/* rendering the viewpoint means doing the inverse transformations in reverse order (while poping stack),
+		* so we do nothing here in that case */
+	if(!renderstate()->render_vp) {
+		push_transform_local_identity();
+		if (node->__do_anything) {
+
+			FW_GL_PUSH_MATRIX(); //this one will persist till fin_HAnimHumanoid pops it
+			FW_GL_PUSH_MATRIX(); //this is to get us a separate 4x4 matrix just for the stuff here
+			FW_GL_LOAD_IDENTITY();
+
+			/* TRANSLATION */
+			if (node->__do_trans)
+				FW_GL_TRANSLATE_F(node->translation.c[0],node->translation.c[1],node->translation.c[2]);
+
+			/* CENTER */
+			if (node->__do_center)
+				FW_GL_TRANSLATE_F(node->center.c[0],node->center.c[1],node->center.c[2]);
+
+			/* ROTATION */
+			if (node->__do_rotation)
+				FW_GL_ROTATE_RADIANS(node->rotation.c[3], node->rotation.c[0],node->rotation.c[1],node->rotation.c[2]);
+
+			/* SCALEORIENTATION */
+			if (node->__do_scaleO)
+				FW_GL_ROTATE_RADIANS(node->scaleOrientation.c[3], node->scaleOrientation.c[0], node->scaleOrientation.c[1],node->scaleOrientation.c[2]);
+
+			/* SCALE */
+			if (node->__do_scale)
+				FW_GL_SCALE_F(node->scale.c[0],node->scale.c[1],node->scale.c[2]);
+
+			/* REVERSE SCALE ORIENTATION */
+			if (node->__do_scaleO)
+				FW_GL_ROTATE_RADIANS(-node->scaleOrientation.c[3], node->scaleOrientation.c[0], node->scaleOrientation.c[1],node->scaleOrientation.c[2]);
+
+			/* REVERSE CENTER */
+			if (node->__do_center)
+				FW_GL_TRANSLATE_F(-node->center.c[0],-node->center.c[1],-node->center.c[2]);
+			{
+				double mat[16];
+
+				FW_GL_GETDOUBLEV(GL_MODELVIEW_MATRIX,mat); //we got our local transform saved
+				FW_GL_POP_MATRIX();
+				FW_GL_TRANSFORM_D(mat);
+				reset_transform_local(mat);
+			}
+		}
+	}
+}
+
+void fin_HAnimHumanoid (struct X3D_HAnimHumanoid *node) {
+	if(!renderstate()->render_vp) {
+		pop_transform_local();
+		if (node->__do_anything) {
+			FW_GL_POP_MATRIX();
+		}
+	} else {
+		/*Rendering the viewpoint only means finding it, and calculating the reverse WorldView matrix.*/
+		if((node->_renderFlags & VF_Viewpoint) == VF_Viewpoint) {
+			FW_GL_TRANSLATE_F(node->center.c[0],node->center.c[1],node->center.c[2]);
+			FW_GL_ROTATE_RADIANS(node->scaleOrientation.c[3],node->scaleOrientation.c[0],node->scaleOrientation.c[1],node->scaleOrientation.c[2]);
+			FW_GL_SCALE_F((float)1.0/node->scale.c[0],(float)1.0/node->scale.c[1],(float)1.0/node->scale.c[2]);
+			FW_GL_ROTATE_RADIANS(-node->scaleOrientation.c[3],node->scaleOrientation.c[0],node->scaleOrientation.c[1],node->scaleOrientation.c[2]);
+			FW_GL_ROTATE_RADIANS(-node->rotation.c[3],node->rotation.c[0],node->rotation.c[1],node->rotation.c[2]);
+			FW_GL_TRANSLATE_F(-node->center.c[0],-node->center.c[1],-node->center.c[2]);
+			FW_GL_TRANSLATE_F(-node->translation.c[0],-node->translation.c[1],-node->translation.c[2]);
+		}
+	}
+}
+
 
 void child_HAnimHumanoid(struct X3D_HAnimHumanoid *node) {
 	int nc;
@@ -1203,6 +1291,7 @@ printf ("hanimHumanoid, segment counts joints %d segs %d sites %d skeleton %d sk
 	if(renderstate()->render_vp){
 		/* Lets do viewpoints */
 		normalChildren(node->viewpoints);
+		pop_humanoid();
 		return;
 	}
 	

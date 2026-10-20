@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.3//EN" "http://www.web3d.org/specifications/x3d-3.3.dtd">
+<X3D profile='Immersive' version='3.3'>
+  <head>
+    <component name='HAnim' level='1'/>
+    <meta name='description' content='HAnimHumanoid transform fields. Left: a Humanoid with non-identity translation, center, rotation, scale and scaleOrientation. Right: the same Humanoid with identity fields inside a Transform with the same values. Pass: the two bent orange bars match in size, tilt and height (mirrored only in x position). Fail: the left bar is full size, upright at the origin.'/>
+  </head>
+  <Scene>
+    <Background skyColor='0.2 0.2 0.3'/>
+    <Viewpoint position='0 1 6' description='front'/>
+    <HAnimHumanoid DEF='HumanoidXform' name='fixture_xform' translation='-1 0.2 0' center='0 1 0' rotation='0 0 1 -0.5' scale='0.6 0.8 0.6' scaleOrientation='0 1 0 0.3'>
+      <HAnimJoint containerField='skeleton' DEF='RootJointL' name='humanoid_root'
+          skinCoordIndex='0 1 2 3' skinCoordWeight='1 1 1 1'>
+        <HAnimJoint DEF='UpperJointL' name='vl5' center='0 1 0' rotation='0 0 1 0.9'
+            skinCoordIndex='4 5' skinCoordWeight='1 1'/>
+      </HAnimJoint>
+      <HAnimJoint USE='RootJointL' containerField='joints'/>
+      <HAnimJoint USE='UpperJointL' containerField='joints'/>
+      <Coordinate DEF='SkinCoordL' containerField='skinCoord'
+          point='-0.3 0 0  0.3 0 0  -0.3 1 0  0.3 1 0  -0.3 2 0  0.3 2 0'/>
+      <Shape containerField='skin'>
+        <Appearance><Material diffuseColor='1 0.6 0.1'/></Appearance>
+        <IndexedFaceSet solid='false' coordIndex='0 1 3 2 -1 2 3 5 4 -1'>
+          <Coordinate USE='SkinCoordL'/>
+        </IndexedFaceSet>
+      </Shape>
+    </HAnimHumanoid>
+    <Transform translation='1 0.2 0' center='0 1 0' rotation='0 0 1 -0.5' scale='0.6 0.8 0.6' scaleOrientation='0 1 0 0.3'>
+      <HAnimHumanoid DEF='HumanoidRef' name='fixture_ref'>
+        <HAnimJoint containerField='skeleton' DEF='RootJointR' name='humanoid_root'
+            skinCoordIndex='0 1 2 3' skinCoordWeight='1 1 1 1'>
+          <HAnimJoint DEF='UpperJointR' name='vl5' center='0 1 0' rotation='0 0 1 0.9'
+              skinCoordIndex='4 5' skinCoordWeight='1 1'/>
+        </HAnimJoint>
+        <HAnimJoint USE='RootJointR' containerField='joints'/>
+        <HAnimJoint USE='UpperJointR' containerField='joints'/>
+        <Coordinate DEF='SkinCoordR' containerField='skinCoord'
+            point='-0.3 0 0  0.3 0 0  -0.3 1 0  0.3 1 0  -0.3 2 0  0.3 2 0'/>
+        <Shape containerField='skin'>
+          <Appearance><Material diffuseColor='1 0.6 0.1'/></Appearance>
+          <IndexedFaceSet solid='false' coordIndex='0 1 3 2 -1 2 3 5 4 -1'>
+            <Coordinate USE='SkinCoordR'/>
+          </IndexedFaceSet>
+        </Shape>
+      </HAnimHumanoid>
+    </Transform>
+  </Scene>
+</X3D>
