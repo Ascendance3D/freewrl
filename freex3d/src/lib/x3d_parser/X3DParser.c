@@ -1428,7 +1428,7 @@ struct X3D_Proto* availableBroto(void* ud, const char* name) {
 	if (isAvailableBroto(nonconstname, context, &proto)) return proto;
 	return NULL;
 }
-void startProto_B(void* ud, const char* name, struct X3D_Proto* nodetype, const xmlChar** atts) {
+void startProto_B(void* ud, const char* name, struct X3D_Proto* nodetype, char** atts) {
 
 	//printf("starting proto %s\n", name);
 	struct X3D_Node* node;

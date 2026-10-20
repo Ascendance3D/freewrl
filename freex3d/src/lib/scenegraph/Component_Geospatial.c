@@ -4356,7 +4356,7 @@ void calculateViewingSpeedB() {
 		COMPILE_IF_REQUIRED(X3D_NODE(node));
 		gdCoords = &node->__movedgd;
 		height = gdCoords->c[2];
-		heightmin = max(abs(height),50.0);
+		heightmin = max(fabs(height),50.0);
 		viewer->speed  = heightmin * node->speedFactor;
 		if(0){
 			static int count = 0;

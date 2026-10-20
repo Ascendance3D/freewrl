@@ -675,16 +675,16 @@ void RotationMatrixtoAxisAngle(double *axisangle, double *mat4) {
 	m[0] = &mat4[0];
 	m[1] = &mat4[4];
 	m[2] = &mat4[8];
-	if ((abs(m[0][1] - m[1][0]) < epsilon)
-		&& (abs(m[0][2] - m[2][0]) < epsilon)
-		&& (abs(m[1][2] - m[2][1]) < epsilon)) {
+	if ((fabs(m[0][1] - m[1][0]) < epsilon)
+		&& (fabs(m[0][2] - m[2][0]) < epsilon)
+		&& (fabs(m[1][2] - m[2][1]) < epsilon)) {
 		// singularity found
 		// first check for identity matrix which must have +1 for all terms
 		//  in leading diagonaland zero in other terms
-		if ((abs(m[0][1] + m[1][0]) < epsilon2)
-			&& (abs(m[0][2] + m[2][0]) < epsilon2)
-			&& (abs(m[1][2] + m[2][1]) < epsilon2)
-			&& (abs(m[0][0] + m[1][1] + m[2][2] - 3) < epsilon2)) {
+		if ((fabs(m[0][1] + m[1][0]) < epsilon2)
+			&& (fabs(m[0][2] + m[2][0]) < epsilon2)
+			&& (fabs(m[1][2] + m[2][1]) < epsilon2)
+			&& (fabs(m[0][0] + m[1][1] + m[2][2] - 3) < epsilon2)) {
 			// this singularity is identity matrix so angle = 0
 			vecsetd(axisangle, 0.0, 1.0, 0.0);
 			axisangle[3] = 0.0;
@@ -742,7 +742,7 @@ void RotationMatrixtoAxisAngle(double *axisangle, double *mat4) {
 	double s = sqrt((m[2][1] - m[1][2]) * (m[2][1] - m[1][2])
 		+ (m[0][2] - m[2][0]) * (m[0][2] - m[2][0])
 		+ (m[1][0] - m[0][1]) * (m[1][0] - m[0][1])); // used to normalise
-	if (abs(s) < 0.001) s = 1;
+	if (fabs(s) < 0.001) s = 1;
 	// prevent divide by zero, should not happen if matrix is orthogonal and should be
 	// caught by singularity test above, but I've left it in just in case
 	angle = acos((m[0][0] + m[1][1] + m[2][2] - 1) / 2);

@@ -482,7 +482,7 @@ int fwvsnprintf(char *buffer, int buffer_length, const char *fmt, va_list ap)
 	return 1;
 }
 int ConsoleMessage0(const char *fmt, va_list args){
-	int retval;
+	int retval = 0;
 	ppConsoleMessage p;
 	ttglobal tg = gglobal();
 	if (!tg) return 0;
