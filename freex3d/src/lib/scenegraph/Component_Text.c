@@ -2637,9 +2637,11 @@ static int RenderFontAtlas(AtlasFont *font, AtlasEntrySet *entryset,  char * cTe
 	// bitmaps into an atlas texture
 	//wText is UTF-8 since FreeType expect this	
 	int i;
+	int text_len;
 	FT_Face fontFace = font->fontFace;
 
-	for (i = 0; i < strlen(cText); i++) 	
+	text_len = (int)strlen(cText);
+	for (i = 0; i < text_len; i++)
 	{ 		
 		FT_GlyphSlot glyph;
 		FT_Error error;
