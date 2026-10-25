@@ -91,7 +91,9 @@ Handle incoming EAI (and java class) events with panache.
 #include "EAIHeaders.h"
 #include <io_files.h>
 
-#include <ctype.h> /* FIXME: config armor */
+#ifdef HAVE_CTYPE_H
+#include <ctype.h>
+#endif
 
 #define EAI_BUFFER_CUR tg->EAICore.EAIbuffer[bufPtr]
 
