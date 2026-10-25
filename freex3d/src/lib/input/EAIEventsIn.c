@@ -1449,9 +1449,9 @@ void EAI_RW(char *str) {
 
 	/* go through the string, and send the nodes into the rootnode */
 	/* first, remove the command, and get to the beginning of node */
-	while ((*str != ' ') && (strlen(str) > 0)) str++;
+	while ((*str != ' ') && (*str != '\0')) str++;
 	while (isspace(*str)) str++;
-	while (strlen(str) > 0) {
+	while (*str != '\0') {
 		i = sscanf (str, "%u",(unsigned int *)&newNode);
 
 		if (i>0) {

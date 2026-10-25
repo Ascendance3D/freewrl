@@ -485,7 +485,7 @@ int VRBrowserReplaceWorld(FWType fwtype, void *ec, void *fwn, int argc, FWval fw
 /* used in loadURL*/
 void conCat_duk (char *out, char *in) {
 
-	while (strlen (in) > 0) {
+	while (*in != '\0') {
 		strcat (out," :loadURLStringBreak:");
 		while (*out != '\0') out++;
 
