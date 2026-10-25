@@ -807,9 +807,9 @@ int freewrlSystem (const char *sysline)
 //	return system(sysline);
 //#else
 #define MAXEXECPARAMS 10
-#define EXECBUFSIZE	2000
+
 	char *paramline[MAXEXECPARAMS];
-	char buf[EXECBUFSIZE];
+	char *buf;
 	char *internbuf;
 	int count;
 	/* pid_t childProcess[lastchildProcess]; */
@@ -825,11 +825,10 @@ int freewrlSystem (const char *sysline)
 	waitForChild = TRUE;
 	haveXmessage = !strncmp(sysline, FREEWRL_MESSAGE_WRAPPER, strlen(FREEWRL_MESSAGE_WRAPPER));
 
-	internbuf = buf;
+	buf = STRDUP(sysline);
+	if (!buf) return FALSE;
 
-	/* bounds check */
-	if (strlen(sysline)>=EXECBUFSIZE) return FALSE;
-	strcpy (buf,sysline);
+	internbuf = buf;
 
 	/* printf ("freewrlSystem, have %s here\n",internbuf); */
 	count = 0;
@@ -851,7 +850,10 @@ int freewrlSystem (const char *sysline)
 				/* printf ("param %d is :%s:\n",count,paramline[count]); */
 				internbuf++;
 				count ++;
-				if (count >= MAXEXECPARAMS) return -1; /*  never...*/
+				if (count >= MAXEXECPARAMS) {
+					FREE(buf);
+					return -1; /*  never...*/
+				}
 			}
 		}
 	}
@@ -879,6 +881,7 @@ int freewrlSystem (const char *sysline)
 		switch (child) {
 		case -1:
 			perror ("fork");
+			FREE(buf);
 			exit(1);
 			break;
 
@@ -894,6 +897,7 @@ int freewrlSystem (const char *sysline)
 				    paramline[6],paramline[7], NULL);
 			printf ("FreeWRL: Fatal problem execing %s\n",paramline[0]);
 			perror("FreeWRL: "); 
+			FREE(buf);
 			exit (Xrv);
 		}
 		break;
@@ -906,6 +910,7 @@ int freewrlSystem (const char *sysline)
 			/* do we have to wait around? */
 			if (!waitForChild) {
 				/* printf ("freewrlSystem - do not have to wait around\n"); */
+				FREE(buf);
 				return TRUE;
 			}
 /* 			waitpid (childProcess[lastchildProcess],&pidStatus,0); */
@@ -919,10 +924,12 @@ int freewrlSystem (const char *sysline)
 			/* if (WIFEXITED(pidStatus) == TRUE) printf ("returned ok\n"); else printf ("problem with return\n"); */
 		}
 		}
+		FREE(buf);
 		return (WIFEXITED(pidStatus) == TRUE);
 	} else {
 		printf ("System call failed :%s:\n",sysline);
 	}
+	FREE(buf);
 	return -1; /* should we return FALSE or -1 ??? */
 //#endif
 }
@@ -1066,25 +1073,37 @@ void remove_file_or_folder(const char *path){
 	//tchar functions are supposed to be agnostic -they compile either way
 	int jj;
     size_t convertedChars = 0;
-    TCHAR wcstring[MAX_PATH];
-	char fname2[MAX_PATH];
+    TCHAR *wcstring;
+	char *fname2;
 	size_t origsize; //= strlen(fname) + 1;
 	//BOOL retval;
 	origsize = strlen(path) + 1;
+
+	fname2 = MALLOC(char *, origsize);
+	if (!fname2) return;
+	wcstring = MALLOC(TCHAR *, origsize * sizeof(TCHAR));
+	if (!wcstring) {
+		FREE(fname2);
+		return;
+	}
+
 	strcpy(fname2,path);
-	for(jj=0;jj<(int)strlen(fname2);jj++)
+	for(jj=0;jj<(int)origsize-1;jj++)
 		if(fname2[jj] == '/' ) fname2[jj] = '\\';
 
 #ifdef _UNICODE
 #if _MSC_VER >= 1500
 	mbstowcs_s(&convertedChars, wcstring, origsize, fname2, _TRUNCATE);
 #else
-	mbstowcs(wcstring, fname2, MB_CUR_MAX);
+	mbstowcs(wcstring, fname2, origsize);
 #endif
 #else
 	_tcscpy(wcstring,fname2);
 #endif
 	tremove_file_or_folder(wcstring);
+
+	FREE(fname2);
+	FREE(wcstring);
 }
 #else // POSIX and OSX - WARNING UNTESTED as of Sept 7, 2013
 //according to boost, unlike posix OSX must do separate rmdir for directory and unlink for file
