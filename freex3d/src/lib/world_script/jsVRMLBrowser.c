@@ -1495,7 +1495,7 @@ void jsRegisterRoute(
 /* used in loadURL*/
 void conCat (char *out, char *in) {
 
-	while (strlen (in) > 0) {
+	while (*in != '\0') {
 		strcat (out," :loadURLStringBreak:");
 		while (*out != '\0') out++;
 
