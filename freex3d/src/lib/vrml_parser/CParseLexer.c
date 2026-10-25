@@ -986,10 +986,14 @@ BOOL lexer_float(struct VRMLLexer* me, vrmlFloatT* ret)
  {
   BOOL negExp;
   int exp;
+  BOOL hasExpDigit = FALSE;
+  int unget_c = c;
+  int unget_c2 = EOF;
 
   LEXER_GETINPUT(c)
+  unget_c2 = c;
   negExp=(c=='-');
-  /* FIXME:  Wrong for things like 1e-. */
+
   if(c=='-' || c=='+')
    LEXER_GETINPUT(c)
 
@@ -998,6 +1002,7 @@ BOOL lexer_float(struct VRMLLexer* me, vrmlFloatT* ret)
   {
    if(c>='0' && c<='9')
    {
+    hasExpDigit = TRUE;
     exp*=10;
     exp+=c-'0';
    } else
@@ -1006,9 +1011,17 @@ BOOL lexer_float(struct VRMLLexer* me, vrmlFloatT* ret)
    LEXER_GETINPUT(c)
   }
 
-  if(negExp)
-   exp=-exp;
-  *ret*=(float)(pow(10, exp));
+  if(!hasExpDigit) {
+   LEXER_UNGETINPUT(c)
+   if(unget_c2 == '-' || unget_c2 == '+') {
+    LEXER_UNGETINPUT(unget_c2)
+   }
+   c = unget_c;
+  } else {
+   if(negExp)
+    exp=-exp;
+   *ret*=(float)(pow(10, exp));
+  }
  }
  LEXER_UNGETINPUT(c)
 
@@ -1075,10 +1088,14 @@ BOOL lexer_double(struct VRMLLexer* me, vrmlDoubleT* ret)
  {
   BOOL negExp;
   int exp;
+  BOOL hasExpDigit = FALSE;
+  int unget_c = c;
+  int unget_c2 = EOF;
 
   LEXER_GETINPUT(c)
+  unget_c2 = c;
   negExp=(c=='-');
-  /* FIXME:  Wrong for things like 1e-. */
+
   if(c=='-' || c=='+')
    LEXER_GETINPUT(c)
 
@@ -1087,6 +1104,7 @@ BOOL lexer_double(struct VRMLLexer* me, vrmlDoubleT* ret)
   {
    if(c>='0' && c<='9')
    {
+    hasExpDigit = TRUE;
     exp*=10;
     exp+=c-'0';
    } else
@@ -1095,9 +1113,17 @@ BOOL lexer_double(struct VRMLLexer* me, vrmlDoubleT* ret)
    LEXER_GETINPUT(c)
   }
 
-  if(negExp)
-   exp=-exp;
-  *ret*=(pow(10, exp));
+  if(!hasExpDigit) {
+   LEXER_UNGETINPUT(c)
+   if(unget_c2 == '-' || unget_c2 == '+') {
+    LEXER_UNGETINPUT(unget_c2)
+   }
+   c = unget_c;
+  } else {
+   if(negExp)
+    exp=-exp;
+   *ret*=(pow(10, exp));
+  }
  }
  LEXER_UNGETINPUT(c)
 
