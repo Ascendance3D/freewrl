@@ -193,23 +193,47 @@ static int LookForPlugDeclarations( char **CodeForPlugDeclarations, const char *
 //replaces every oldstr in *text with newstr, replacing *text
 //*mark is an offset into *text before the change; it is moved to the same text after it
 static int replaceAll(char **text, const char *oldstr, const char *newstr, size_t *mark){
-	size_t oldlen = strlen(oldstr), newlen = strlen(newstr), pos = 0;
+	size_t oldlen = strlen(oldstr), newlen = strlen(newstr);
+	size_t pos = 0, count = 0;
 	char *found;
+	size_t textlen = strlen(*text);
+
+	while((found = strstr(*text + pos, oldstr))){
+		count++;
+		pos = (found - *text) + oldlen;
+	}
+
+	if (count == 0) return TRUE;
+
+	size_t newtextlen = textlen - count * oldlen + count * newlen;
+	char *out = malloc(newtextlen + 1);
+	if(!out){
+		ConsoleMessage("Not enough memory for compositing shader plug\n");
+		return FALSE;
+	}
+
+	pos = 0;
+	size_t out_pos = 0;
+	size_t original_mark = *mark;
+
 	while((found = strstr(*text + pos, oldstr))){
 		size_t at = found - *text;
-		char *out = malloc(strlen(*text) - oldlen + newlen + 1);
-		if(!out){
-			ConsoleMessage("Not enough memory for compositing shader plug\n");
-			return FALSE;
-		}
-		memcpy(out, *text, at);
-		memcpy(out + at, newstr, newlen);
-		strcpy(out + at + newlen, found + oldlen);
-		FREE_IF_NZ(*text);
-		*text = out;
-		if(at < *mark) *mark = *mark - oldlen + newlen;
-		pos = at + newlen;
+		size_t copylen = at - pos;
+		memcpy(out + out_pos, *text + pos, copylen);
+		out_pos += copylen;
+
+		memcpy(out + out_pos, newstr, newlen);
+		out_pos += newlen;
+
+		if(at < original_mark) *mark = *mark - oldlen + newlen;
+
+		pos = at + oldlen;
 	}
+	memcpy(out + out_pos, *text + pos, textlen - pos);
+	out[newtextlen] = '\0';
+
+	FREE_IF_NZ(*text);
+	*text = out;
 	return TRUE;
 }
 //procedure Plug(

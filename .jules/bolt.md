@@ -1,0 +1,3 @@
+## 2023-11-09 - [Optimize Compositing Shaders string replacement]
+**Learning:** `replaceAll` in `freex3d/src/lib/opengl/Compositing_Shaders.c` used an O(N^2) string replacement algorithm that performed an allocation, memory copy, and free for every single occurrence of the pattern found. For very large shader programs being built dynamically, this caused noticeable stalls.
+**Action:** Replaced iterative allocation/copying with a two-pass O(N) replacement approach: count occurrences to determine final string length, allocate once, and then copy the segments. This pattern avoids memory fragmentation and significantly reduces time spent in string manipulation for shaders.
