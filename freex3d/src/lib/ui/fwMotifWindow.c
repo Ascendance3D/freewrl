@@ -61,7 +61,7 @@
 %s %s.\n \n \
 FreeWRL is a VRML/X3D Browser for OS X and Unix.\n \n \
 Thanks to the Open Source community for all the help received.\n \
-http://freewrl.sf.net"
+https://freewrl.sourceforge.io/"
 
 #define DJ_KEEP_COMPILER_WARNING 0
 

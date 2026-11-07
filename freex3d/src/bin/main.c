@@ -268,9 +268,9 @@ void fv_catch_SIGSEGV()
 {
     if (!CaughtSEGV) {
 
-        //fwl_StringConsoleMessage("FreeWRL got a SIGSEGV - please feel free to report this - http://freewrl.sf.net.\n");
+        //fwl_StringConsoleMessage("FreeWRL got a SIGSEGV - please feel free to report this - https://freewrl.sourceforge.io/.\n");
 		//bombs H: its coming in on an annonymous thread and console message needs TSD (thread-specific-data via gglobal)
-		printf("FreeWRL got a SIGSEGV - please feel free to report this - http://freewrl.sf.net.\n");
+		printf("FreeWRL got a SIGSEGV - please feel free to report this - https://freewrl.sourceforge.io/.\n");
 	CaughtSEGV = TRUE;
     }
     fwExit(1);
